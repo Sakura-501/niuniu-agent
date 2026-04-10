@@ -15,6 +15,7 @@ from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.runtime.answer_formatter import should_format_debug_answer, stream_formatted_answer
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.skills.planner import plan_skills
+from niuniu_agent.skills.tracks import infer_track
 
 
 def _decode_user_input(raw: bytes) -> str:
@@ -64,8 +65,9 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             else {}
         )
         notes = context.state_store.get_challenge_notes(active.code) if active is not None else {}
+        track = infer_track(active.description) if active is not None else None
         skill_plan = (
-            plan_skills(context.skill_registry, active.description if active else "", runtime_state, notes)
+            plan_skills(context.skill_registry, active.description if active else "", runtime_state, notes, track=track)
             if context.skill_registry and active is not None
             else None
         )
@@ -83,6 +85,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                         runtime_state=runtime_state,
                         notes=notes,
                         summary_request=_is_summary_request(user_input),
+                        track=track,
                     ),
                     build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                     build_trigger_prompt(FLAG_SUBMIT_PROMPT),

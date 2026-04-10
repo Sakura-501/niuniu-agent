@@ -42,3 +42,14 @@ def test_state_store_persists_history_and_notes(tmp_path) -> None:
     assert history[0]["event_type"] == "turn_completed"
     assert history[0]["payload"] == "summary"
     assert notes["foothold"] == "www-data shell"
+
+
+def test_state_store_tracks_progress_timestamp(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.mark_progress("challenge-1")
+    state = store.get_challenge_runtime_state("challenge-1")
+    last_progress_at = state["last_progress_at"]
+    elapsed = store.seconds_since_progress("challenge-1", now=float(last_progress_at) + 120)
+
+    assert elapsed == 120

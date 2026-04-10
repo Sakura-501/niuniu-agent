@@ -20,6 +20,7 @@ from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
 from niuniu_agent.runtime.recovery import extract_runtime_notes, should_view_hint
 from niuniu_agent.skills.planner import plan_skills
+from niuniu_agent.skills.tracks import infer_track
 
 
 async def run_competition_loop(context: RuntimeContext) -> None:
@@ -45,14 +46,26 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 context.state_store.mark_active_challenge(target.code)
                 runtime_state = context.state_store.get_challenge_runtime_state(target.code)
                 notes = context.state_store.get_challenge_notes(target.code)
-                if should_view_hint(int(runtime_state.get("failure_count", 0)), target.hint_viewed, notes):
+                seconds_since_progress = context.state_store.seconds_since_progress(target.code)
+                if should_view_hint(
+                    int(runtime_state.get("failure_count", 0)),
+                    target.hint_viewed,
+                    notes,
+                    seconds_since_progress=seconds_since_progress,
+                ):
                     hint_payload = await context.contest_gateway.view_hint(target.code)
                     context.state_store.add_history_event(target.code, "hint_viewed", str(hint_payload))
                     context.state_store.set_challenge_note(target.code, "hint_viewed", "true")
                     notes = context.state_store.get_challenge_notes(target.code)
 
                 skill_plan = (
-                    plan_skills(context.skill_registry, target.description, runtime_state, notes)
+                    plan_skills(
+                        context.skill_registry,
+                        target.description,
+                        runtime_state,
+                        notes,
+                        track=infer_track(target.description),
+                    )
                     if context.skill_registry
                     else None
                 )
@@ -78,6 +91,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                                 stage=skill_plan.stage if skill_plan else None,
                                 runtime_state=runtime_state,
                                 notes=notes,
+                                track=infer_track(target.description),
                             ),
                             build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                             build_trigger_prompt(PRE_EXPLOIT_PROMPT),
@@ -92,6 +106,8 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 result = await agent.execute(prompt, histories.get(target.code))
                 histories[target.code] = result.history
                 context.state_store.add_history_event(target.code, "turn_completed", result.output or "")
+                if result.output or result.tool_events:
+                    context.state_store.mark_progress(target.code)
                 for key, value in extract_runtime_notes(
                     result.output,
                     [{"name": event.name, "arguments": event.arguments, "output": event.output} for event in result.tool_events],

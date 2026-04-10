@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
+from niuniu_agent.skills.tracks import TRACK_PROFILES
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +89,7 @@ def build_entry_prompt(
     runtime_state: dict | None = None,
     notes: dict | None = None,
     summary_request: bool = False,
+    track: str | None = None,
 ) -> str:
     snapshot_text = ""
     if snapshot is not None:
@@ -108,6 +110,15 @@ def build_entry_prompt(
     stage_text = f"Current stage: {stage}" if stage else ""
     runtime_text = f"Runtime state: {runtime_state}" if runtime_state else ""
     notes_text = f"Recovered notes: {notes}" if notes else ""
+    track_profile = TRACK_PROFILES.get(track) if track else None
+    track_text = ""
+    if track_profile is not None:
+        track_text = (
+            f"Track: {track_profile.track_id} / {track_profile.name}\n"
+            f"Focus: {track_profile.focus}\n"
+            "Track priorities:\n"
+            + "\n".join(f"- {item}" for item in track_profile.priorities)
+        )
     skill_text = "\n".join(
         f"- {skill.name}: {skill.description} | guidance: {skill.usage_guidance}" for skill in skills
     )
@@ -143,6 +154,7 @@ def build_entry_prompt(
             stage_text,
             runtime_text,
             notes_text,
+            track_text,
             snapshot_text.strip(),
             active_text.strip(),
             f"Selected skills:\n{skill_text}" if skill_text else "",

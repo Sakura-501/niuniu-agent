@@ -39,10 +39,19 @@ def extract_runtime_notes(output: str, tool_events: list[dict[str, Any]] | None 
     return notes
 
 
-def should_view_hint(failure_count: int, challenge_hint_viewed: bool, notes: dict[str, str] | None = None) -> bool:
+def should_view_hint(
+    failure_count: int,
+    challenge_hint_viewed: bool,
+    notes: dict[str, str] | None = None,
+    seconds_since_progress: float | None = None,
+) -> bool:
     notes = notes or {}
     if challenge_hint_viewed:
         return False
     if notes.get("hint_viewed") == "true":
         return False
-    return failure_count >= 3
+    if failure_count < 3:
+        return False
+    if seconds_since_progress is None:
+        return False
+    return seconds_since_progress >= 300

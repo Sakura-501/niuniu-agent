@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 from pathlib import Path
 
 
@@ -32,6 +33,7 @@ class StateStore:
                     active INTEGER NOT NULL DEFAULT 0,
                     failure_count INTEGER NOT NULL DEFAULT 0,
                     last_error TEXT,
+                    last_progress_at REAL,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -164,15 +166,42 @@ class StateStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT active, failure_count, last_error
+                SELECT active, failure_count, last_error, last_progress_at
                 FROM challenge_runtime_state
                 WHERE challenge_code = ?
                 """,
                 (challenge_code,),
             ).fetchone()
         if row is None:
-            return {"active": False, "failure_count": 0, "last_error": None}
-        return {"active": bool(row[0]), "failure_count": int(row[1]), "last_error": row[2]}
+            return {"active": False, "failure_count": 0, "last_error": None, "last_progress_at": None}
+        return {
+            "active": bool(row[0]),
+            "failure_count": int(row[1]),
+            "last_error": row[2],
+            "last_progress_at": row[3],
+        }
+
+    def mark_progress(self, challenge_code: str) -> None:
+        now = time.time()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error, last_progress_at)
+                VALUES (?, 1, 0, NULL, ?)
+                ON CONFLICT(challenge_code) DO UPDATE SET
+                    last_progress_at = excluded.last_progress_at,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code, now),
+            )
+
+    def seconds_since_progress(self, challenge_code: str, now: float | None = None) -> float | None:
+        state = self.get_challenge_runtime_state(challenge_code)
+        last = state.get("last_progress_at")
+        if last in (None, ""):
+            return None
+        current = time.time() if now is None else now
+        return max(0.0, current - float(last))
 
     def add_history_event(self, challenge_code: str, event_type: str, payload: str) -> None:
         with self._connect() as connection:
