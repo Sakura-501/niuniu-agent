@@ -33,15 +33,6 @@ def _read_line(prompt: str = "debug") -> str:
     return _decode_user_input(raw)
 
 
-def _is_greeting(text: str) -> bool:
-    normalized = text.strip().lower()
-    return normalized in {"hi", "hello", "hey", "你好", "您好", "在吗", "在么"}
-
-
-def _build_greeting_reply(summary: str) -> str:
-    return "你好，我已进入调试模式。\n\n当前赛题状态：\n" + summary
-
-
 async def run_debug_repl(context: RuntimeContext) -> None:
     client = AsyncOpenAI(
         api_key=context.settings.model_api_key,
@@ -59,9 +50,6 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             break
 
         snapshot = await context.challenge_store.refresh()
-        if _is_greeting(user_input):
-            print(_build_greeting_reply(context.challenge_store.render_summary(snapshot)))
-            continue
         active = context.challenge_store.next_candidate(snapshot)
         context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
         runtime_state = (
@@ -95,10 +83,20 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             ),
             tool_bus=ToolBus(context),
         )
-        result = await agent.execute(user_input, history)
+        printed_text = False
+
+        async def on_text_delta(text: str) -> None:
+            nonlocal printed_text
+            print(text, end="", flush=True)
+            printed_text = True
+
+        result = await agent.execute_stream(user_input, history, on_text_delta=on_text_delta)
         history = result.history
+        if printed_text:
+            print()
         for event in result.tool_events:
             print(f"[tool] {event.name}")
             print(f"  args: {event.arguments}")
             print(f"  result: {event.output[:240]}")
-        print(result.output or "[assistant produced no text]")
+        if not printed_text:
+            print(result.output or "[assistant produced no text]")

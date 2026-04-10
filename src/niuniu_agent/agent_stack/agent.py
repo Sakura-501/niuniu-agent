@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from openai import AsyncOpenAI
 
@@ -20,6 +20,13 @@ class AgentResult:
     output: str
     history: list[dict[str, Any]]
     tool_events: list[ToolEvent] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ToolCallData:
+    id: str
+    name: str
+    arguments: str
 
 
 class AsyncPentestAgent:
@@ -40,37 +47,106 @@ class AsyncPentestAgent:
         self.temperature = temperature
 
     async def execute(self, instruction: str, history: list[dict[str, Any]] | None = None) -> AgentResult:
+        return await self._execute_loop(instruction, history, on_text_delta=None)
+
+    async def execute_stream(
+        self,
+        instruction: str,
+        history: list[dict[str, Any]] | None = None,
+        on_text_delta: Callable[[str], Awaitable[None]] | None = None,
+    ) -> AgentResult:
+        return await self._execute_loop(instruction, history, on_text_delta=on_text_delta)
+
+    async def _execute_loop(
+        self,
+        instruction: str,
+        history: list[dict[str, Any]] | None,
+        on_text_delta: Callable[[str], Awaitable[None]] | None,
+    ) -> AgentResult:
         transcript = list(history or [])
         transcript.append({"role": "user", "content": instruction})
         tool_events: list[ToolEvent] = []
         last_text = ""
 
         while True:
-            response = await self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "system", "content": self.system_prompt}, *transcript],
-                tools=self.tool_bus.tool_schemas(),
-                tool_choice="auto",
-                temperature=self.temperature,
-            )
-            message = response.choices[0].message
-            content = stringify_content(getattr(message, "content", ""))
+            content, tool_calls = await self._complete_once(transcript, on_text_delta=on_text_delta)
             last_text = content or last_text
-            tool_calls = list(getattr(message, "tool_calls", None) or [])
             transcript.append(assistant_message(content, tool_calls))
             if not tool_calls:
                 return AgentResult(output=last_text, history=transcript, tool_events=tool_events)
 
             for tool_call in tool_calls:
-                arguments = safe_load_json(tool_call.function.arguments)
-                output = await self.tool_bus.dispatch(tool_call.function.name, arguments)
-                tool_events.append(ToolEvent(tool_call.function.name, arguments, output))
+                arguments = safe_load_json(tool_call.arguments)
+                output = await self.tool_bus.dispatch(tool_call.name, arguments)
+                tool_events.append(ToolEvent(tool_call.name, arguments, output))
                 transcript.append({"role": "tool", "tool_call_id": tool_call.id, "content": output})
+
+    async def _complete_once(
+        self,
+        transcript: list[dict[str, Any]],
+        on_text_delta: Callable[[str], Awaitable[None]] | None,
+    ) -> tuple[str, list[ToolCallData]]:
+        kwargs = {
+            "model": self.model_name,
+            "messages": [{"role": "system", "content": self.system_prompt}, *transcript],
+            "tools": self.tool_bus.tool_schemas(),
+            "tool_choice": "auto",
+            "temperature": self.temperature,
+        }
+        if on_text_delta is None:
+            response = await self.client.chat.completions.create(**kwargs)
+            message = response.choices[0].message
+            content = stringify_content(getattr(message, "content", ""))
+            tool_calls = [
+                ToolCallData(
+                    id=call.id,
+                    name=call.function.name,
+                    arguments=call.function.arguments,
+                )
+                for call in list(getattr(message, "tool_calls", None) or [])
+            ]
+            return content, tool_calls
+
+        stream = await self.client.chat.completions.create(stream=True, **kwargs)
+        content_parts: list[str] = []
+        tool_buffers: dict[int, ToolCallData] = {}
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if getattr(delta, "content", None):
+                text = delta.content
+                content_parts.append(text)
+                await on_text_delta(text)
+            for tool_delta in list(getattr(delta, "tool_calls", None) or []):
+                index = int(getattr(tool_delta, "index", 0) or 0)
+                current = tool_buffers.get(index, ToolCallData(id="", name="", arguments=""))
+                call_id = getattr(tool_delta, "id", None) or current.id
+                fn = getattr(tool_delta, "function", None)
+                name = getattr(fn, "name", None) or current.name
+                arguments = current.arguments + (getattr(fn, "arguments", None) or "")
+                tool_buffers[index] = ToolCallData(id=call_id, name=name, arguments=arguments)
+
+        tool_calls = [tool_buffers[index] for index in sorted(tool_buffers.keys())]
+        return "".join(content_parts), tool_calls
 
 
 def assistant_message(content: str, tool_calls: list[Any]) -> dict[str, Any]:
     if not tool_calls:
         return {"role": "assistant", "content": content}
+
+    def _tool_name(call: Any) -> str:
+        if hasattr(call, "name"):
+            return call.name
+        function = getattr(call, "function", None)
+        return getattr(function, "name", "")
+
+    def _tool_arguments(call: Any) -> str:
+        if hasattr(call, "arguments"):
+            return call.arguments
+        function = getattr(call, "function", None)
+        return getattr(function, "arguments", "")
+
     return {
         "role": "assistant",
         "content": content or "",
@@ -78,7 +154,10 @@ def assistant_message(content: str, tool_calls: list[Any]) -> dict[str, Any]:
             {
                 "id": call.id,
                 "type": "function",
-                "function": {"name": call.function.name, "arguments": call.function.arguments},
+                "function": {
+                    "name": _tool_name(call),
+                    "arguments": _tool_arguments(call),
+                },
             }
             for call in tool_calls
         ],

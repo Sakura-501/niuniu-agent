@@ -87,3 +87,76 @@ async def test_tool_bus_returns_error_string_instead_of_raising(tmp_path) -> Non
 
     assert "Error calling tool 'view_hint'" in result
     assert "赛题实例未运行" in result
+
+
+@pytest.mark.anyio
+async def test_tool_bus_start_challenge_handles_instance_limit(tmp_path) -> None:
+    class LimitedGateway(DummyContestGateway):
+        def __init__(self) -> None:
+            self.start_calls = 0
+            self.stopped = []
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {
+                        "title": "demo1",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "running one",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "running",
+                        "entrypoint": None,
+                    },
+                    {
+                        "title": "demo2",
+                        "code": "c2",
+                        "difficulty": "easy",
+                        "description": "target",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "stopped",
+                        "entrypoint": None,
+                    },
+                ],
+            }
+
+        async def start_challenge(self, code: str):
+            self.start_calls += 1
+            if self.start_calls == 1:
+                raise RuntimeError("最多同时运行3个实例，请先停止其他实例")
+            return {"entrypoint": ["127.0.0.1:8080"]}
+
+        async def stop_challenge(self, code: str):
+            self.stopped.append(code)
+            return {"code": 0}
+
+    gateway = LimitedGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    result = await bus.start_challenge("c2")
+
+    assert gateway.stopped == ["c1"]
+    assert result["stopped"] == ["c1"]
+    assert result["payload"]["entrypoint"] == ["127.0.0.1:8080"]

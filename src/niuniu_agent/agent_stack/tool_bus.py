@@ -171,8 +171,32 @@ class ToolBus:
         return {"code": code, "note_key": note_key, "note_value": note_value}
 
     async def start_challenge(self, code: str) -> dict[str, Any]:
-        payload = await self.context.contest_gateway.start_challenge(code)
-        return {"code": code, "payload": payload}
+        try:
+            payload = await self.context.contest_gateway.start_challenge(code)
+            return {"code": code, "payload": payload}
+        except Exception as exc:  # noqa: BLE001
+            message = str(exc)
+            if "最多同时运行3个实例" not in message:
+                raise
+
+            snapshot = await self.context.challenge_store.refresh()
+            stopped: list[str] = []
+            for challenge in snapshot.challenges:
+                if challenge.code == code:
+                    continue
+                if challenge.instance_status == "running":
+                    try:
+                        await self.context.contest_gateway.stop_challenge(challenge.code)
+                        stopped.append(challenge.code)
+                    except Exception as stop_exc:  # noqa: BLE001
+                        return {
+                            "code": code,
+                            "stopped": stopped,
+                            "error": f"instance limit reached, and stopping {challenge.code} failed: {stop_exc}",
+                        }
+
+            retry_payload = await self.context.contest_gateway.start_challenge(code)
+            return {"code": code, "payload": retry_payload, "stopped": stopped}
 
     async def stop_challenge(self, code: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.stop_challenge(code)
