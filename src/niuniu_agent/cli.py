@@ -13,7 +13,12 @@ from niuniu_agent.strategies.router import StrategyRouter
 from niuniu_agent.telemetry import EventLogger
 from niuniu_agent.tooling import LocalToolbox
 
-app = typer.Typer(add_completion=False)
+app = typer.Typer(add_completion=False, no_args_is_help=True)
+
+
+@app.callback()
+def callback() -> None:
+    """niuniu-agent control plane."""
 
 
 @app.command()
