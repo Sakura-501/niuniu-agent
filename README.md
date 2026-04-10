@@ -203,6 +203,12 @@ git pull --ff-only origin main
 python -m pip install -e '.[dev]'
 ```
 
+如果你希望以后都只用一条命令更新和启动，可以直接用仓库内置脚本：
+
+```bash
+bash scripts/remote_control.sh update
+```
+
 ### 6.3 调试模式验证
 
 ```bash
@@ -212,6 +218,12 @@ set -a
 source .env
 set +a
 niuniu-agent run --mode debug
+```
+
+也可以直接用一键脚本进入交互式调试：
+
+```bash
+bash scripts/remote_control.sh debug
 ```
 
 ### 6.4 正式答题前建议
@@ -228,6 +240,67 @@ niuniu-agent run --mode debug
 2. 在调试机上先启动 `competition` 模式
 3. 确认日志正常滚动
 4. 再去官方平台切换到答题模式
+
+推荐直接使用：
+
+```bash
+bash scripts/remote_control.sh competition-start
+```
+
+查看状态：
+
+```bash
+bash scripts/remote_control.sh competition-status
+```
+
+停止后台进程：
+
+```bash
+bash scripts/remote_control.sh competition-stop
+```
+
+查看后台日志：
+
+```bash
+bash scripts/remote_control.sh logs
+```
+
+## 6.5 远端一键脚本说明
+
+脚本路径：
+
+```bash
+scripts/remote_control.sh
+```
+
+已支持命令：
+
+- `update`
+- `debug`
+- `competition-start`
+- `competition-stop`
+- `competition-status`
+- `logs`
+
+脚本行为说明：
+
+- `update`
+  - 要求 Git 工作树必须干净
+  - 执行 `git pull --ff-only origin main`
+  - 自动重建或复用 `.venv`
+  - 自动执行 `python -m pip install -e '.[dev]'`
+- `debug`
+  - 先更新，再进入交互式调试模式
+- `competition-start`
+  - 先更新，再以后台方式启动正式模式
+  - PID 写入 `runtime/competition.pid`
+  - 日志写入 `runtime/competition.log`
+- `competition-stop`
+  - 停止后台 competition 进程
+- `competition-status`
+  - 输出当前是否在运行
+- `logs`
+  - 持续查看后台 competition 日志
 
 ## 7. 日志与状态文件
 
