@@ -55,6 +55,41 @@
 当前已具备活跃赛题、失败次数、退避恢复、挑战历史、阶段性结论与基础 foothold 提取。
 剩余工作是长期多轮恢复与更准确的自动提取。
 
+## ctf-agent 借鉴点
+
+这一部分基于 [ctf-agent](/Users/nonoge/Desktop/auto_pentest/agent-2025-Ref/ctf-agent/README.md) 的思路整理，明确哪些要借鉴，哪些不直接照搬。
+
+### 已采纳
+
+- [x] `coordinator + worker` 结构
+说明：
+不采用“3 个完全独立主循环乱跑”，而是采用一个统一 coordinator 负责调度，最多 3 个 challenge worker 并发。
+实现位置：
+[coordinator.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/coordinator.py)
+
+- [x] 并发上限和平台约束一致
+说明：
+比赛平台最多 3 个 challenge 实例，所以 worker 并发也控制在 3。
+
+- [x] 共享 findings bus
+说明：
+不同 challenge worker 的阶段性结论可以通过共享 findings bus 被统一管理。
+实现位置：
+[findings_bus.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/findings_bus.py)
+
+- [x] coordinator / findings bus 已有测试覆盖
+说明：
+测试位置：
+- [test_competition_coordinator.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/tests/test_competition_coordinator.py)
+- [test_findings_bus.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/tests/test_findings_bus.py)
+
+### 不直接照搬
+
+- [ ] 多模型同题 swarm 赛跑
+说明：
+`ctf-agent` 是多模型并发打同一道题，我们当前更适合先做“多题并发 + 单协调器”。
+后续如果比赛表现需要，再考虑在单题内部加 swarm。
+
 ## 工具安装/准备清单
 
 这一节不是“可选优化”，而是四赛道要提前准备好的基础工具面。后续实现时应优先做“存在性检查 + 缺失时降级 + 安装教程”。
