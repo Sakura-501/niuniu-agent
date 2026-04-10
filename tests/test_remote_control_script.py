@@ -21,7 +21,9 @@ def test_remote_control_script_help_lists_commands() -> None:
     assert result.returncode == 0
     assert "update" in result.stdout
     assert "debug" in result.stdout
+    assert "debug-update" in result.stdout
     assert "competition-start" in result.stdout
+    assert "competition-restart" in result.stdout
     assert "competition-stop" in result.stdout
     assert "competition-status" in result.stdout
 
@@ -88,3 +90,37 @@ def test_remote_control_update_cleans_bootstrap_script_dir() -> None:
             check=True,
         )
         assert status.stdout.strip() == ""
+
+
+def test_remote_control_debug_does_not_require_update_on_dirty_tree() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        scripts_dir = root / "scripts"
+        venv_bin = root / ".venv" / "bin"
+        scripts_dir.mkdir(parents=True)
+        venv_bin.mkdir(parents=True)
+
+        (root / ".env").write_text("NIUNIU_AGENT_MODE=debug\n", encoding="utf-8")
+        (root / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+        (scripts_dir / "remote_control.sh").write_text(
+            SCRIPT_PATH.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        fake_agent = venv_bin / "niuniu-agent"
+        fake_agent.write_text(
+            "#!/usr/bin/env bash\n"
+            "echo \"agent:$*\"\n",
+            encoding="utf-8",
+        )
+        fake_agent.chmod(0o755)
+
+        result = subprocess.run(
+            ["bash", str(scripts_dir / "remote_control.sh"), "debug"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+        assert "agent:run --mode debug" in result.stdout

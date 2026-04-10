@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import Any
 
 import typer
@@ -209,6 +210,23 @@ def render_debug_turn(result: AgentRunResult) -> str:
     return "\n".join(lines)
 
 
+def decode_user_input(raw: bytes) -> str:
+    for encoding in ("utf-8", "gb18030"):
+        try:
+            return raw.decode(encoding).rstrip("\r\n")
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace").rstrip("\r\n")
+
+
+def read_debug_input(prompt: str = "debug") -> str:
+    typer.echo(f"{prompt}: ", nl=False)
+    raw = sys.stdin.buffer.readline()
+    if raw == b"":
+        return "exit"
+    return decode_user_input(raw)
+
+
 async def run_debug_chat(controller: AgentController) -> None:
     toolbox = DebugToolbox(controller=controller)
     messages: list[dict[str, Any]] = [
@@ -220,7 +238,7 @@ async def run_debug_chat(controller: AgentController) -> None:
     typer.echo(format_challenge_snapshot(snapshot))
 
     while True:
-        user_input = typer.prompt("debug")
+        user_input = read_debug_input("debug")
         if user_input.strip().lower() in {"exit", "quit", "/exit", "/quit"}:
             break
 

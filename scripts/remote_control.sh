@@ -14,8 +14,10 @@ Usage: scripts/remote_control.sh <command>
 Commands:
   help                 Show this help message
   update               Pull latest code and reinstall editable package
-  debug                Update, then start interactive debug mode
-  competition-start    Update, then start competition mode in background
+  debug                Start interactive debug mode without updating
+  debug-update         Update, then start interactive debug mode
+  competition-start    Start competition mode in background without updating
+  competition-restart  Update, then start competition mode in background
   competition-stop     Stop background competition mode
   competition-status   Show background competition process status
   logs                 Tail the competition log
@@ -143,7 +145,6 @@ start_competition() {
     return 0
   fi
 
-  update_repo
   load_env
   nohup "${VENV_DIR}/bin/niuniu-agent" run --mode competition >>"${LOG_FILE}" 2>&1 &
   echo $! >"${PID_FILE}"
@@ -174,9 +175,19 @@ show_competition_status() {
 
 run_debug() {
   ensure_runtime_dir
-  update_repo
   load_env
   exec "${VENV_DIR}/bin/niuniu-agent" run --mode debug
+}
+
+run_debug_update() {
+  update_repo
+  run_debug
+}
+
+restart_competition() {
+  stop_competition || true
+  update_repo
+  start_competition
 }
 
 tail_logs() {
@@ -199,8 +210,14 @@ main() {
     debug)
       run_debug
       ;;
+    debug-update)
+      run_debug_update
+      ;;
     competition-start)
       start_competition
+      ;;
+    competition-restart)
+      restart_competition
       ;;
     competition-stop)
       stop_competition

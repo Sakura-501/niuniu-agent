@@ -277,7 +277,9 @@ scripts/remote_control.sh
 
 - `update`
 - `debug`
+- `debug-update`
 - `competition-start`
+- `competition-restart`
 - `competition-stop`
 - `competition-status`
 - `logs`
@@ -290,8 +292,14 @@ scripts/remote_control.sh
   - 自动重建或复用 `.venv`
   - 自动执行 `python -m pip install -e '.[dev]'`
 - `debug`
+  - 不自动更新
+  - 直接进入交互式调试模式
+- `debug-update`
   - 先更新，再进入交互式调试模式
 - `competition-start`
+  - 不自动更新
+  - 直接以后台方式启动正式模式
+- `competition-restart`
   - 先更新，再以后台方式启动正式模式
   - PID 写入 `runtime/competition.pid`
   - 日志写入 `runtime/competition.log`

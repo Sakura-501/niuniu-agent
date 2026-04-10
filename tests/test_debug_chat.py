@@ -1,8 +1,10 @@
+import io
+
 import pytest
 
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.controller import AgentController
-from niuniu_agent.debug_chat import DebugToolbox, render_debug_turn
+from niuniu_agent.debug_chat import DebugToolbox, decode_user_input, render_debug_turn
 from niuniu_agent.llm import AgentRunResult
 from niuniu_agent.state_store import StateStore
 from niuniu_agent.strategies.router import StrategyRouter
@@ -118,3 +120,8 @@ def test_render_debug_turn_shows_tool_trace_and_iteration_hint() -> None:
 
     assert "[tool] list_challenges" in rendered
     assert "本轮模型已达到工具调用上限" in rendered
+
+
+def test_decode_user_input_supports_utf8_and_gb18030() -> None:
+    assert decode_user_input("中文输入\n".encode("utf-8")) == "中文输入"
+    assert decode_user_input("中文输入\n".encode("gb18030")) == "中文输入"
