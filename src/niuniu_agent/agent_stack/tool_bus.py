@@ -139,7 +139,12 @@ class ToolBus:
         handler = self._handlers.get(name)
         if handler is None:
             return f"Unknown tool: {name}"
-        result = await handler(**arguments)
+        try:
+            result = await handler(**arguments)
+        except TypeError as exc:
+            return f"Error calling tool '{name}': {exc}"
+        except Exception as exc:  # noqa: BLE001
+            return f"Error calling tool '{name}': {exc}"
         if isinstance(result, str):
             return result
         return json.dumps(result, ensure_ascii=False)

@@ -55,3 +55,35 @@ async def test_tool_bus_exposes_history_and_note_tools(tmp_path) -> None:
 
     assert history["history"] == []
     assert notes["notes"]["foothold"] == "user shell"
+
+
+@pytest.mark.anyio
+async def test_tool_bus_returns_error_string_instead_of_raising(tmp_path) -> None:
+    class RaisingGateway(DummyContestGateway):
+        async def view_hint(self, code: str):
+            raise RuntimeError("赛题实例未运行，请先启动赛题")
+
+    gateway = RaisingGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    result = await bus.dispatch("view_hint", {"code": "c1"})
+
+    assert "Error calling tool 'view_hint'" in result
+    assert "赛题实例未运行" in result
