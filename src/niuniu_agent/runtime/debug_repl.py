@@ -12,6 +12,7 @@ from niuniu_agent.agent_stack.prompts import (
     build_trigger_prompt,
 )
 from niuniu_agent.agent_stack.tool_bus import ToolBus
+from niuniu_agent.runtime.answer_formatter import should_format_debug_answer, stream_formatted_answer
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.skills.planner import plan_skills
 
@@ -83,12 +84,10 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             ),
             tool_bus=ToolBus(context),
         )
-        printed_text = False
+        buffered_text_chunks: list[str] = []
 
         async def on_text_delta(text: str) -> None:
-            nonlocal printed_text
-            print(text, end="", flush=True)
-            printed_text = True
+            buffered_text_chunks.append(text)
 
         async def on_tool_start(name: str, arguments: dict[str, object]) -> None:
             print(f"\n[tool:start] {name} {arguments}", flush=True)
@@ -107,7 +106,32 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             on_tool_end=on_tool_end,
         )
         history = result.history
-        if printed_text:
-            print()
-        if not printed_text:
-            print(result.output or "[assistant produced no text]")
+        raw_output = result.output or "".join(buffered_text_chunks)
+
+        if should_format_debug_answer(user_input, result.tool_events):
+            printed_final = False
+
+            async def on_final_delta(text: str) -> None:
+                nonlocal printed_final
+                print(text, end="", flush=True)
+                printed_final = True
+
+            final_output = await stream_formatted_answer(
+                client=client,
+                model_name=context.settings.model,
+                user_input=user_input,
+                raw_output=raw_output,
+                tool_events=result.tool_events,
+                on_text_delta=on_final_delta,
+            )
+            if printed_final:
+                print()
+            elif final_output:
+                print(final_output)
+            else:
+                print("[assistant produced no text]")
+        else:
+            if raw_output:
+                print(raw_output)
+            else:
+                print("[assistant produced no text]")
