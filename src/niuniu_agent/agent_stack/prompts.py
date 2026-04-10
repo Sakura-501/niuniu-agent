@@ -30,7 +30,10 @@ def build_system_prompt(mode: str, snapshot: ContestSnapshot | None, active: Cha
     else:
         extra = (
             "You are an interactive pentest debugging agent. "
-            "Explain what you are doing, keep track of completed challenges, and use tools to gather concrete evidence."
+            "Explain what you are doing, keep track of completed challenges, and use tools to gather concrete evidence. "
+            "If the user asks for status, summary, planning, explanation, or which challenge to do next, "
+            "prefer get_challenge_overview or get_challenge_snapshot and then answer directly. "
+            "Do not start attacking targets unless the user explicitly asks you to test, exploit, continue, or investigate a specific challenge."
         )
 
     return (
