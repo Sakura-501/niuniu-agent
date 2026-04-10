@@ -25,6 +25,39 @@ class StateStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS challenge_runtime_state (
+                    challenge_code TEXT PRIMARY KEY,
+                    active INTEGER NOT NULL DEFAULT 0,
+                    failure_count INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS challenge_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    challenge_code TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS challenge_notes (
+                    challenge_code TEXT NOT NULL,
+                    note_key TEXT NOT NULL,
+                    note_value TEXT NOT NULL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (challenge_code, note_key)
+                )
+                """
+            )
 
     def record_submitted_flag(self, challenge_code: str, flag: str) -> None:
         with self._connect() as connection:
@@ -61,3 +94,135 @@ class StateStore:
                 (challenge_code,),
             ).fetchall()
         return [row[0] for row in rows]
+
+    def mark_active_challenge(self, challenge_code: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
+                VALUES (?, 1, 0, NULL)
+                ON CONFLICT(challenge_code) DO UPDATE SET
+                    active = 1,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code,),
+            )
+
+    def clear_active_challenge(self, challenge_code: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
+                VALUES (?, 0, 0, NULL)
+                ON CONFLICT(challenge_code) DO UPDATE SET
+                    active = 0,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code,),
+            )
+
+    def record_challenge_failure(self, challenge_code: str, error: str) -> int:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
+                VALUES (?, 1, 1, ?)
+                ON CONFLICT(challenge_code) DO UPDATE SET
+                    active = 1,
+                    failure_count = failure_count + 1,
+                    last_error = excluded.last_error,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code, error),
+            )
+            row = connection.execute(
+                """
+                SELECT failure_count
+                FROM challenge_runtime_state
+                WHERE challenge_code = ?
+                """,
+                (challenge_code,),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    def record_challenge_success(self, challenge_code: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
+                VALUES (?, 0, 0, NULL)
+                ON CONFLICT(challenge_code) DO UPDATE SET
+                    active = 0,
+                    failure_count = 0,
+                    last_error = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code,),
+            )
+
+    def get_challenge_runtime_state(self, challenge_code: str) -> dict[str, object]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT active, failure_count, last_error
+                FROM challenge_runtime_state
+                WHERE challenge_code = ?
+                """,
+                (challenge_code,),
+            ).fetchone()
+        if row is None:
+            return {"active": False, "failure_count": 0, "last_error": None}
+        return {"active": bool(row[0]), "failure_count": int(row[1]), "last_error": row[2]}
+
+    def add_history_event(self, challenge_code: str, event_type: str, payload: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_history (challenge_code, event_type, payload)
+                VALUES (?, ?, ?)
+                """,
+                (challenge_code, event_type, payload),
+            )
+
+    def list_history(self, challenge_code: str, limit: int = 10) -> list[dict[str, object]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT event_type, payload, created_at
+                FROM challenge_history
+                WHERE challenge_code = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (challenge_code, limit),
+            ).fetchall()
+        return [
+            {"event_type": row[0], "payload": row[1], "created_at": row[2]}
+            for row in rows
+        ]
+
+    def set_challenge_note(self, challenge_code: str, note_key: str, note_value: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_notes (challenge_code, note_key, note_value)
+                VALUES (?, ?, ?)
+                ON CONFLICT(challenge_code, note_key) DO UPDATE SET
+                    note_value = excluded.note_value,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code, note_key, note_value),
+            )
+
+    def get_challenge_notes(self, challenge_code: str) -> dict[str, str]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT note_key, note_value
+                FROM challenge_notes
+                WHERE challenge_code = ?
+                ORDER BY note_key ASC
+                """,
+                (challenge_code,),
+            ).fetchall()
+        return {row[0]: row[1] for row in rows}

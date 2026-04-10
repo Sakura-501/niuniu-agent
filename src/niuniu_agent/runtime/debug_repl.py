@@ -5,7 +5,12 @@ import sys
 from openai import AsyncOpenAI
 
 from niuniu_agent.agent_stack.agent import AsyncPentestAgent
-from niuniu_agent.agent_stack.prompts import build_system_prompt
+from niuniu_agent.agent_stack.prompts import (
+    CHALLENGE_TAKEOVER_PROMPT,
+    FLAG_SUBMIT_PROMPT,
+    build_entry_prompt,
+    build_trigger_prompt,
+)
 from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.runtime.context import RuntimeContext
 
@@ -46,10 +51,17 @@ async def run_debug_repl(context: RuntimeContext) -> None:
         snapshot = await context.challenge_store.refresh()
         active = context.challenge_store.next_candidate(snapshot)
         context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
+        skills = context.skill_registry.select(active.description if active else "", track=None) if context.skill_registry else []
         agent = AsyncPentestAgent(
             client=client,
             model_name=context.settings.model,
-            system_prompt=build_system_prompt("debug", snapshot, active),
+            system_prompt="\n\n".join(
+                [
+                    build_entry_prompt("debug", snapshot, active, skills),
+                    build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
+                    build_trigger_prompt(FLAG_SUBMIT_PROMPT),
+                ]
+            ),
             tool_bus=ToolBus(context),
         )
         result = await agent.execute(user_input, history)

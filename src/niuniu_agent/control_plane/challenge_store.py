@@ -95,6 +95,8 @@ class ChallengeStore:
                     **asdict(challenge),
                     "completed": challenge.completed,
                     "locally_submitted_flags": self.state_store.list_submitted_flags(challenge.code),
+                    "runtime_state": self.state_store.get_challenge_runtime_state(challenge.code),
+                    "notes": self.state_store.get_challenge_notes(challenge.code),
                 }
                 for challenge in current.challenges
             ],

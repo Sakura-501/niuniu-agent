@@ -1,12 +1,84 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
 
 
-def build_system_prompt(mode: str, snapshot: ContestSnapshot | None, active: ChallengeSnapshot | None) -> str:
-    summary = ""
+@dataclass(frozen=True, slots=True)
+class TriggerPrompt:
+    name: str
+    body: str
+
+
+ENTRY_PROMPT = TriggerPrompt(
+    name="entry",
+    body=(
+        "You are the main pentest agent. "
+        "Always start from the latest challenge snapshot and keep track of what is completed. "
+        "Use tools to gather evidence. "
+        "Only stop your current response when you have no more tool calls to make."
+    ),
+)
+
+CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
+    name="challenge_takeover",
+    body=(
+        "A challenge is being actively taken over. "
+        "First identify the most relevant capability skills, then choose the least wasteful next action."
+    ),
+)
+
+RECON_COMPLETE_PROMPT = TriggerPrompt(
+    name="recon_complete",
+    body=(
+        "Reconnaissance is complete enough to act. "
+        "Now decide whether to escalate into exploitation, continue recon, or switch skills."
+    ),
+)
+
+PRE_EXPLOIT_PROMPT = TriggerPrompt(
+    name="pre_exploit",
+    body=(
+        "You are about to exploit a likely vulnerability. "
+        "Prefer the most deterministic path, preserve reproducible evidence, and submit flags immediately if found."
+    ),
+)
+
+RECOVERY_PROMPT = TriggerPrompt(
+    name="recovery",
+    body=(
+        "A prior attempt failed or stalled. "
+        "Summarize what was learned, choose the next skill, and continue without restarting from scratch."
+    ),
+)
+
+HINT_DECISION_PROMPT = TriggerPrompt(
+    name="hint_decision",
+    body=(
+        "Decide whether the current situation justifies viewing a hint. "
+        "Only do so when repeated progress stalls and no stronger next action exists."
+    ),
+)
+
+FLAG_SUBMIT_PROMPT = TriggerPrompt(
+    name="flag_submit",
+    body=(
+        "A candidate flag or sensitive artifact may be present. "
+        "Validate format, submit immediately, and then continue if more flags may exist."
+    ),
+)
+
+
+def build_entry_prompt(
+    mode: str,
+    snapshot: ContestSnapshot | None,
+    active: ChallengeSnapshot | None,
+    skills: list,
+) -> str:
+    snapshot_text = ""
     if snapshot is not None:
-        summary = (
+        snapshot_text = (
             f"Current level: {snapshot.current_level}\n"
             f"Visible challenges: {snapshot.total_challenges}\n"
             f"Solved challenges: {snapshot.solved_challenges}\n"
@@ -20,25 +92,26 @@ def build_system_prompt(mode: str, snapshot: ContestSnapshot | None, active: Cha
             f"Difficulty: {active.difficulty}\n"
             f"Entrypoints: {active.entrypoints}\n"
         )
-
-    if mode == "competition":
-        extra = (
-            "You are an autonomous pentest agent in nonstop competition mode. "
-            "Keep working, keep testing, keep submitting flags, and do not stop because of uncertainty or errors. "
-            "If a tool succeeds, continue. If a tool fails, adapt and keep going."
-        )
-    else:
-        extra = (
-            "You are an interactive pentest debugging agent. "
-            "Explain what you are doing, keep track of completed challenges, and use tools to gather concrete evidence. "
-            "If the user asks for status, summary, planning, explanation, or which challenge to do next, "
-            "prefer get_challenge_overview or get_challenge_snapshot and then answer directly. "
-            "Do not start attacking targets unless the user explicitly asks you to test, exploit, continue, or investigate a specific challenge."
-        )
-
-    return (
-        f"{extra}\n\n"
-        f"{summary}"
-        f"{active_text}"
-        "Only stop when you have no more tool calls to make for the current response."
+    skill_text = "\n".join(
+        f"- {skill.name}: {skill.description} | guidance: {skill.usage_guidance}" for skill in skills
     )
+    mode_text = (
+        "Mode: competition. Keep running forever and recover from errors."
+        if mode == "competition"
+        else "Mode: debug. Explain your reasoning and keep responses concise."
+    )
+    return "\n\n".join(
+        part
+        for part in (
+            ENTRY_PROMPT.body,
+            mode_text,
+            snapshot_text.strip(),
+            active_text.strip(),
+            f"Selected skills:\n{skill_text}" if skill_text else "",
+        )
+        if part
+    )
+
+
+def build_trigger_prompt(trigger: TriggerPrompt) -> str:
+    return trigger.body

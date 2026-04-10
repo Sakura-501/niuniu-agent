@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
+import shlex
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+from niuniu_agent.tools_inventory import default_tool_inventory
 
 
 class LocalToolbox:
@@ -16,6 +21,17 @@ class LocalToolbox:
 
     def describe_tools(self) -> list[dict[str, Any]]:
         return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "check_tool_inventory",
+                    "description": "List which local tools are available and how to install missing ones.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                    },
+                },
+            },
             {
                 "type": "function",
                 "function": {
@@ -78,6 +94,8 @@ class LocalToolbox:
         return results
 
     async def execute(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        if tool_name == "check_tool_inventory":
+            return await self.check_tool_inventory()
         if tool_name == "http_request":
             return await self.http_request(**arguments)
         if tool_name == "run_shell_command":
@@ -85,6 +103,21 @@ class LocalToolbox:
         if tool_name == "run_python_snippet":
             return await self.run_python_snippet(**arguments)
         raise ValueError(f"Unknown tool: {tool_name}")
+
+    async def check_tool_inventory(self) -> dict[str, Any]:
+        inventory = default_tool_inventory()
+        return {
+            "tools": [
+                {
+                    "name": item.name,
+                    "category": item.category,
+                    "required_for": list(item.required_for),
+                    "available": item.available,
+                    "install_hint": item.install_hint,
+                }
+                for item in inventory
+            ]
+        }
 
     async def http_request(
         self,
@@ -115,6 +148,14 @@ class LocalToolbox:
         cwd: str | None = None,
         timeout_seconds: int = 30,
     ) -> dict[str, Any]:
+        parts = shlex.split(command)
+        if parts and shutil.which(parts[0]) is None:
+            fallback = await self._fallback_shell_command(parts)
+            if fallback is not None:
+                fallback["fallback_used"] = True
+                fallback["original_command"] = command
+                return fallback
+
         process = await asyncio.create_subprocess_shell(
             command,
             cwd=cwd,
@@ -157,3 +198,52 @@ class LocalToolbox:
     @staticmethod
     def _trim_text(text: str, limit: int = 12000) -> str:
         return text[:limit]
+
+    async def _fallback_shell_command(self, parts: list[str]) -> dict[str, Any] | None:
+        tool = parts[0]
+
+        if tool == "curl":
+            url = next((item for item in parts[1:] if item.startswith("http")), None)
+            if url:
+                result = await self.http_request("GET", url)
+                return {"stdout": json.dumps(result, ensure_ascii=False), "stderr": "", "exit_code": 0}
+
+        if tool in {"httpx", "whatweb"}:
+            url = next((item for item in reversed(parts[1:]) if item.startswith("http")), None)
+            if url:
+                result = await self.http_request("GET", url)
+                return {"stdout": json.dumps(result, ensure_ascii=False), "stderr": "", "exit_code": 0}
+
+        if tool == "ffuf":
+            if "-u" in parts:
+                index = parts.index("-u")
+                if index + 1 < len(parts):
+                    template = parts[index + 1]
+                    common = ["admin", "login", "api", "robots.txt"]
+                    findings = []
+                    for word in common:
+                        url = template.replace("FUZZ", word)
+                        response = await self.http_request("GET", url)
+                        findings.append({"path": word, "status_code": response["status_code"], "url": url})
+                    return {"stdout": json.dumps({"findings": findings}, ensure_ascii=False), "stderr": "", "exit_code": 0}
+
+        if tool == "nmap":
+            host = next((item for item in reversed(parts[1:]) if not item.startswith("-")), None)
+            if host:
+                scan = await self._fallback_port_scan(host)
+                return {"stdout": json.dumps(scan, ensure_ascii=False), "stderr": "", "exit_code": 0}
+
+        return None
+
+    async def _fallback_port_scan(self, host: str) -> dict[str, Any]:
+        ports = [22, 80, 443, 8080, 3306, 6379]
+        results = []
+        for port in ports:
+            try:
+                reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=1.0)
+                writer.close()
+                await writer.wait_closed()
+                results.append({"port": port, "state": "open"})
+            except Exception:
+                results.append({"port": port, "state": "closed"})
+        return {"host": host, "ports": results}

@@ -9,8 +9,10 @@ from niuniu_agent.config import AgentSettings
 @dataclass(slots=True)
 class RuntimeContext:
     settings: AgentSettings
+    contest_gateway: Any
     challenge_store: Any
     state_store: Any
     event_logger: Any
     local_toolbox: Any
+    skill_registry: Any | None = None
     notes: dict[str, Any] = field(default_factory=dict)
