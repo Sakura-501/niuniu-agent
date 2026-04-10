@@ -1,62 +1,125 @@
 # niuniu-agent
 
-`niuniu-agent` 是一个面向腾讯智能渗透挑战赛主赛场的基础版自主渗透 Agent。
+`niuniu-agent` 是一个面向腾讯智能渗透挑战赛主赛场的异步自主渗透 Agent。
 
-当前版本的目标不是一次性做完全部赛道策略，而是先把最核心的无人值守骨架跑通：
+这次版本不是在旧实现上继续打补丁，而是按 `learn-claude-code` 的主线思路重构：
 
-- 只接入主赛场
-- 只使用官方 MCP
-- 支持 `debug` / `competition` 两种运行模式
-- 支持四赛道策略路由骨架
-- 支持结构化日志和本地状态持久化
+- `agent loop`
+- `tool control plane`
+- `memory / state`
+- `autonomous runtime`
+- `MCP integration`
 
-后续如果要做 UI、任务控制面板、日志可视化，直接在这个基础上扩展即可。
+同时底层执行改成了 `openai-agents`，模型调用使用 `OpenAIChatCompletionsModel`，适配比赛环境常见的 OpenAI 兼容网关。
 
-## 1. 当前能力
+## 1. 当前架构
 
-当前版本已经实现：
+重构后的代码按下面几层组织：
 
-- 官方主赛场 MCP 接入
-- 赛题列表获取、实例启动、Flag 提交、提示查看、实例停止
-- Agent 主控循环
-- 四赛道策略注册表
-- 本地执行工具箱
-  - HTTP 请求
-  - Shell 命令执行
-  - Python 片段执行
-- 运行日志落盘
-- 已提交 Flag 去重
-
-当前版本暂未实现：
-
-- Web UI 控制台
-- 真正有针对性的四赛道深度策略
-- 后台守护和自动自启动脚本
-
-## 2. 目录说明
-
-核心目录如下：
-
-- `src/niuniu_agent/config.py`
-  - 配置加载
+- `src/niuniu_agent/control_plane/`
+  - 赛题快照、完成态、选题和确定性控制逻辑
+- `src/niuniu_agent/agent_stack/`
+  - `openai-agents` 的 model、tool bus、manager agent、track specialists
+- `src/niuniu_agent/runtime/`
+  - `debug` 交互式 REPL
+  - `competition` 不停机自主循环
+- `src/niuniu_agent/state_store.py`
+  - 本地状态和已提交 flag 记忆
 - `src/niuniu_agent/contest_mcp.py`
-  - 官方 MCP 适配层
-- `src/niuniu_agent/controller.py`
-  - Agent 主控逻辑
-- `src/niuniu_agent/strategies/`
-  - 四赛道策略骨架
-- `src/niuniu_agent/tooling.py`
-  - 本地工具执行层
-- `src/niuniu_agent/llm.py`
-  - 基于 OpenAI 兼容接口的工具调用循环
-- `runtime/events.jsonl`
-  - 结构化事件日志
-- `runtime/state.db`
-  - 本地状态数据库
+  - 官方主赛场 MCP 客户端
 
-## 3. 环境变量
+## 2. 两种运行模式
 
-把 `.env.example` 复制为 `.env` 后，至少需要填写以下变量：
+### 2.1 `debug`
+
+这是交互式对话模式，不是“一次跑完就退出”的脚本模式。
+
+特点：
+
+- 持久对话会话
+- 启动后自动刷新当前赛题状态
+- 模型可直接调用官方 MCP 工具
+- 模型也可调用本地 HTTP / shell / Python 工具
+- 支持中文输入
+- 会输出工具轨迹，便于排查 agent 在做什么
+
+启动方式：
+
+```bash
+niuniu-agent run --mode debug
+```
+
+### 2.2 `competition`
+
+这是无人值守模式。
+
+特点：
+
+- 外层循环不会主动停止
+- 遇到错误会记录日志并自动重试
+- 空闲时会继续轮询赛题
+- 适合比赛阶段提前启动后持续运行
+
+启动方式：
+
+```bash
+niuniu-agent run --mode competition
+```
+
+## 3. 控制平面与 agent 分工
+
+为了避免“模型既负责推理又负责维护全局状态”这种混乱结构，这次重构明确分层：
+
+### 控制平面
+
+由 Python 代码负责：
+
+- 获取赛题列表
+- 解析官方返回
+- 判断哪些赛题已完成
+- 维护本地 flag 去重状态
+- 给 agent 构造当前挑战快照
+
+### Agent 层
+
+由 `openai-agents` 负责：
+
+- manager agent 统一调度
+- specialist agents 负责不同赛道侧重点
+- 工具调用与 handoff
+- 持久会话驱动的交互调试
+
+这和 `learn-claude-code` 的核心思想是一致的：
+
+> 模型负责思考，代码负责工作环境和状态控制。
+
+## 4. 使用的 OpenAI Agents 方式
+
+当前实现使用：
+
+- `Agent`
+- `Runner`
+- `SQLiteSession`
+- `function_tool`
+- `MCPServerStreamableHttp`
+- `OpenAIChatCompletionsModel`
+
+这样做的目的：
+
+- 支持异步 agent loop
+- 支持 persistent session
+- 支持 MCP tools + 本地 tools 混合
+- 支持 OpenAI 兼容网关，而不强依赖 Responses API
+
+## 5. 环境变量
+
+复制 `.env.example` 到 `.env`：
+
+```bash
+cp .env.example .env
+```
+
+至少需要配置：
 
 - `NIUNIU_AGENT_MODEL`
 - `NIUNIU_AGENT_MODEL_BASE_URL`
@@ -64,13 +127,7 @@
 - `NIUNIU_AGENT_CONTEST_HOST`
 - `NIUNIU_AGENT_CONTEST_TOKEN`
 
-示例：
-
-```bash
-cp .env.example .env
-```
-
-`.env` 内容示例：
+当前推荐示例：
 
 ```bash
 NIUNIU_AGENT_MODE=debug
@@ -82,119 +139,43 @@ NIUNIU_AGENT_CONTEST_TOKEN=replace-me
 NIUNIU_AGENT_POLL_INTERVAL_SECONDS=15
 ```
 
-## 4. 本地启动教程
+## 6. 本地启动
 
-### 4.1 使用 `uv`
-
-如果本地安装了 `uv`，推荐直接这样启动：
+### 6.1 用 `uv`
 
 ```bash
 uv sync
 cp .env.example .env
-```
-
-加载环境变量：
-
-```bash
 set -a
 source .env
 set +a
-```
-
-启动交互式调试模式：
-
-```bash
 uv run niuniu-agent run --mode debug
 ```
 
-以无人值守循环方式运行：
+无人值守模式：
 
 ```bash
 uv run niuniu-agent run --mode competition
 ```
 
-### 4.2 不使用 `uv`
-
-如果机器没有 `uv`，可以用标准 Python 虚拟环境：
+### 6.2 不用 `uv`
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
-```
-
-然后同样加载环境变量并启动：
-
-```bash
 set -a
 source .env
 set +a
 niuniu-agent run --mode debug
 ```
 
-## 5. 两种运行模式
+## 7. 调试机用法
 
-### 5.1 `debug` 模式
+### 7.1 更新
 
-适合调试期使用。
-
-特点：
-
-- 启动后进入交互式对话
-- Agent 会自动刷新赛题列表
-- 对话中能知道哪些题已完成、哪些题仍未完成
-- 对话中可以通过 MCP 工具自动启动赛题、停题、看提示、提交 Flag
-- 会输出本轮实际工具调用轨迹，便于排查 agent 在做什么
-- 适合联调、排障、观察策略行为
-
-推荐命令：
-
-```bash
-niuniu-agent run --mode debug
-```
-
-### 5.2 `competition` 模式
-
-适合切到正式答题模式后使用。
-
-特点：
-
-- 长时间循环运行
-- 自动拉题
-- 自动选题
-- 自动启动实例和停止实例
-- 适合无人值守
-
-推荐命令：
-
-```bash
-niuniu-agent run --mode competition
-```
-
-## 6. 调试机部署教程
-
-如果调试机可以直接访问公共 GitHub 仓库，推荐按下面流程部署。
-
-### 6.1 首次部署
-
-```bash
-git clone https://github.com/Sakura-501/niuniu-agent.git
-cd niuniu-agent
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e '.[dev]'
-cp .env.example .env
-```
-
-然后编辑 `.env`，填入比赛主赛场的：
-
-- `NIUNIU_AGENT_CONTEST_HOST`
-- `NIUNIU_AGENT_CONTEST_TOKEN`
-- 模型网关地址和模型 API Key
-
-### 6.2 更新代码
+如果调试机到 GitHub 网络正常：
 
 ```bash
 cd ~/niuniu-agent
@@ -203,69 +184,7 @@ git pull --ff-only origin main
 python -m pip install -e '.[dev]'
 ```
 
-如果你希望以后都只用一条命令更新和启动，可以直接用仓库内置脚本：
-
-```bash
-bash scripts/remote_control.sh update
-```
-
-### 6.3 调试模式验证
-
-```bash
-cd ~/niuniu-agent
-. .venv/bin/activate
-set -a
-source .env
-set +a
-niuniu-agent run --mode debug
-```
-
-也可以直接用一键脚本进入交互式调试：
-
-```bash
-bash scripts/remote_control.sh debug
-```
-
-### 6.4 正式答题前建议
-
-官方规则是：
-
-- 调试阶段可以 SSH
-- 答题阶段切换后 SSH 会断开
-- Agent 必须在切换前就已经启动
-
-因此推荐流程是：
-
-1. 在调试模式下完成部署和联调
-2. 在调试机上先启动 `competition` 模式
-3. 确认日志正常滚动
-4. 再去官方平台切换到答题模式
-
-推荐直接使用：
-
-```bash
-bash scripts/remote_control.sh competition-start
-```
-
-查看状态：
-
-```bash
-bash scripts/remote_control.sh competition-status
-```
-
-停止后台进程：
-
-```bash
-bash scripts/remote_control.sh competition-stop
-```
-
-查看后台日志：
-
-```bash
-bash scripts/remote_control.sh logs
-```
-
-## 6.5 远端一键脚本说明
+### 7.2 一键控制脚本
 
 脚本路径：
 
@@ -273,7 +192,7 @@ bash scripts/remote_control.sh logs
 scripts/remote_control.sh
 ```
 
-已支持命令：
+支持命令：
 
 - `update`
 - `debug`
@@ -284,147 +203,83 @@ scripts/remote_control.sh
 - `competition-status`
 - `logs`
 
-脚本行为说明：
+当前语义：
 
-- `update`
-  - 要求 Git 工作树必须干净
-  - 执行 `git pull --ff-only origin main`
-  - 自动重建或复用 `.venv`
-  - 自动执行 `python -m pip install -e '.[dev]'`
 - `debug`
   - 不自动更新
-  - 直接进入交互式调试模式
+  - 直接启动交互式调试
 - `debug-update`
-  - 先更新，再进入交互式调试模式
+  - 先更新，再进入调试
 - `competition-start`
   - 不自动更新
-  - 直接以后台方式启动正式模式
+  - 直接启动无人值守模式
 - `competition-restart`
-  - 先更新，再以后台方式启动正式模式
-  - PID 写入 `runtime/competition.pid`
-  - 日志写入 `runtime/competition.log`
-- `competition-stop`
-  - 停止后台 competition 进程
-- `competition-status`
-  - 输出当前是否在运行
-- `logs`
-  - 持续查看后台 competition 日志
+  - 先更新，再启动无人值守模式
 
-## 7. 日志与状态文件
+示例：
 
-运行过程中最重要的两个文件：
+```bash
+bash scripts/remote_control.sh debug
+```
+
+```bash
+bash scripts/remote_control.sh competition-start
+```
+
+```bash
+bash scripts/remote_control.sh competition-status
+```
+
+## 8. 日志和状态
+
+关键运行文件：
 
 - `runtime/events.jsonl`
 - `runtime/state.db`
+- `runtime/sessions.sqlite3`
+- `runtime/competition.log`
+- `runtime/competition.pid`
 
-### 7.1 `events.jsonl`
+说明：
 
-这是后续 UI 最直接的数据源，当前已经会记录类似事件：
+- `events.jsonl`
+  - 结构化事件日志
+- `state.db`
+  - 本地提交状态
+- `sessions.sqlite3`
+  - `debug` / `competition` 的持久会话
 
-- `agent.started`
-- `challenge.selected`
-- `challenge.started`
-- `challenge.completed`
-- `flag.submitted`
+## 9. 测试
 
-查看方法：
-
-```bash
-tail -f runtime/events.jsonl
-```
-
-### 7.2 `state.db`
-
-这里会保存：
-
-- 已提交过的 Flag
-- 去重状态
-
-这样可以避免重复提交已经提交成功的 Flag。
-
-## 8. 测试命令
-
-本地或调试机都可以直接运行：
-
-### 8.1 全量测试
-
-```bash
-python -m pytest -v
-```
-
-如果使用 `uv`：
+本地执行：
 
 ```bash
 uv run pytest -v
 ```
 
-### 8.2 只测某一项
+或：
 
 ```bash
-python -m pytest tests/test_controller.py -v
+python -m pytest -v
 ```
 
-## 9. 已验证的内容
+## 10. 当前验证结果
 
-当前仓库已经验证过：
+当前版本已经验证：
 
-- 本地全量测试通过
-- 调试机全量测试通过
-- 调试机可以匿名 `git clone` 公共仓库
-- 调试机可以通过官方 MCP 成功获取赛题列表
-- 调试机可以真实执行一次 `niuniu-agent run --mode debug --once`
-- 运行后 `runtime/events.jsonl` 能看到完整执行事件
+- 本地测试通过
+- 调试机可进入交互式 `debug`
+- 调试机中文输入不再报 `UnicodeDecodeError`
+- 调试机 `debug` 不会默认先 `update`
+- 调试机控制脚本可执行
 
-## 10. 常见问题
+## 11. 下一步
 
-### 10.1 调试机没有 `uv`
+这次重构已经把运行骨架切到 `learn-claude-code` 风格和 `openai-agents` 异步 runtime 上。
 
-直接用 `venv + pip` 即可，不依赖 `uv`。
+接下来最值得继续增强的是：
 
-### 10.2 调试机没有 `pip` 或 `venv`
-
-Ubuntu 上安装：
-
-```bash
-sudo apt-get update
-sudo apt-get install -y python3-pip python3.12-venv
-```
-
-### 10.3 `niuniu-agent run` 报命令错误
-
-请先更新到最新版本：
-
-```bash
-git pull --ff-only origin main
-. .venv/bin/activate
-python -m pip install -e '.[dev]'
-```
-
-### 10.4 如何判断 Agent 是否真的在跑
-
-最简单的方法就是看：
-
-```bash
-tail -f runtime/events.jsonl
-```
-
-如果持续出现：
-
-- `agent.started`
-- `challenge.selected`
-- `challenge.started`
-
-说明主控链路已经在执行。
-
-## 11. 下一步建议
-
-当前基础版已经适合继续往下做两类工作：
-
-1. 加 UI
-   - 日志展示
-   - 启停控制
-   - 模式切换
-2. 强化赛道策略
-   - 按四赛道补提示词
-   - 增加更强的本地工具
-   - 增加更细的选题和重试策略
+1. 赛道专用 specialist prompt 和 handoff 策略
+2. `competition` 模式的持续恢复与更细粒度重试
+3. 提示查看策略
+4. Web UI / 日志可视化 / 运行控制面板

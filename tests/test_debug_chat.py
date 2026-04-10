@@ -1,5 +1,3 @@
-import io
-
 import pytest
 
 from niuniu_agent.config import AgentSettings

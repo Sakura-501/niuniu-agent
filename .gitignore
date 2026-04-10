@@ -7,5 +7,5 @@ __pycache__/
 .mypy_cache/
 dist/
 build/
-runtime/
+/runtime/
 uv.lock
