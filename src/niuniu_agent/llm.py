@@ -13,6 +13,7 @@ from niuniu_agent.tooling import LocalToolbox
 class AgentRunResult:
     final_text: str
     tool_events: list[dict[str, Any]] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
 
 
 class OpenAIToolLoop:
@@ -32,18 +33,27 @@ class OpenAIToolLoop:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
+        return await self.run_messages(messages, toolbox)
+
+    async def run_messages(self, messages: list[dict[str, Any]], toolbox: Any) -> AgentRunResult:
+        transcript = [dict(message) for message in messages]
         tool_events: list[dict[str, Any]] = []
 
         for _ in range(self.max_iterations):
             response = await self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
+                messages=transcript,
                 tools=toolbox.describe_tools(),
                 tool_choice="auto",
             )
             message = response.choices[0].message
             if not message.tool_calls:
-                return AgentRunResult(final_text=message.content or "", tool_events=tool_events)
+                transcript.append({"role": "assistant", "content": message.content or ""})
+                return AgentRunResult(
+                    final_text=message.content or "",
+                    tool_events=tool_events,
+                    messages=transcript,
+                )
 
             assistant_message = {
                 "role": "assistant",
@@ -60,7 +70,7 @@ class OpenAIToolLoop:
                     for tool_call in message.tool_calls
                 ],
             }
-            messages.append(assistant_message)
+            transcript.append(assistant_message)
 
             for tool_call in message.tool_calls:
                 try:
@@ -80,7 +90,7 @@ class OpenAIToolLoop:
                         "result": result,
                     }
                 )
-                messages.append(
+                transcript.append(
                     {
                         "role": "tool",
                         "tool_call_id": tool_call.id,
@@ -91,4 +101,5 @@ class OpenAIToolLoop:
         return AgentRunResult(
             final_text="Reached maximum tool iterations without a final answer.",
             tool_events=tool_events,
+            messages=transcript,
         )

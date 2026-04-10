@@ -147,15 +147,16 @@ niuniu-agent run --mode debug --once
 
 特点：
 
-- 可以只运行一次
-- 可以手动指定赛题
-- 方便观察日志
-- 适合验证某条链路是否能跑通
+- 启动后进入交互式对话
+- Agent 会自动刷新赛题列表
+- 对话中能知道哪些题已完成、哪些题仍未完成
+- 对话中可以通过 MCP 工具自动启动赛题、停题、看提示、提交 Flag
+- 适合联调、排障、观察策略行为
 
 推荐命令：
 
 ```bash
-niuniu-agent run --mode debug --once
+niuniu-agent run --mode debug
 ```
 
 ### 5.2 `competition` 模式

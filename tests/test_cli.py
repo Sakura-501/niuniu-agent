@@ -15,3 +15,12 @@ def test_cli_exposes_run_subcommand() -> None:
     run_result = runner.invoke(app, ["run", "--help"])
 
     assert run_result.exit_code == 0
+
+
+def test_cli_help_mentions_debug_chat_behavior() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["run", "--help"])
+
+    assert result.exit_code == 0
+    assert "--mode" in result.stdout
