@@ -22,13 +22,46 @@ Commands:
 EOF
 }
 
+BOOTSTRAP_CLEAN_PATHS=(
+  "scripts/"
+  "scripts/remote_control.sh"
+)
+
 err() {
   echo "Unknown command: $1" >&2
   usage >&2
   exit 1
 }
 
+is_bootstrap_dirty_line() {
+  local line="${1}"
+  local path="${line:3}"
+  for allowed in "${BOOTSTRAP_CLEAN_PATHS[@]}"; do
+    if [[ "${path}" == "${allowed}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+cleanup_bootstrap_artifacts_if_safe() {
+  local status
+  status="$(git -C "${REPO_ROOT}" status --porcelain)"
+  [[ -z "${status}" ]] && return 0
+
+  local line
+  while IFS= read -r line; do
+    [[ -z "${line}" ]] && continue
+    if ! is_bootstrap_dirty_line "${line}"; then
+      return 0
+    fi
+  done <<< "${status}"
+
+  rm -rf "${REPO_ROOT}/scripts"
+}
+
 ensure_clean_git_tree() {
+  cleanup_bootstrap_artifacts_if_safe
   if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain)" ]]; then
     echo "Git working tree is dirty. Commit, stash, or clean changes before running update." >&2
     git -C "${REPO_ROOT}" status --short >&2
@@ -41,12 +74,18 @@ ensure_runtime_dir() {
 }
 
 ensure_venv() {
+  if [[ "${REMOTE_CONTROL_SKIP_INSTALL:-0}" == "1" ]]; then
+    return 0
+  fi
   if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
     python3 -m venv "${VENV_DIR}"
   fi
 }
 
 install_project() {
+  if [[ "${REMOTE_CONTROL_SKIP_INSTALL:-0}" == "1" ]]; then
+    return 0
+  fi
   "${VENV_DIR}/bin/python" -m pip install --upgrade pip >/dev/null
   "${VENV_DIR}/bin/python" -m pip install -e '.[dev]' >/dev/null
 }
@@ -63,9 +102,24 @@ load_env() {
   set +a
 }
 
+git_pull_with_retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    if git -C "${REPO_ROOT}" -c http.version=HTTP/1.1 pull --ff-only origin main; then
+      return 0
+    fi
+    if [[ "${attempt}" -lt 3 ]]; then
+      echo "git pull failed on attempt ${attempt}, retrying..." >&2
+      sleep "${attempt}"
+    fi
+  done
+  echo "git pull failed after 3 attempts" >&2
+  exit 4
+}
+
 update_repo() {
   ensure_clean_git_tree
-  git -C "${REPO_ROOT}" pull --ff-only origin main
+  git_pull_with_retry
   ensure_venv
   install_project
 }
