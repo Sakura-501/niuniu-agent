@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import asyncio
+import re
+import tempfile
+from pathlib import Path
+from typing import Any
+
+import httpx
+
+
+class LocalToolbox:
+    def __init__(self, runtime_dir: Path) -> None:
+        self.runtime_dir = runtime_dir
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
+
+    def describe_tools(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "http_request",
+                    "description": "Send an HTTP request to a challenge endpoint.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "method": {"type": "string"},
+                            "url": {"type": "string"},
+                            "headers": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "params": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "body": {"type": "string"},
+                            "timeout_seconds": {"type": "integer"},
+                        },
+                        "required": ["method", "url"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "run_shell_command",
+                    "description": "Run a local shell command for recon or exploitation.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": {"type": "string"},
+                            "cwd": {"type": "string"},
+                            "timeout_seconds": {"type": "integer"},
+                        },
+                        "required": ["command"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "run_python_snippet",
+                    "description": "Execute a short Python snippet for payload crafting or parsing.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "code": {"type": "string"},
+                            "timeout_seconds": {"type": "integer"},
+                        },
+                        "required": ["code"],
+                    },
+                },
+            },
+        ]
+
+    def extract_flags(self, text: str) -> list[str]:
+        seen: set[str] = set()
+        results: list[str] = []
+        for match in re.findall(r"flag\{[^}\n]+\}", text, flags=re.IGNORECASE):
+            if match not in seen:
+                seen.add(match)
+                results.append(match)
+        return results
+
+    async def execute(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        if tool_name == "http_request":
+            return await self.http_request(**arguments)
+        if tool_name == "run_shell_command":
+            return await self.run_shell_command(**arguments)
+        if tool_name == "run_python_snippet":
+            return await self.run_python_snippet(**arguments)
+        raise ValueError(f"Unknown tool: {tool_name}")
+
+    async def http_request(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+        body: str | None = None,
+        timeout_seconds: int = 20,
+    ) -> dict[str, Any]:
+        async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=timeout_seconds) as client:
+            response = await client.request(
+                method=method.upper(),
+                url=url,
+                headers=headers,
+                params=params,
+                content=body.encode("utf-8") if body is not None else None,
+            )
+        return {
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "text": self._trim_text(response.text),
+        }
+
+    async def run_shell_command(
+        self,
+        command: str,
+        cwd: str | None = None,
+        timeout_seconds: int = 30,
+    ) -> dict[str, Any]:
+        process = await asyncio.create_subprocess_shell(
+            command,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
+        except TimeoutError:
+            process.kill()
+            await process.communicate()
+            return {"exit_code": -1, "stdout": "", "stderr": "command timed out"}
+
+        return {
+            "exit_code": process.returncode,
+            "stdout": self._trim_text(stdout.decode("utf-8", errors="replace")),
+            "stderr": self._trim_text(stderr.decode("utf-8", errors="replace")),
+        }
+
+    async def run_python_snippet(self, code: str, timeout_seconds: int = 30) -> dict[str, Any]:
+        snippets_dir = self.runtime_dir / "snippets"
+        snippets_dir.mkdir(parents=True, exist_ok=True)
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".py",
+            prefix="snippet-",
+            dir=snippets_dir,
+            encoding="utf-8",
+            delete=False,
+        ) as handle:
+            handle.write(code)
+            script_path = Path(handle.name)
+
+        return await self.run_shell_command(
+            f"python3 {script_path}",
+            timeout_seconds=timeout_seconds,
+        )
+
+    @staticmethod
+    def _trim_text(text: str, limit: int = 12000) -> str:
+        return text[:limit]
