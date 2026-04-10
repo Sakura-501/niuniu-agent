@@ -101,16 +101,10 @@ source .env
 set +a
 ```
 
-执行一次调试模式：
+启动交互式调试模式：
 
 ```bash
-uv run niuniu-agent run --mode debug --once
-```
-
-指定赛题执行一次：
-
-```bash
-uv run niuniu-agent run --mode debug --once --challenge-code <challenge_code>
+uv run niuniu-agent run --mode debug
 ```
 
 以无人值守循环方式运行：
@@ -136,7 +130,7 @@ python -m pip install -e '.[dev]'
 set -a
 source .env
 set +a
-niuniu-agent run --mode debug --once
+niuniu-agent run --mode debug
 ```
 
 ## 5. 两种运行模式
@@ -216,7 +210,7 @@ cd ~/niuniu-agent
 set -a
 source .env
 set +a
-niuniu-agent run --mode debug --once
+niuniu-agent run --mode debug
 ```
 
 ### 6.4 正式答题前建议
