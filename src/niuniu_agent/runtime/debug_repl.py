@@ -5,6 +5,7 @@ import sys
 from agents import Runner, SQLiteSession
 
 from niuniu_agent.agent_stack.factory import build_agent_assembly
+from niuniu_agent.runtime.agent_loop import run_until_final_output
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.hooks import RuntimeTraceHooks, TraceRecorder
 
@@ -49,13 +50,13 @@ async def run_debug_repl(context: RuntimeContext) -> None:
 
             recorder = TraceRecorder()
             hooks = RuntimeTraceHooks(recorder, context.event_logger)
-            result = await Runner.run(
+            result = await run_until_final_output(
                 assembly.manager,
-                user_input,
+                initial_input=user_input,
                 context=context,
-                max_turns=context.settings.agent_max_turns,
                 hooks=hooks,
                 session=session,
+                event_logger=context.event_logger,
             )
 
             if recorder.events:

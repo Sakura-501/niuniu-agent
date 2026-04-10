@@ -5,6 +5,7 @@ import asyncio
 from agents import Runner, SQLiteSession
 
 from niuniu_agent.agent_stack.factory import build_agent_assembly
+from niuniu_agent.runtime.agent_loop import run_until_final_output
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.hooks import RuntimeTraceHooks, TraceRecorder
 
@@ -34,13 +35,13 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 hooks = RuntimeTraceHooks(recorder, context.event_logger)
                 prompt = context.challenge_store.build_autonomous_prompt(snapshot, challenge)
 
-                result = await Runner.run(
+                result = await run_until_final_output(
                     assembly.manager,
-                    prompt,
+                    initial_input=prompt,
                     context=context,
-                    max_turns=context.settings.agent_max_turns,
                     hooks=hooks,
                     session=session,
+                    event_logger=context.event_logger,
                 )
                 context.event_logger.log(
                     "competition.turn_completed",
