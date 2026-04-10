@@ -160,3 +160,112 @@ async def test_tool_bus_start_challenge_handles_instance_limit(tmp_path) -> None
     assert gateway.stopped == ["c1"]
     assert result["stopped"] == ["c1"]
     assert result["payload"]["entrypoint"] == ["127.0.0.1:8080"]
+
+
+@pytest.mark.anyio
+async def test_tool_bus_start_challenge_proactively_frees_slots(tmp_path) -> None:
+    class BusyGateway(DummyContestGateway):
+        def __init__(self) -> None:
+            self.stopped = []
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {"title": "a", "code": "c1", "difficulty": "easy", "description": "", "level": 1, "flag_count": 1, "flag_got_count": 0, "instance_status": "running", "entrypoint": None},
+                    {"title": "b", "code": "c2", "difficulty": "easy", "description": "", "level": 1, "flag_count": 1, "flag_got_count": 0, "instance_status": "running", "entrypoint": None},
+                    {"title": "c", "code": "c3", "difficulty": "easy", "description": "", "level": 1, "flag_count": 1, "flag_got_count": 0, "instance_status": "running", "entrypoint": None},
+                    {"title": "d", "code": "c4", "difficulty": "easy", "description": "", "level": 1, "flag_count": 1, "flag_got_count": 0, "instance_status": "stopped", "entrypoint": None},
+                ],
+            }
+
+        async def stop_challenge(self, code: str):
+            self.stopped.append(code)
+            return {"code": 0}
+
+        async def start_challenge(self, code: str):
+            return {"entrypoint": ["127.0.0.1:8080"]}
+
+    gateway = BusyGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    result = await bus.start_challenge("c4")
+
+    assert gateway.stopped == ["c1", "c2", "c3"]
+    assert result["running_count_before"] == 3
+    assert result["stopped"] == ["c1", "c2", "c3"]
+
+
+@pytest.mark.anyio
+async def test_tool_bus_submit_flag_stops_completed_instance(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        def __init__(self) -> None:
+            self.stopped = []
+
+        async def submit_flag(self, code: str, flag: str):
+            return {"code": 0}
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {
+                        "title": "done",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 1,
+                        "instance_status": "running",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+        async def stop_challenge(self, code: str):
+            self.stopped.append(code)
+            return {"code": 0}
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    result = await bus.submit_flag("c1", "flag{demo}")
+
+    assert result["completed"] is True
+    assert result["stopped_instance"] is True
+    assert gateway.stopped == ["c1"]

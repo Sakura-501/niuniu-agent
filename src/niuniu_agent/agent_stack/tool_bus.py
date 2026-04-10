@@ -172,8 +172,15 @@ class ToolBus:
 
     async def start_challenge(self, code: str) -> dict[str, Any]:
         try:
+            snapshot = await self.context.challenge_store.refresh()
+            running = [challenge.code for challenge in snapshot.challenges if challenge.instance_status == "running" and challenge.code != code]
+            stopped: list[str] = []
+            if len(running) >= 3:
+                for running_code in running:
+                    await self.context.contest_gateway.stop_challenge(running_code)
+                    stopped.append(running_code)
             payload = await self.context.contest_gateway.start_challenge(code)
-            return {"code": code, "payload": payload}
+            return {"code": code, "payload": payload, "stopped": stopped, "running_count_before": len(running)}
         except Exception as exc:  # noqa: BLE001
             message = str(exc)
             if "最多同时运行3个实例" not in message:
@@ -206,7 +213,19 @@ class ToolBus:
         payload = await self.context.contest_gateway.submit_flag(code, flag)
         if isinstance(payload, dict) and payload.get("code") == 0:
             self.context.state_store.record_submitted_flag(code, flag)
-        return {"code": code, "flag": flag, "payload": payload}
+        snapshot = await self.context.challenge_store.refresh()
+        challenge = next((item for item in snapshot.challenges if item.code == code), None)
+        stopped_instance = False
+        if challenge is not None and challenge.completed and challenge.instance_status == "running":
+            await self.context.contest_gateway.stop_challenge(code)
+            stopped_instance = True
+        return {
+            "code": code,
+            "flag": flag,
+            "payload": payload,
+            "completed": challenge.completed if challenge is not None else False,
+            "stopped_instance": stopped_instance,
+        }
 
     async def view_hint(self, code: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.view_hint(code)
