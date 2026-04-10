@@ -104,7 +104,11 @@ def build_entry_prompt(
     mode_text = (
         "Mode: competition. Keep running forever and recover from errors."
         if mode == "competition"
-        else "Mode: debug. Explain your reasoning and keep responses concise."
+        else (
+            "Mode: debug. Explain your reasoning and keep responses concise. "
+            "If the user asks for a solution, summary, exploit path, or flag, "
+            "format the final answer with clear markdown sections: 结论, 解法, 关键证据, Flag, 下一步."
+        )
     )
     return "\n\n".join(
         part

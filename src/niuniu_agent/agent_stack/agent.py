@@ -54,14 +54,24 @@ class AsyncPentestAgent:
         instruction: str,
         history: list[dict[str, Any]] | None = None,
         on_text_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_start: Callable[[str, dict[str, Any]], Awaitable[None]] | None = None,
+        on_tool_end: Callable[[str, dict[str, Any], str], Awaitable[None]] | None = None,
     ) -> AgentResult:
-        return await self._execute_loop(instruction, history, on_text_delta=on_text_delta)
+        return await self._execute_loop(
+            instruction,
+            history,
+            on_text_delta=on_text_delta,
+            on_tool_start=on_tool_start,
+            on_tool_end=on_tool_end,
+        )
 
     async def _execute_loop(
         self,
         instruction: str,
         history: list[dict[str, Any]] | None,
         on_text_delta: Callable[[str], Awaitable[None]] | None,
+        on_tool_start: Callable[[str, dict[str, Any]], Awaitable[None]] | None = None,
+        on_tool_end: Callable[[str, dict[str, Any], str], Awaitable[None]] | None = None,
     ) -> AgentResult:
         transcript = list(history or [])
         transcript.append({"role": "user", "content": instruction})
@@ -77,7 +87,11 @@ class AsyncPentestAgent:
 
             for tool_call in tool_calls:
                 arguments = safe_load_json(tool_call.arguments)
+                if on_tool_start is not None:
+                    await on_tool_start(tool_call.name, arguments)
                 output = await self.tool_bus.dispatch(tool_call.name, arguments)
+                if on_tool_end is not None:
+                    await on_tool_end(tool_call.name, arguments, output)
                 tool_events.append(ToolEvent(tool_call.name, arguments, output))
                 transcript.append({"role": "tool", "tool_call_id": tool_call.id, "content": output})
 

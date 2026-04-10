@@ -90,13 +90,24 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             print(text, end="", flush=True)
             printed_text = True
 
-        result = await agent.execute_stream(user_input, history, on_text_delta=on_text_delta)
+        async def on_tool_start(name: str, arguments: dict[str, object]) -> None:
+            print(f"\n[tool:start] {name} {arguments}", flush=True)
+
+        async def on_tool_end(name: str, arguments: dict[str, object], output: str) -> None:
+            preview = output.replace("\n", " ")
+            if len(preview) > 160:
+                preview = preview[:157] + "..."
+            print(f"[tool:done] {name} -> {preview}", flush=True)
+
+        result = await agent.execute_stream(
+            user_input,
+            history,
+            on_text_delta=on_text_delta,
+            on_tool_start=on_tool_start,
+            on_tool_end=on_tool_end,
+        )
         history = result.history
         if printed_text:
             print()
-        for event in result.tool_events:
-            print(f"[tool] {event.name}")
-            print(f"  args: {event.arguments}")
-            print(f"  result: {event.output[:240]}")
         if not printed_text:
             print(result.output or "[assistant produced no text]")
