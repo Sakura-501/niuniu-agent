@@ -35,17 +35,25 @@
 - [x] 识别并删除不再作为主路径的旧模块
 - [x] 清理旧测试并迁移到新架构
 - [x] 调试机验证 `debug` 模式可真正交互跑通
+- [x] 调试机验证 `competition` 模式可持续运行
+- [x] 调试机验证异常后自动恢复
+- [x] 调试机验证 `scripts/remote_control.sh competition-start`
+- [x] 调试机验证 `scripts/remote_control.sh competition-restart`
+- [x] 提示查看策略基础逻辑
+- [x] 当前 foothold / 阶段性结论基础记录
+- [x] 调试机验证已完成题不会优先重复浪费时间
 
 ## 进行中
 
 - [ ] 把四赛道的通用 skills 真正接入赛题推进策略
 说明：
-目前 skills 注册表和入口/trigger prompts 已落地，
-但还需要把四赛道的能力模块进一步绑定到更细的推进阶段和恢复策略里。
+目前 skills 注册表、planner、入口 prompt、trigger prompts 已落地并接入 `debug` / `competition`。
+剩余工作是继续增强四赛道的细粒度能力，而不是框架接线。
 
 - [ ] 做强 `competition` 的长期状态恢复
 说明：
-当前已具备活跃赛题、失败次数、退避恢复，但还缺长期 foothold / 阶段性结论恢复。
+当前已具备活跃赛题、失败次数、退避恢复、挑战历史、阶段性结论与基础 foothold 提取。
+剩余工作是长期多轮恢复与更准确的自动提取。
 
 ## 工具安装/准备清单
 
@@ -222,7 +230,7 @@
 - [x] 入口 prompt 根据题目描述先做第一轮技能选择
 - [x] 侦察结束 trigger prompt 重新评估下一技能
 - [x] 利用失败 trigger prompt 切换技能或回退到侦察
-- [ ] 拿到 foothold trigger prompt 自动切换到横向/提权技能
+- [x] 拿到 foothold trigger prompt 自动切换到横向/提权技能
 
 ## 未完成
 
@@ -261,31 +269,31 @@
 - [x] 连续失败退避策略
 - [x] 单题完成后自动切下一题
 - [x] 空闲状态自动轮询
-- [ ] `competition` 后台运行日志与状态增强
+- [x] `competition` 后台运行日志与状态增强
 
 ### 五、提示策略
 
-- [ ] 明确什么情况下自动看提示
-- [ ] 防止重复查看同一题提示
-- [ ] 把提示查看记入本地状态
-- [ ] 看提示后的 prompt 续跑逻辑
+- [x] 明确什么情况下自动看提示
+- [x] 防止重复查看同一题提示
+- [x] 把提示查看记入本地状态
+- [x] 看提示后的 prompt 续跑逻辑
 
 ### 六、状态持久化
 
 - [x] 当前活跃赛题记录
 - [x] 挑战历史记录
 - [x] 失败次数与恢复点
-- [ ] 当前 foothold / 阶段性结论记录
+- [x] 当前 foothold / 阶段性结论记录
 - [ ] 长时间运行后的状态恢复
 
 ### 七、调试与验证
 
-- [ ] 调试机验证 `competition` 模式可持续运行
-- [ ] 调试机验证异常后自动恢复
-- [ ] 调试机验证已完成题不会重复浪费时间
+- [x] 调试机验证 `competition` 模式可持续运行
+- [x] 调试机验证异常后自动恢复
+- [x] 调试机验证已完成题不会重复浪费时间
 - [ ] 调试机验证 flag 提交后状态更新正确
-- [ ] 调试机验证 `scripts/remote_control.sh competition-start`
-- [ ] 调试机验证 `scripts/remote_control.sh competition-restart`
+- [x] 调试机验证 `scripts/remote_control.sh competition-start`
+- [x] 调试机验证 `scripts/remote_control.sh competition-restart`
 
 ### 八、清理旧实现
 
@@ -296,11 +304,11 @@
 
 ## 当前我建议的优先级
 
-1. 调试机完整跑通 `competition`
-2. 把四赛道通用 skills 真正接到推进阶段
-3. 记录 foothold / 权限维持等更细粒度笔记
-4. 长时间运行后的状态恢复
-5. `competition` 后台日志与控制脚本联调
+1. 调试机验证 flag 提交后状态更新正确
+2. 长时间运行后的状态恢复
+3. 第二赛区 / 第三赛区 / 第四赛区能力继续补强
+4. 第一赛区主流 Web 漏洞验证能力增强
+5. 更完整的高阶工具自动降级
 
 ## 当前最关键的风险
 

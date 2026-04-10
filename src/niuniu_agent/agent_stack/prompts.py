@@ -75,6 +75,9 @@ def build_entry_prompt(
     snapshot: ContestSnapshot | None,
     active: ChallengeSnapshot | None,
     skills: list,
+    stage: str | None = None,
+    runtime_state: dict | None = None,
+    notes: dict | None = None,
 ) -> str:
     snapshot_text = ""
     if snapshot is not None:
@@ -92,6 +95,9 @@ def build_entry_prompt(
             f"Difficulty: {active.difficulty}\n"
             f"Entrypoints: {active.entrypoints}\n"
         )
+    stage_text = f"Current stage: {stage}" if stage else ""
+    runtime_text = f"Runtime state: {runtime_state}" if runtime_state else ""
+    notes_text = f"Recovered notes: {notes}" if notes else ""
     skill_text = "\n".join(
         f"- {skill.name}: {skill.description} | guidance: {skill.usage_guidance}" for skill in skills
     )
@@ -105,6 +111,9 @@ def build_entry_prompt(
         for part in (
             ENTRY_PROMPT.body,
             mode_text,
+            stage_text,
+            runtime_text,
+            notes_text,
             snapshot_text.strip(),
             active_text.strip(),
             f"Selected skills:\n{skill_text}" if skill_text else "",

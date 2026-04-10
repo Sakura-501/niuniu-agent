@@ -37,8 +37,21 @@ class DummyContestClient:
 
 
 class DummyStateStore:
+    def __init__(self) -> None:
+        self.history = []
+        self.notes = {}
+
     def list_submitted_flags(self, challenge_code: str) -> list[str]:
         return ["flag{local}"] if challenge_code == "c2" else []
+
+    def get_challenge_runtime_state(self, challenge_code: str) -> dict[str, object]:
+        return {"active": False, "failure_count": 0, "last_error": None}
+
+    def get_challenge_notes(self, challenge_code: str) -> dict[str, str]:
+        return self.notes
+
+    def list_history(self, challenge_code: str, limit: int = 10):
+        return self.history[:limit]
 
 
 @pytest.mark.anyio
@@ -52,3 +65,18 @@ async def test_challenge_store_refresh_and_next_candidate() -> None:
     assert challenge is not None
     assert challenge.code == "c2"
     assert "local_flags=1" in store.render_summary(snapshot)
+
+
+@pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_includes_history_and_notes() -> None:
+    state = DummyStateStore()
+    state.history = [{"event_type": "turn_completed", "payload": "summary", "created_at": "now"}]
+    state.notes = {"foothold": "user shell"}
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "turn_completed" in prompt
+    assert "foothold" in prompt

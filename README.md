@@ -150,8 +150,8 @@ NIUNIU_AGENT_POLL_INTERVAL_SECONDS=15
 ### 6.1 用 `uv`
 
 ```bash
-uv sync
 cp .env.example .env
+uv sync
 set -a
 source .env
 set +a
