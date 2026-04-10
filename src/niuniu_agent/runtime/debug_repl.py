@@ -33,29 +33,33 @@ async def run_debug_repl(context: RuntimeContext) -> None:
         db_path=context.settings.session_db_path,
     )
 
-    print("已进入重构后的 debug 交互模式。输入 exit 或 quit 退出。")
-    snapshot = await context.challenge_store.refresh()
-    print(context.challenge_store.render_summary(snapshot))
-
-    while True:
-        user_input = _read_line("debug")
-        if user_input.strip().lower() in {"exit", "quit", "/exit", "/quit"}:
-            break
-
+    await assembly.contest_server.connect()
+    try:
+        print("已进入重构后的 debug 交互模式。输入 exit 或 quit 退出。")
         snapshot = await context.challenge_store.refresh()
-        context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
+        print(context.challenge_store.render_summary(snapshot))
 
-        recorder = TraceRecorder()
-        hooks = RuntimeTraceHooks(recorder, context.event_logger)
-        result = await Runner.run(
-            assembly.manager,
-            user_input,
-            context=context,
-            max_turns=context.settings.agent_max_turns,
-            hooks=hooks,
-            session=session,
-        )
+        while True:
+            user_input = _read_line("debug")
+            if user_input.strip().lower() in {"exit", "quit", "/exit", "/quit"}:
+                break
 
-        if recorder.events:
-            print(recorder.render())
-        print(result.final_output_as(str))
+            snapshot = await context.challenge_store.refresh()
+            context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
+
+            recorder = TraceRecorder()
+            hooks = RuntimeTraceHooks(recorder, context.event_logger)
+            result = await Runner.run(
+                assembly.manager,
+                user_input,
+                context=context,
+                max_turns=context.settings.agent_max_turns,
+                hooks=hooks,
+                session=session,
+            )
+
+            if recorder.events:
+                print(recorder.render())
+            print(result.final_output_as(str))
+    finally:
+        await assembly.contest_server.cleanup()
