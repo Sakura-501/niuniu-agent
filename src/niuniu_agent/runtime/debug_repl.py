@@ -34,6 +34,11 @@ def _read_line(prompt: str = "debug") -> str:
     return _decode_user_input(raw)
 
 
+def _is_summary_request(text: str) -> bool:
+    keywords = ("总结", "解法", "flag", "结果", "结论", "当前情况", "情况", "思路")
+    return any(keyword in text for keyword in keywords)
+
+
 async def run_debug_repl(context: RuntimeContext) -> None:
     client = AsyncOpenAI(
         api_key=context.settings.model_api_key,
@@ -77,6 +82,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                         stage=skill_plan.stage if skill_plan else None,
                         runtime_state=runtime_state,
                         notes=notes,
+                        summary_request=_is_summary_request(user_input),
                     ),
                     build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                     build_trigger_prompt(FLAG_SUBMIT_PROMPT),

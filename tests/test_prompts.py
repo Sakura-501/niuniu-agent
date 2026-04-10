@@ -25,5 +25,18 @@ def test_entry_prompt_includes_selected_skills() -> None:
     assert "recon_web" in prompt
 
 
+def test_entry_prompt_biases_summary_when_requested() -> None:
+    prompt = build_entry_prompt(
+        "debug",
+        ContestSnapshot(current_level=1, total_challenges=1, solved_challenges=1, challenges=[]),
+        None,
+        [],
+        summary_request=True,
+    )
+
+    assert "summary/final-answer style request" in prompt
+    assert "All visible challenges are currently marked completed" in prompt
+
+
 def test_trigger_prompt_returns_body() -> None:
     assert "taken over" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)

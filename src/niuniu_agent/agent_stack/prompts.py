@@ -78,6 +78,7 @@ def build_entry_prompt(
     stage: str | None = None,
     runtime_state: dict | None = None,
     notes: dict | None = None,
+    summary_request: bool = False,
 ) -> str:
     snapshot_text = ""
     if snapshot is not None:
@@ -110,11 +111,26 @@ def build_entry_prompt(
             "format the final answer with clear markdown sections: 结论, 解法, 关键证据, Flag, 下一步."
         )
     )
+    completion_text = ""
+    if snapshot is not None and snapshot.total_challenges and snapshot.solved_challenges == snapshot.total_challenges:
+        completion_text = (
+            "All visible challenges are currently marked completed. "
+            "Unless the user explicitly asks to retest or reopen a target, do not perform more exploitation. "
+            "Prefer summarizing from the current snapshot, history, and notes."
+        )
+    summary_text = (
+        "The current user request is a summary/final-answer style request. "
+        "Prefer concise synthesis over more probing unless a critical fact is missing."
+        if summary_request
+        else ""
+    )
     return "\n\n".join(
         part
         for part in (
             ENTRY_PROMPT.body,
             mode_text,
+            completion_text,
+            summary_text,
             stage_text,
             runtime_text,
             notes_text,
