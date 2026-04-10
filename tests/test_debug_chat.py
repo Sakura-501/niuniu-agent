@@ -2,7 +2,8 @@ import pytest
 
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.controller import AgentController
-from niuniu_agent.debug_chat import DebugToolbox
+from niuniu_agent.debug_chat import DebugToolbox, render_debug_turn
+from niuniu_agent.llm import AgentRunResult
 from niuniu_agent.state_store import StateStore
 from niuniu_agent.strategies.router import StrategyRouter
 from niuniu_agent.telemetry import EventLogger
@@ -98,3 +99,22 @@ def test_debug_toolbox_exposes_contest_and_local_tools(tmp_path) -> None:
     assert "list_challenges" in tool_names
     assert "start_challenge" in tool_names
     assert "http_request" in tool_names
+
+
+def test_render_debug_turn_shows_tool_trace_and_iteration_hint() -> None:
+    result = AgentRunResult(
+        final_text="",
+        tool_events=[
+            {
+                "tool": "list_challenges",
+                "arguments": {},
+                "result": {"current_level": 1},
+            }
+        ],
+        iteration_limit_reached=True,
+    )
+
+    rendered = render_debug_turn(result)
+
+    assert "[tool] list_challenges" in rendered
+    assert "本轮模型已达到工具调用上限" in rendered

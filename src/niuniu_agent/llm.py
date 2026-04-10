@@ -14,6 +14,7 @@ class AgentRunResult:
     final_text: str
     tool_events: list[dict[str, Any]] = field(default_factory=list)
     messages: list[dict[str, Any]] = field(default_factory=list)
+    iteration_limit_reached: bool = False
 
 
 class OpenAIToolLoop:
@@ -53,6 +54,7 @@ class OpenAIToolLoop:
                     final_text=message.content or "",
                     tool_events=tool_events,
                     messages=transcript,
+                    iteration_limit_reached=False,
                 )
 
             assistant_message = {
@@ -99,7 +101,8 @@ class OpenAIToolLoop:
                 )
 
         return AgentRunResult(
-            final_text="Reached maximum tool iterations without a final answer.",
+            final_text="",
             tool_events=tool_events,
             messages=transcript,
+            iteration_limit_reached=True,
         )

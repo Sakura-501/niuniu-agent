@@ -185,6 +185,30 @@ def format_challenge_snapshot(snapshot: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _short_json(value: Any, limit: int = 240) -> str:
+    text = json.dumps(value, ensure_ascii=False)
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def render_debug_turn(result: AgentRunResult) -> str:
+    lines: list[str] = []
+
+    for event in result.tool_events:
+        lines.append(f"[tool] {event['tool']}")
+        lines.append(f"  args: {_short_json(event['arguments'])}")
+        lines.append(f"  result: {_short_json(event['result'])}")
+
+    if result.iteration_limit_reached:
+        lines.append("本轮模型已达到工具调用上限，未产出最终自然语言答复。")
+        lines.append("可以继续追问，或调大 NIUNIU_AGENT_LLM_MAX_ITERATIONS。")
+    elif result.final_text:
+        lines.append(result.final_text)
+    else:
+        lines.append("[assistant produced no text]")
+
+    return "\n".join(lines)
+
+
 async def run_debug_chat(controller: AgentController) -> None:
     toolbox = DebugToolbox(controller=controller)
     messages: list[dict[str, Any]] = [
@@ -214,8 +238,9 @@ async def run_debug_chat(controller: AgentController) -> None:
 
         result: AgentRunResult = await controller.solver.run_messages(messages, toolbox)
         messages = result.messages
+        rendered = render_debug_turn(result)
         controller.event_logger.log(
             "debug.assistant_turn",
-            {"message": result.final_text},
+            {"message": rendered},
         )
-        typer.echo(result.final_text or "[assistant produced no text]")
+        typer.echo(rendered)
