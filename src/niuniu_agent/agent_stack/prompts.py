@@ -17,7 +17,12 @@ ENTRY_PROMPT = TriggerPrompt(
         "You are the main pentest agent. "
         "Always start from the latest challenge snapshot and keep track of what is completed. "
         "Use tools to gather evidence. "
-        "Only stop your current response when you have no more tool calls to make."
+        "Only stop your current response when you have no more tool calls to make. "
+        "You must respect these hard rules: "
+        "at most 3 challenge instances may run at the same time; before starting a challenge instance, check how many are already running. "
+        "If a correct flag is submitted and the challenge is shown as completed, stop that challenge instance immediately. "
+        "Once one challenge is completed, continue directly to the next unfinished challenge without lingering. "
+        "Hints are expensive: only view a hint if there has been no meaningful progress or result for more than 5 minutes."
     ),
 )
 
@@ -25,7 +30,8 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
     name="challenge_takeover",
     body=(
         "A challenge is being actively taken over. "
-        "First identify the most relevant capability skills, then choose the least wasteful next action."
+        "First identify the most relevant capability skills, then choose the least wasteful next action. "
+        "Before starting any new instance, inspect the currently running challenge count and stay within the 3-instance limit."
     ),
 )
 
@@ -41,7 +47,8 @@ PRE_EXPLOIT_PROMPT = TriggerPrompt(
     name="pre_exploit",
     body=(
         "You are about to exploit a likely vulnerability. "
-        "Prefer the most deterministic path, preserve reproducible evidence, and submit flags immediately if found."
+        "Prefer the most deterministic path, preserve reproducible evidence, and submit flags immediately if found. "
+        "If the challenge becomes completed after flag submission, close its instance immediately and move on."
     ),
 )
 
@@ -57,7 +64,8 @@ HINT_DECISION_PROMPT = TriggerPrompt(
     name="hint_decision",
     body=(
         "Decide whether the current situation justifies viewing a hint. "
-        "Only do so when repeated progress stalls and no stronger next action exists."
+        "Only do so when repeated progress stalls and no stronger next action exists. "
+        "Do not view a hint unless there has been more than 5 minutes without meaningful progress or result."
     ),
 )
 
@@ -65,7 +73,8 @@ FLAG_SUBMIT_PROMPT = TriggerPrompt(
     name="flag_submit",
     body=(
         "A candidate flag or sensitive artifact may be present. "
-        "Validate format, submit immediately, and then continue if more flags may exist."
+        "Validate format, submit immediately, and then continue if more flags may exist. "
+        "After a successful submission, verify whether the challenge is now completed and stop its instance immediately if it is."
     ),
 )
 

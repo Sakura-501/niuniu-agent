@@ -40,3 +40,11 @@ def test_entry_prompt_biases_summary_when_requested() -> None:
 
 def test_trigger_prompt_returns_body() -> None:
     assert "taken over" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+
+
+def test_entry_prompt_contains_instance_and_hint_rules() -> None:
+    prompt = build_entry_prompt("competition", None, None, [])
+
+    assert "at most 3 challenge instances" in prompt
+    assert "stop that challenge instance immediately" in prompt
+    assert "more than 5 minutes" in prompt
