@@ -119,7 +119,7 @@ class AgentController:
         if not isinstance(payload, dict):
             return []
 
-        data = payload.get("data", {})
+        data = payload.get("data", payload)
         raw_challenges = data.get("challenges", [])
         parsed: list[Challenge] = []
         for item in raw_challenges:
@@ -130,6 +130,11 @@ class AgentController:
                     description=item.get("description", ""),
                     difficulty=item.get("difficulty", "unknown"),
                     level=item.get("level", 1),
+                    total_score=item.get("total_score", 0),
+                    total_got_score=item.get("total_got_score", 0),
+                    flag_count=item.get("flag_count", 0),
+                    flag_got_count=item.get("flag_got_count", 0),
+                    hint_viewed=item.get("hint_viewed", False),
                     instance_status=item.get("instance_status", "stopped"),
                     entrypoints=item.get("entrypoint") or [],
                 )
@@ -154,6 +159,10 @@ class AgentController:
 
     @staticmethod
     def is_completed(challenge: Challenge) -> bool:
+        if challenge.flag_count > 0:
+            return challenge.flag_got_count >= challenge.flag_count
+        if challenge.total_score > 0:
+            return challenge.total_got_score >= challenge.total_score
         return False
 
     @staticmethod
