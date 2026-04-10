@@ -40,22 +40,22 @@ def build_agent_assembly(settings: AgentSettings) -> AgentAssembly:
 
     specialists = {
         "track1": _specialist(
-            "track1-specialist",
+            "track1_specialist",
             "Focus on Linux service discovery, shell access, file hunting, and privilege clues.",
             settings,
         ),
         "track2": _specialist(
-            "track2-specialist",
+            "track2_specialist",
             "Focus on web attack surface, auth bypass, parameter abuse, and admin functionality.",
             settings,
         ),
         "track3": _specialist(
-            "track3-specialist",
+            "track3_specialist",
             "Focus on APIs, tokens, JSON workflows, authz gaps, and tool-friendly exploitation.",
             settings,
         ),
         "track4": _specialist(
-            "track4-specialist",
+            "track4_specialist",
             "Focus on deeper chained workflows, encoded artifacts, and non-obvious exploitation paths.",
             settings,
         ),
