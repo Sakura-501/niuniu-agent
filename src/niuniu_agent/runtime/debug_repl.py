@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import sys
 
-from agents import Runner, SQLiteSession
+from openai import AsyncOpenAI
 
-from niuniu_agent.agent_stack.factory import build_agent_assembly
-from niuniu_agent.runtime.agent_loop import run_until_final_output
+from niuniu_agent.agent_stack.agent import AsyncPentestAgent
+from niuniu_agent.agent_stack.prompts import build_system_prompt
+from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.runtime.context import RuntimeContext
-from niuniu_agent.runtime.hooks import RuntimeTraceHooks, TraceRecorder
 
 
 def _decode_user_input(raw: bytes) -> str:
@@ -28,39 +28,34 @@ def _read_line(prompt: str = "debug") -> str:
 
 
 async def run_debug_repl(context: RuntimeContext) -> None:
-    assembly = build_agent_assembly(context.settings)
-    session = SQLiteSession(
-        session_id="debug-repl",
-        db_path=context.settings.session_db_path,
+    client = AsyncOpenAI(
+        api_key=context.settings.model_api_key,
+        base_url=context.settings.model_base_url,
     )
+    history: list[dict[str, object]] = []
 
-    await assembly.contest_server.connect()
-    try:
-        print("已进入重构后的 debug 交互模式。输入 exit 或 quit 退出。")
+    print("已进入重构后的 debug 交互模式。输入 exit 或 quit 退出。")
+    snapshot = await context.challenge_store.refresh()
+    print(context.challenge_store.render_summary(snapshot))
+
+    while True:
+        user_input = _read_line("debug")
+        if user_input.strip().lower() in {"exit", "quit", "/exit", "/quit"}:
+            break
+
         snapshot = await context.challenge_store.refresh()
-        print(context.challenge_store.render_summary(snapshot))
-
-        while True:
-            user_input = _read_line("debug")
-            if user_input.strip().lower() in {"exit", "quit", "/exit", "/quit"}:
-                break
-
-            snapshot = await context.challenge_store.refresh()
-            context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
-
-            recorder = TraceRecorder()
-            hooks = RuntimeTraceHooks(recorder, context.event_logger)
-            result = await run_until_final_output(
-                assembly.manager,
-                initial_input=user_input,
-                context=context,
-                hooks=hooks,
-                session=session,
-                event_logger=context.event_logger,
-            )
-
-            if recorder.events:
-                print(recorder.render())
-            print(result.final_output_as(str))
-    finally:
-        await assembly.contest_server.cleanup()
+        active = context.challenge_store.next_candidate(snapshot)
+        context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
+        agent = AsyncPentestAgent(
+            client=client,
+            model_name=context.settings.model,
+            system_prompt=build_system_prompt("debug", snapshot, active),
+            tool_bus=ToolBus(context),
+        )
+        result = await agent.execute(user_input, history)
+        history = result.history
+        for event in result.tool_events:
+            print(f"[tool] {event.name}")
+            print(f"  args: {event.arguments}")
+            print(f"  result: {event.output[:240]}")
+        print(result.output or "[assistant produced no text]")

@@ -12,6 +12,12 @@
 
 同时底层执行改成了 `openai-agents`，模型调用使用 `OpenAIChatCompletionsModel`，适配比赛环境常见的 OpenAI 兼容网关。
 
+当前主循环已经收敛成更接近 `learn-claude-code` / `base_agent` 的显式形态：
+
+- 模型有工具调用就继续
+- 工具结果写回消息历史
+- 模型没有工具调用才结束当前回合
+
 ## 1. 当前架构
 
 重构后的代码按下面几层组织：
