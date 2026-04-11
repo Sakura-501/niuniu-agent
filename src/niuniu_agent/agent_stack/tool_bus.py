@@ -238,7 +238,17 @@ class ToolBus:
         if payload.get("correct") is True:
             return True
         message = str(payload.get("message", "")).lower()
-        return any(marker in message for marker in ("答案正确", "correct", "already solved", "已完成"))
+        return any(
+            marker in message
+            for marker in (
+                "答案正确",
+                "correct",
+                "already solved",
+                "已完成",
+                "已全部答对",
+                "无需重复提交",
+            )
+        )
 
     async def view_hint(self, code: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.view_hint(code)
