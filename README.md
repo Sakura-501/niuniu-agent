@@ -140,10 +140,17 @@ NIUNIU_AGENT_MODE=debug
 NIUNIU_AGENT_MODEL=ep-jsc7o0kw
 NIUNIU_AGENT_MODEL_BASE_URL=https://tokenhub.tencentmaas.com/v1
 NIUNIU_AGENT_MODEL_API_KEY=replace-me
-NIUNIU_AGENT_CONTEST_HOST=10.0.0.44:8000
+NIUNIU_AGENT_CONTEST_HOST=https://challenge.zc.tencent.com
 NIUNIU_AGENT_CONTEST_TOKEN=replace-me
 NIUNIU_AGENT_POLL_INTERVAL_SECONDS=15
 ```
+
+当前比赛域名：
+
+- 主赛场：`https://challenge.zc.tencent.com`
+- 零界：`https://challenge.zc.tencent.com:8443`
+
+当前仓库主路径只接主赛场；零界域名先作为预留信息保留，后续如接入再单独扩展。
 
 ## 6. 本地启动
 

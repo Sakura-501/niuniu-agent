@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
+from urllib.parse import urlparse
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,7 +37,10 @@ class AgentSettings(BaseSettings):
 
     @property
     def contest_mcp_url(self) -> str:
-        return f"http://{self.contest_host}/mcp"
+        host = self.contest_host.rstrip("/")
+        if not urlparse(host).scheme:
+            host = f"http://{host}"
+        return f"{host}/mcp"
 
     @model_validator(mode="after")
     def apply_mode_defaults(self) -> "AgentSettings":
