@@ -48,21 +48,37 @@ print_plan() {
 }
 
 install_plan() {
+  local failures=()
   sudo apt-get update
   sudo apt-get install -y "${APT_PACKAGES[@]}"
   if command -v go >/dev/null 2>&1; then
     for package in "${GO_PACKAGES[@]}"; do
-      go install "${package}"
+      if ! go install "${package}"; then
+        echo "go install failed: ${package}" >&2
+        failures+=("go:${package}")
+      fi
     done
   else
     echo "go not found; skipping Go tools" >&2
+    failures+=("go:missing")
   fi
   if command -v cargo >/dev/null 2>&1; then
-    cargo install feroxbuster || true
+    if ! cargo install feroxbuster; then
+      echo "cargo install failed: feroxbuster" >&2
+      failures+=("cargo:feroxbuster")
+    fi
   else
     echo "cargo not found; skipping feroxbuster" >&2
+    failures+=("cargo:missing")
   fi
-  python -m pip install "${PIP_PACKAGES[@]}"
+  if ! python -m pip install "${PIP_PACKAGES[@]}"; then
+    echo "pip install failed: ${PIP_PACKAGES[*]}" >&2
+    failures+=("pip:${PIP_PACKAGES[*]}")
+  fi
+  if [[ "${#failures[@]}" -gt 0 ]]; then
+    echo "INSTALL FAILURES: ${failures[*]}" >&2
+    return 1
+  fi
 }
 
 case "${MODE}" in
