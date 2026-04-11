@@ -22,7 +22,7 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("nc", "base", ("all",), "sudo apt-get install -y netcat-openbsd"),
         ("dig", "base", ("all",), "sudo apt-get install -y dnsutils"),
         ("ffuf", "web", ("track1",), "sudo apt-get install -y ffuf"),
-        ("feroxbuster", "web", ("track1",), "cargo install feroxbuster"),
+        ("feroxbuster", "web", ("track1",), "cargo install feroxbuster or install the official Linux binary from GitHub releases"),
         ("nikto", "web", ("track1",), "sudo apt-get install -y nikto"),
         ("nmap", "service", ("track1", "track2", "track3", "track4"), "sudo apt-get install -y nmap"),
         ("masscan", "service", ("track2", "track3", "track4"), "sudo apt-get install -y masscan"),
@@ -42,7 +42,7 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("impacket-secretsdump", "domain", ("track4",), "python3 -m pip install --user impacket"),
         ("impacket-psexec", "domain", ("track4",), "python3 -m pip install --user impacket"),
         ("impacket-wmiexec", "domain", ("track4",), "python3 -m pip install --user impacket"),
-        ("bloodhound-python", "domain", ("track4",), "python3 -m pip install --user bloodhound-python"),
+        ("bloodhound-python", "domain", ("track4",), "python3 -m pip install --user bloodhound"),
         ("kerbrute", "domain", ("track4",), "go install github.com/ropnop/kerbrute@latest"),
         ("netexec", "domain", ("track4",), "python3 -m pip install --user netexec"),
     ]

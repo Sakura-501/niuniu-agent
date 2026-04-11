@@ -55,7 +55,7 @@ promote_user_binaries() {
   done
 }
 
-install_projectdiscovery_binary() {
+install_github_binary() {
   local repo="$1"
   local asset_pattern="$2"
   local binary_name="$3"
@@ -124,9 +124,9 @@ install_plan() {
       if ! go install "${package}"; then
         echo "go install failed: ${package}" >&2
         if [[ "${package}" == github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest ]]; then
-          install_projectdiscovery_binary "projectdiscovery/nuclei" "linux_amd64.zip" "nuclei" || failures+=("binary:nuclei")
+          install_github_binary "projectdiscovery/nuclei" "linux_amd64.zip" "nuclei" || failures+=("binary:nuclei")
         elif [[ "${package}" == github.com/projectdiscovery/httpx/cmd/httpx@latest ]]; then
-          install_projectdiscovery_binary "projectdiscovery/httpx" "linux_amd64.zip" "httpx" || failures+=("binary:httpx")
+          install_github_binary "projectdiscovery/httpx" "linux_amd64.zip" "httpx" || failures+=("binary:httpx")
         else
           failures+=("go:${package}")
         fi
@@ -139,11 +139,11 @@ install_plan() {
   if command -v cargo >/dev/null 2>&1; then
     if ! cargo install feroxbuster; then
       echo "cargo install failed: feroxbuster" >&2
-      failures+=("cargo:feroxbuster")
+      install_github_binary "epi052/feroxbuster" "x86_64-linux-feroxbuster.zip" "feroxbuster" || failures+=("binary:feroxbuster")
     fi
   else
     echo "cargo not found; skipping feroxbuster" >&2
-    failures+=("cargo:missing")
+    install_github_binary "epi052/feroxbuster" "x86_64-linux-feroxbuster.zip" "feroxbuster" || failures+=("binary:feroxbuster")
   fi
   if ! python3 -m pip install --user --break-system-packages "${PIP_PACKAGES[@]}"; then
     echo "pip install failed: ${PIP_PACKAGES[*]}" >&2
