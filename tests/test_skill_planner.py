@@ -14,7 +14,7 @@ def test_plan_skills_prefers_post_exploit_when_foothold_exists() -> None:
     )
 
     assert plan.stage == "post_exploit"
-    assert plan.skills[0].name in {"pivot_lateral", "privesc_maintain", "domain_enum"}
+    assert plan.skills[0].name in {"lateral-movement-planning", "privilege-path-analysis", "directory-identity-enumeration"}
 
 
 def test_plan_skills_respects_track_priority() -> None:
@@ -28,7 +28,7 @@ def test_plan_skills_respects_track_priority() -> None:
         track="track2",
     )
 
-    assert plan.skills[0].name in {"cve_mapping", "cloud_ai_surface"}
+    assert plan.skills[0].name in {"known-vulnerability-mapping", "cloud-asset-assessment"}
 
 
 def test_plan_skills_loads_disk_backed_skill_metadata() -> None:
@@ -43,7 +43,7 @@ def test_plan_skills_loads_disk_backed_skill_metadata() -> None:
     )
 
     assert any(skill.path.name == "SKILL.md" for skill in plan.skills)
-    assert any("attack surface" in skill.body.lower() for skill in plan.skills if skill.name == "recon_web")
+    assert any("attack surface" in skill.body.lower() for skill in plan.skills if skill.name == "web-surface-mapping")
 
 
 def test_extract_runtime_notes_captures_foothold_and_summary() -> None:

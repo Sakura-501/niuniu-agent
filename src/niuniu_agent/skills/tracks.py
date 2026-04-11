@@ -23,7 +23,7 @@ TRACK_PROFILES = {
             "优先验证主流漏洞而不是冷门路径",
             "优先可复现、可批量、可快速得分的思路",
         ),
-        recommended_skills=("recon_web", "exploit_web", "exploit_api", "flag_submit_recovery"),
+        recommended_skills=("web-surface-mapping", "web-vulnerability-testing", "api-workflow-testing", "evidence-capture"),
     ),
     "track2": TrackProfile(
         track_id="track2",
@@ -34,7 +34,7 @@ TRACK_PROFILES = {
             "再做 CVE 映射与云/AI 攻击面确认",
             "优先走已知高可信利用链",
         ),
-        recommended_skills=("recon_service", "cve_mapping", "cloud_ai_surface", "exploit_web", "flag_submit_recovery"),
+        recommended_skills=("service-enumeration", "known-vulnerability-mapping", "cloud-asset-assessment", "web-vulnerability-testing", "evidence-capture"),
     ),
     "track3": TrackProfile(
         track_id="track3",
@@ -45,7 +45,7 @@ TRACK_PROFILES = {
             "优先多步攻击规划与横向移动",
             "注意权限维持与阶段目标推进",
         ),
-        recommended_skills=("recon_service", "pivot_lateral", "privesc_maintain", "flag_submit_recovery"),
+        recommended_skills=("service-enumeration", "lateral-movement-planning", "privilege-path-analysis", "evidence-capture"),
     ),
     "track4": TrackProfile(
         track_id="track4",
@@ -56,7 +56,7 @@ TRACK_PROFILES = {
             "再做域渗透与权限路径分析",
             "优先最短可行权限路径",
         ),
-        recommended_skills=("recon_service", "domain_enum", "pivot_lateral", "privesc_maintain", "flag_submit_recovery"),
+        recommended_skills=("service-enumeration", "directory-identity-enumeration", "lateral-movement-planning", "privilege-path-analysis", "evidence-capture"),
     ),
 }
 

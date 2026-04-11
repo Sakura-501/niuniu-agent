@@ -9,17 +9,17 @@ def test_skill_registry_selects_generic_capabilities() -> None:
     selected = registry.select("web portal login with token api", track="track1")
     names = {skill.name for skill in selected}
 
-    assert "recon_web" in names
-    assert "exploit_api" in names
-    assert "flag_submit_recovery" in names
+    assert "web-surface-mapping" in names
+    assert "api-workflow-testing" in names
+    assert "evidence-capture" in names
 
 
 def test_skill_registry_loads_skill_body_from_disk() -> None:
     registry = SkillRegistry()
 
-    loaded = registry.load_full_text("recon_web")
+    loaded = registry.load_full_text("web-surface-mapping")
 
-    assert "<skill name=\"recon_web\">" in loaded
+    assert "<skill name=\"web-surface-mapping\">" in loaded
     assert "attack surface" in loaded.lower()
 
 
@@ -28,9 +28,9 @@ def test_skill_registry_describes_available_disk_skills() -> None:
 
     description = registry.describe_available()
 
-    assert "recon_web" in description
-    assert "exploit_web" in description
-    assert "domain_enum" in description
+    assert "web-surface-mapping" in description
+    assert "web-vulnerability-testing" in description
+    assert "directory-identity-enumeration" in description
 
 
 def test_skill_registry_can_load_temp_skill_directory(tmp_path: Path) -> None:
@@ -38,11 +38,8 @@ def test_skill_registry_can_load_temp_skill_directory(tmp_path: Path) -> None:
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
         "---\n"
-        "name: sample_skill\n"
-        "description: Sample skill for registry tests\n"
-        "trigger_keywords: sample, token\n"
-        "recommended_tracks: track1, track2\n"
-        "usage_guidance: Prefer deterministic validation first.\n"
+        "name: sample-skill\n"
+        "description: Use when sample token behavior appears in a target workflow.\n"
         "---\n\n"
         "# Sample Skill\n\n"
         "Use this skill when sample token behavior appears.\n",
@@ -50,7 +47,21 @@ def test_skill_registry_can_load_temp_skill_directory(tmp_path: Path) -> None:
     )
 
     registry = SkillRegistry(skills_dir=tmp_path / "skills")
-    selected = registry.select("sample token endpoint", track="track1")
 
-    assert [skill.name for skill in selected] == ["sample_skill"]
-    assert "Sample Skill" in registry.load_full_text("sample_skill")
+    assert registry.load_full_text("sample-skill").startswith("<skill name=\"sample-skill\">")
+    assert "Sample Skill" in registry.load_full_text("sample-skill")
+
+
+def test_all_builtin_skills_use_spec_style_frontmatter() -> None:
+    skills_root = Path("/Users/nonoge/Desktop/auto_pentest/niuniu-agent/skills")
+
+    for skill_file in sorted(skills_root.rglob("SKILL.md")):
+        text = skill_file.read_text(encoding="utf-8")
+        frontmatter_text = text.split("---", 2)[1].strip()
+        frontmatter = frontmatter_text.splitlines()
+        keys = [line.split(":", 1)[0].strip() for line in frontmatter if ":" in line]
+        assert keys == ["name", "description"], skill_file
+        name_value = frontmatter[0].split(":", 1)[1].strip()
+        description_value = frontmatter[1].split(":", 1)[1].strip()
+        assert "-" in name_value, skill_file
+        assert description_value.startswith("Use when"), skill_file

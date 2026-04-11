@@ -13,14 +13,14 @@ class SkillPlan:
 
 
 STAGE_PRIORITY = {
-    "recon": ("recon_web", "recon_service", "cve_mapping", "cloud_ai_surface"),
-    "exploit": ("exploit_web", "exploit_api", "flag_submit_recovery"),
-    "post_exploit": ("pivot_lateral", "privesc_maintain", "domain_enum", "flag_submit_recovery"),
-    "recovery": ("flag_submit_recovery", "recon_web", "recon_service", "exploit_web", "exploit_api"),
+    "recon": ("web-surface-mapping", "service-enumeration", "known-vulnerability-mapping", "cloud-asset-assessment"),
+    "exploit": ("web-vulnerability-testing", "api-workflow-testing", "evidence-capture"),
+    "post_exploit": ("lateral-movement-planning", "privilege-path-analysis", "directory-identity-enumeration", "evidence-capture"),
+    "recovery": ("evidence-capture", "web-surface-mapping", "service-enumeration", "web-vulnerability-testing", "api-workflow-testing"),
 }
 
 TRACK_STAGE_PRIORITY = {
-    ("track2", "recon"): ("cve_mapping", "cloud_ai_surface", "recon_service", "recon_web"),
+    ("track2", "recon"): ("known-vulnerability-mapping", "cloud-asset-assessment", "service-enumeration", "web-surface-mapping"),
 }
 
 
@@ -41,7 +41,7 @@ def plan_skills(
         stage = "post_exploit"
     elif int(runtime_state.get("failure_count", 0) or 0) > 0:
         stage = "recovery"
-    elif any(skill.name.startswith("exploit_") for skill in selected_by_text):
+    elif any(skill.name in {"web-vulnerability-testing", "api-workflow-testing"} for skill in selected_by_text):
         stage = "exploit"
     else:
         stage = "recon"

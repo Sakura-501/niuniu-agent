@@ -48,16 +48,17 @@
 - [x] hint 查看已加 5 分钟无进展条件约束
 - [x] 当前代码对应的架构图与流程图已落地到文档
 - [x] skills 模块已切到磁盘 `skills/*/SKILL.md` 目录 + `load_skill` 动态加载
+- [x] 所有内置 `SKILL.md` 已收敛到标准 skill frontmatter，只保留 `name` 和 `description`
 - [x] `competition` 已增加 `manager agent + 最多 3 个 worker agent` 的状态兜底骨架
 - [x] 已增加 `8081` Web UI、在线 debug 页面、agent 日志/流程查看和后台热更新控制脚本
 - [x] 调试机验证 `git pull` 后 `8081` Web UI 可启动并返回首页 HTML
 
 ## 进行中
 
-- [ ] 把四赛道的通用 skills 真正接入赛题推进策略
+- [ ] 把通用 skills 真正接入赛题推进策略
 说明：
 目前 `skills/*/SKILL.md`、动态注册表、`load_skill`、planner、入口 prompt、trigger prompts 已落地并接入 `debug` / `competition`。
-剩余工作是继续增强四赛道的细粒度能力与更多触发覆盖，而不是框架接线。
+剩余工作是继续增强通用能力、更多触发覆盖和更稳的排序策略，而不是再拆成赛道专属 skill。
 
 - [ ] 做强 `competition` 的长期状态恢复
 说明：
@@ -209,72 +210,72 @@
 
 ## 通用 Skills 设计表
 
-这里的 `skills` 不是“四赛道四套完全独立逻辑”，而是可复用能力模块。赛道只负责组合这些能力。
+这里的 `skills` 不是“四赛道四套完全独立逻辑”，而是严格按 skill 规范编写的可复用能力模块。比赛画像只负责排序和组合这些通用能力。
 
-### 1. `recon_web`
+### 1. `web-surface-mapping`
 
 作用：识别 Web 入口、路由、静态资源、目录、接口、常见参数。  
 关键词触发：`web`、`portal`、`site`、`http`、`login`、`admin`、`dashboard`  
 典型使用时机：题目刚接管、需要先摸清攻击面时。  
 输出期望：入口列表、关键路径、参数点、技术栈指纹。
 
-### 2. `recon_service`
+### 2. `service-enumeration`
 
 作用：识别端口、协议、运行服务、版本信息。  
 关键词触发：`service`、`port`、`tcp`、`udp`、`ssh`、`redis`、`mysql`、`fastapi`  
 典型使用时机：非纯 Web 题、需要先识别服务栈时。  
 输出期望：端口表、服务类型、可疑高价值服务。
 
-### 3. `cve_mapping`
+### 3. `known-vulnerability-mapping`
 
 作用：根据指纹、版本、响应头、组件特征映射潜在 CVE。  
 关键词触发：`cve`、`version`、`apache`、`nginx`、`fastapi`、`spring`、`grafana`  
 典型使用时机：第二赛区、识别到已知组件时。  
 输出期望：候选漏洞列表、优先验证顺序。
 
-### 4. `exploit_web`
+### 4. `web-vulnerability-testing`
 
 作用：验证主流 Web 漏洞，包括注入、越权、文件、模板、反序列化等。  
 关键词触发：`sqli`、`xss`、`upload`、`ssti`、`idor`、`auth bypass`、`template`  
 典型使用时机：第一赛区、第二赛区的 Web 面验证。  
 输出期望：可复现请求、利用链、flag/敏感信息证据。
 
-### 5. `exploit_api`
+### 5. `api-workflow-testing`
 
 作用：针对 JSON/API 接口的认证、鉴权、结构化利用。  
 关键词触发：`api`、`json`、`token`、`jwt`、`graphql`、`rest`  
 典型使用时机：接口型题目或前后端分离应用。  
 输出期望：关键接口、鉴权缺陷、利用步骤。
 
-### 6. `cloud_ai_surface`
+### 6. `cloud-asset-assessment`
 
 作用：识别云元数据、对象存储、AI 服务接口、模型推理服务入口。  
 关键词触发：`cloud`、`bucket`、`metadata`、`llm`、`model`、`inference`、`ai`  
 典型使用时机：第二赛区云安全 / AI 基础设施题。  
 输出期望：高风险资产、可疑服务、云配置缺陷。
 
-### 7. `pivot_lateral`
+### 7. `lateral-movement-planning`
 
 作用：多步攻击推进、横向移动、下一跳规划。  
 关键词触发：`pivot`、`lateral`、`next hop`、`internal`、`foothold`  
 典型使用时机：第三赛区或第四赛区中拿到初始 foothold 后。  
 输出期望：当前 foothold、下一跳、凭据/通道复用机会。
 
-### 8. `privesc_maintain`
+### 8. `privilege-path-analysis`
 
 作用：提权检查、凭据收集、权限维持、环境信息归档。  
 关键词触发：`privesc`、`sudo`、`capability`、`credential`、`persistence`  
 典型使用时机：第三赛区、第四赛区、已拿到 shell 或低权限时。  
 输出期望：提权路径、可复用凭据、长期控制策略。
 
-### 9. `domain_enum`
+### 9. `directory-identity-enumeration`
 
 作用：域信息收集、主机角色识别、AD 基础枚举。  
 关键词触发：`domain`、`ad`、`ldap`、`kerberos`、`dc`、`smb`  
 典型使用时机：第四赛区企业内网/域环境。  
 输出期望：域结构、关键主机、可打点位。
 
-### 10. `flag_submit_recovery`
+### 10. `evidence-capture`
 
 作用：flag 提交、结果确认、失败恢复、重复提交去重。  
 关键词触发：`flag`、`submit`、`recovery`、`retry`  
@@ -286,16 +287,16 @@
 ### 使用原则
 
 - [x] 赛道不要直接绑定单个 skill，而是绑定 skill 组合
-- [x] 优先从 `recon_*` 开始，再进入 `exploit_*`
-- [x] 拿到 foothold 后再触发 `pivot_lateral` / `privesc_maintain`
-- [x] 任何疑似 flag 都交给 `flag_submit_recovery`
+- [x] 优先从映射/枚举类 skill 开始，再进入测试/利用类 skill
+- [x] 拿到 foothold 后再触发 `lateral-movement-planning` / `privilege-path-analysis`
+- [x] 任何疑似 flag 或关键证据都交给 `evidence-capture`
 
 ### 典型组合
 
-- 第一赛区：`recon_web + exploit_web + exploit_api + flag_submit_recovery`
-- 第二赛区：`recon_service + cve_mapping + cloud_ai_surface + exploit_web + flag_submit_recovery`
-- 第三赛区：`recon_service + pivot_lateral + privesc_maintain + flag_submit_recovery`
-- 第四赛区：`recon_service + domain_enum + pivot_lateral + privesc_maintain + flag_submit_recovery`
+- Web/SRC 倾向：`web-surface-mapping + web-vulnerability-testing + api-workflow-testing + evidence-capture`
+- 漏洞/云/AI 倾向：`service-enumeration + known-vulnerability-mapping + cloud-asset-assessment + evidence-capture`
+- 横向/提权 倾向：`service-enumeration + lateral-movement-planning + privilege-path-analysis + evidence-capture`
+- 身份/目录 倾向：`service-enumeration + directory-identity-enumeration + lateral-movement-planning + privilege-path-analysis + evidence-capture`
 
 ### 技能触发方式
 

@@ -5,7 +5,7 @@ def test_infer_track_for_domain_environment() -> None:
     assert infer_track("Active Directory domain with ldap and kerberos") == "track4"
 
 
-def test_infer_track_for_cloud_ai_surface() -> None:
+def test_infer_track_for_cloud_environment() -> None:
     assert infer_track("cloud metadata bucket and ai model service") == "track2"
 
 

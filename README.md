@@ -273,25 +273,26 @@ OperationalError: no such column: last_progress_at
 
 特点：
 
-- 不是四赛道四套独立硬编码
+- 不是按四个赛道拆成四套 skill
 - 是 learn-claude-code 风格的磁盘 skill 目录
+- `SKILL.md` 只保留标准 skill frontmatter：`name` 和 `description`
 - 运行时只暴露轻量 catalog，需要时再通过 `load_skill` 加载全文
-- 再按赛道画像和当前阶段动态组合
+- 比赛画像只用于排序通用 skill，不定义赛道专属 skill
 
 当前核心能力包括：
 
-- `recon_web`
-- `recon_service`
-- `cve_mapping`
-- `exploit_web`
-- `exploit_api`
-- `cloud_ai_surface`
-- `pivot_lateral`
-- `privesc_maintain`
-- `domain_enum`
-- `flag_submit_recovery`
+- `web-surface-mapping`
+- `service-enumeration`
+- `known-vulnerability-mapping`
+- `web-vulnerability-testing`
+- `api-workflow-testing`
+- `cloud-asset-assessment`
+- `lateral-movement-planning`
+- `privilege-path-analysis`
+- `directory-identity-enumeration`
+- `evidence-capture`
 
-### 7.2 四赛道画像
+### 7.2 比赛画像
 
 已定义：
 
@@ -302,8 +303,8 @@ OperationalError: no such column: last_progress_at
 
 当前还在继续补强的是：
 
-- 每个赛道更细的 exploit 决策
-- 更强的优先级与阶段切换
+- 比赛画像下的通用 skill 排序
+- 更强的阶段切换和触发覆盖
 
 ## 8. 调试机使用
 

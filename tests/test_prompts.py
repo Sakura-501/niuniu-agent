@@ -22,7 +22,7 @@ def test_entry_prompt_includes_selected_skills() -> None:
     prompt = build_entry_prompt("debug", snapshot, active, skills)
 
     assert "Selected skills" in prompt
-    assert "recon_web" in prompt
+    assert "web-surface-mapping" in prompt
 
 
 def test_entry_prompt_biases_summary_when_requested() -> None:
