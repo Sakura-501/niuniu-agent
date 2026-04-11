@@ -106,7 +106,12 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         challenge_code=challenge_code,
                         status="completed",
                         summary="challenge completed",
-                        metadata={"challenge_code": challenge_code, "retired": True},
+                        metadata={
+                            "challenge_code": challenge_code,
+                            "retired": True,
+                            "competition_run_id": competition_run_id,
+                            "manager_agent_id": manager.agent_id,
+                        },
                     )
                     return
 
@@ -127,7 +132,11 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         challenge_code=challenge_code,
                         status="paused",
                         summary="paused by operator",
-                        metadata={"challenge_code": challenge_code},
+                        metadata={
+                            "challenge_code": challenge_code,
+                            "competition_run_id": competition_run_id,
+                            "manager_agent_id": manager.agent_id,
+                        },
                     )
                     return
                 seconds_since_progress = worker_context.state_store.seconds_since_progress(target.code)
@@ -172,6 +181,8 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         "track": infer_track(target.description),
                         "stage": skill_plan.stage if skill_plan else "recon",
                         "instance_status": target.instance_status,
+                        "competition_run_id": competition_run_id,
+                        "manager_agent_id": manager.agent_id,
                     },
                 )
 
@@ -239,7 +250,11 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 challenge_code=challenge_code,
                 status="cancelled",
                 summary="worker cancelled",
-                metadata={"challenge_code": challenge_code},
+                metadata={
+                    "challenge_code": challenge_code,
+                    "competition_run_id": competition_run_id,
+                    "manager_agent_id": manager.agent_id,
+                },
             )
             raise
         except Exception as exc:  # pragma: no cover - runtime recovery path
@@ -253,7 +268,11 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 challenge_code=challenge_code,
                 status="error",
                 summary="worker failed; waiting for recovery",
-                metadata={"challenge_code": challenge_code},
+                metadata={
+                    "challenge_code": challenge_code,
+                    "competition_run_id": competition_run_id,
+                    "manager_agent_id": manager.agent_id,
+                },
                 last_error=str(exc),
             )
             worker_context.state_store.append_agent_event(

@@ -464,6 +464,7 @@ class AgentWebService:
             },
             "contest": self.context.challenge_store.export_json(snapshot),
             "agents": build_agent_overview_rows(stored_agents, process_status, max_parallel_workers=3),
+            "agent_tree": build_agent_tree(stored_agents, process_status, max_parallel_workers=3),
             "recent_agent_events": self.context.state_store.list_agent_events(limit=80),
         }
 
@@ -886,3 +887,55 @@ def build_agent_overview_rows(
                 }
             )
     return rows
+
+
+def build_agent_tree(
+    stored_agents: list[dict[str, object]],
+    process_status: dict[str, object],
+    *,
+    max_parallel_workers: int,
+) -> list[dict[str, object]]:
+    rows = build_agent_overview_rows(
+        stored_agents,
+        process_status,
+        max_parallel_workers=max_parallel_workers,
+    )
+    managers = [item for item in rows if item.get("role") == "manager"]
+    workers = [item for item in rows if item.get("role") == "challenge_worker"]
+    grouped: list[dict[str, object]] = []
+    assigned: set[str] = set()
+
+    for manager in managers:
+        manager_id = str(manager["agent_id"])
+        manager_run_id = (
+            str((manager.get("metadata") or {}).get("run_id"))
+            if (manager.get("metadata") or {}).get("run_id") is not None
+            else manager_id.split(":")[-1]
+        )
+        children = [
+            worker
+            for worker in workers
+            if (
+                (worker.get("metadata") or {}).get("manager_agent_id") == manager_id
+                or (worker.get("metadata") or {}).get("competition_run_id") == manager_run_id
+                or (str(worker["agent_id"]).startswith("worker-slot:") and process_status.get("competition", {}).get("run_id") == manager_run_id)
+            )
+        ]
+        assigned.update(str(item["agent_id"]) for item in children)
+        grouped.append({"manager": manager, "workers": children})
+
+    detached = [worker for worker in workers if str(worker["agent_id"]) not in assigned]
+    if detached:
+        grouped.append(
+            {
+                "manager": {
+                    "agent_id": "manager:detached",
+                    "role": "manager",
+                    "status": "detached",
+                    "summary": "workers without a matching competition run",
+                    "metadata": {"synthetic": True},
+                },
+                "workers": detached,
+            }
+        )
+    return grouped

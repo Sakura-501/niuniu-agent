@@ -31,6 +31,7 @@ class CompetitionManagerAgent:
             "current_level": snapshot.current_level,
             "pending_challenges": pending,
             "active_workers": active_workers,
+            "run_id": self.agent_id.split(":")[-1] if ":" in self.agent_id else None,
         }
         self.context.state_store.upsert_agent_status(
             agent_id=self.agent_id,

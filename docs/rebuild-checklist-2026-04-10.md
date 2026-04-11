@@ -60,6 +60,7 @@
 - [x] worker 已改成单次运行唯一 `worker_run_id`，agent 详情日志不再混入旧 run
 - [x] worker agent 已支持 Web `pause/delete`，已完成 worker 保留在 Agents 列表用于查看本次日志
 - [x] manager 也已切到单次 `competition_run_id`，不同 competition run 的日志相互隔离
+- [x] Agents UI 已改成按 `manager -> workers` 的树形展示
 
 ## 进行中
 

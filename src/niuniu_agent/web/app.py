@@ -94,32 +94,63 @@ def create_app(service: object | None = None) -> FastAPI:
           if (!items.length) target.innerHTML = '<div class="card muted">no data</div>';
         }
 
+        function renderAgentTree(tree) {
+          const target = document.getElementById('agent-list');
+          target.innerHTML = '';
+          for (const group of tree || []) {
+            const details = document.createElement('details');
+            details.className = 'card';
+            details.open = true;
+            const manager = group.manager || {};
+            const summary = document.createElement('summary');
+            summary.innerHTML = `
+              <strong><a href="/agents/${encodeURIComponent(manager.agent_id || '')}">${manager.agent_id || 'manager'}</a></strong>
+              <span class="muted"> · ${manager.status || ''}</span>
+              <div class="mono">${manager.summary || ''}</div>
+            `;
+            details.appendChild(summary);
+
+            const list = document.createElement('div');
+            list.className = 'card-list';
+            list.style.marginTop = '12px';
+            for (const worker of group.workers || []) {
+              const item = document.createElement('div');
+              item.className = 'card';
+              const controls = worker.role === 'challenge_worker' ? `
+                <div class="button-row" style="margin-top:10px;">
+                  <button data-pause-agent="${worker.agent_id}">Pause</button>
+                  <button class="secondary" data-delete-agent="${worker.agent_id}">Delete</button>
+                </div>
+              ` : '';
+              item.innerHTML = `
+                <strong><a href="/agents/${encodeURIComponent(worker.agent_id)}">${worker.agent_id}</a></strong>
+                <div class="muted">${worker.role || ''} · ${worker.status || ''}</div>
+                <div class="mono">${worker.summary || ''}</div>
+                ${controls}
+              `;
+              list.appendChild(item);
+            }
+            if (!(group.workers || []).length) {
+              const empty = document.createElement('div');
+              empty.className = 'card muted';
+              empty.textContent = 'no workers';
+              list.appendChild(empty);
+            }
+            details.appendChild(list);
+            target.appendChild(details);
+          }
+          if (!(tree || []).length) {
+            target.innerHTML = '<div class="card muted">no data</div>';
+          }
+        }
+
         async function loadOverview() {
           const data = await api('/api/overview');
           renderCardList('process-list', Object.entries(data.process), ([name, state]) => `
             <strong>${name}</strong>
             <div class="muted mono">${JSON.stringify(state, null, 2)}</div>
           `);
-          renderCardList('agent-list', data.agents || [], (agent) => {
-            const debugControls = agent.agent_id.startsWith('debug:') ? `
-              <div class="button-row" style="margin-top:10px;">
-                <button data-stop-agent="${agent.agent_id}">Stop</button>
-                <button class="secondary" data-delete-agent="${agent.agent_id}">Delete</button>
-              </div>
-            ` : '';
-            const workerControls = agent.role === 'challenge_worker' ? `
-              <div class="button-row" style="margin-top:10px;">
-                <button data-pause-agent="${agent.agent_id}">Pause</button>
-                <button class="secondary" data-delete-agent="${agent.agent_id}">Delete</button>
-              </div>
-            ` : '';
-            return `
-              <strong><a href="/agents/${encodeURIComponent(agent.agent_id)}">${agent.agent_id}</a></strong>
-              <div class="muted">${agent.role} · ${agent.status}</div>
-              <div class="mono">${agent.summary || ''}</div>
-              ${debugControls || workerControls}
-            `;
-          });
+          renderAgentTree(data.agent_tree || []);
           renderCardList('challenge-list', data.contest.challenges || [], (challenge) => `
             <strong><a href="/challenges/${encodeURIComponent(challenge.code)}">${challenge.code}</a> · ${challenge.title}</strong>
             <div class="muted">instance=${challenge.instance_status} · completed=${challenge.completed} · hint_viewed=${challenge.hint_viewed}</div>
