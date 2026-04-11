@@ -56,10 +56,20 @@ class ChallengeStore:
         current = snapshot or self._latest_snapshot
         if current is None:
             return None
-        for challenge in sorted(current.challenges, key=lambda item: (item.level, item.completed, item.code)):
-            if not challenge.completed:
+        for challenge in sorted(current.challenges, key=lambda item: (item.level, self.is_effectively_completed(item), item.code)):
+            if not self.is_effectively_completed(challenge):
                 return challenge
         return None
+
+    def is_effectively_completed(self, challenge: ChallengeSnapshot) -> bool:
+        if challenge.completed:
+            return True
+        local_flags = self.state_store.list_submitted_flags(challenge.code)
+        if challenge.flag_count > 0 and len(local_flags) >= challenge.flag_count:
+            return True
+        if challenge.flag_count == 0 and local_flags:
+            return True
+        return False
 
     def render_summary(self, snapshot: ContestSnapshot | None = None) -> str:
         current = snapshot or self._latest_snapshot
@@ -69,7 +79,7 @@ class ChallengeStore:
         lines = [
             f"current_level={current.current_level}",
             f"total_challenges={current.total_challenges}",
-            f"solved_challenges={current.solved_challenges}",
+            f"solved_challenges={self._effective_solved_challenges(current)}",
         ]
         for challenge in current.challenges:
             local_flags = self.state_store.list_submitted_flags(challenge.code)
@@ -77,7 +87,7 @@ class ChallengeStore:
                 " - "
                 f"{challenge.code} | {challenge.title} | "
                 f"difficulty={challenge.difficulty} | level={challenge.level} | "
-                f"instance={challenge.instance_status} | completed={challenge.completed} | "
+                f"instance={challenge.instance_status} | completed={self.is_effectively_completed(challenge)} | "
                 f"hint_viewed={challenge.hint_viewed} | local_flags={len(local_flags)}"
             )
         return "\n".join(lines)
@@ -89,11 +99,12 @@ class ChallengeStore:
         return {
             "current_level": current.current_level,
             "total_challenges": current.total_challenges,
-            "solved_challenges": current.solved_challenges,
+            "solved_challenges": self._effective_solved_challenges(current),
             "challenges": [
                 {
                     **asdict(challenge),
-                    "completed": challenge.completed,
+                    "official_completed": challenge.completed,
+                    "completed": self.is_effectively_completed(challenge),
                     "locally_submitted_flags": self.state_store.list_submitted_flags(challenge.code),
                     "runtime_state": self.state_store.get_challenge_runtime_state(challenge.code),
                     "notes": self.state_store.get_challenge_notes(challenge.code),
@@ -123,3 +134,8 @@ class ChallengeStore:
             },
             ensure_ascii=False,
         )
+
+    def _effective_solved_challenges(self, snapshot: ContestSnapshot) -> int:
+        official = int(snapshot.solved_challenges or 0)
+        local = sum(1 for challenge in snapshot.challenges if self.is_effectively_completed(challenge))
+        return max(official, local)

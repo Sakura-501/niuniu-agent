@@ -118,7 +118,11 @@ def partition_dispatchable_challenges(
     dispatchable: list[str] = []
     paused: list[str] = []
     for challenge in snapshot.challenges:
-        if challenge.completed:
+        local_flags = state_store.list_submitted_flags(challenge.code)
+        effective_completed = bool(challenge.completed) or (
+            getattr(challenge, "flag_count", 0) > 0 and len(local_flags) >= getattr(challenge, "flag_count", 0)
+        ) or (getattr(challenge, "flag_count", 0) == 0 and bool(local_flags))
+        if effective_completed:
             continue
         notes = state_store.get_challenge_notes(challenge.code)
         if notes.get("operator_pause") == "true":

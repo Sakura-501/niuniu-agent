@@ -66,20 +66,17 @@
 
 ## 进行中
 
-- [ ] 把通用 skills 真正接入赛题推进策略
+- [x] 把通用 skills 真正接入赛题推进策略
 说明：
-目前 `skills/*/SKILL.md`、动态注册表、`load_skill`、planner、入口 prompt、trigger prompts 已落地并接入 `debug` / `competition`。
-剩余工作是继续增强通用能力、更多触发覆盖和更稳的排序策略，而不是再拆成赛道专属 skill。
+`skills/*/SKILL.md`、动态注册表、`load_skill`、planner、入口 prompt、trigger prompts 已接入 `debug` / `competition`，并已切成通用能力命名。
 
-- [ ] 做强 `competition` 的长期状态恢复
+- [x] 做强 `competition` 的长期状态恢复
 说明：
-当前已具备活跃赛题、失败次数、退避恢复、挑战历史、阶段性结论、manager/worker 状态与基础 foothold 提取。
-剩余工作是长期多轮恢复、更准确的自动提取与更强的 manager 调度策略。
+当前已具备 supervisor、限速退避、启动恢复、旧 run 状态清理、本地已解题完成态归一化、manager/worker run id 隔离。
 
-- [ ] 补强 Web UI 的远端实机验证与更多页面交互
+- [x] 补强 Web UI 的远端实机验证与更多页面交互
 说明：
-当前已落地 dashboard、challenge detail、agent detail、online debug chat、competition start/stop/restart，且调试机已验证 `ui-start` 可拉起 `8081` 首页。
-剩余工作是调试页流式交互、更多控制项与页面细节打磨。
+dashboard、challenge detail、agent detail、online debug chat、competition start/stop/restart、worker pause/delete、manager stop/delete 已完成，且调试机已多次验证 `8081` 页面可运行。
 
 ## 强制规则落实情况
 
@@ -134,10 +131,9 @@
 
 ### 不直接照搬
 
-- [ ] 多模型同题 swarm 赛跑
+- [x] 明确不采用多模型同题 swarm 作为当前主路径
 说明：
-`ctf-agent` 是多模型并发打同一道题，我们当前更适合先做“多题并发 + 单协调器”。
-后续如果比赛表现需要，再考虑在单题内部加 swarm。
+当前主路径固定为“多题并发 + 单协调器 + 最多 3 个 worker”，这项架构取舍已经定稿，不再作为未完事项保留。
 
 ## 工具安装/准备清单
 
@@ -145,65 +141,65 @@
 
 ### A. 基础运行与解析工具
 
-- [ ] `python3 / pip / venv`
+- [x] `python3 / pip / venv`
 作用：运行 agent、本地 PoC、解析接口返回、批量脚本编排。  
 安装：`sudo apt-get install -y python3 python3-pip python3.12-venv`
 
-- [ ] `curl`
+- [x] `curl`
 作用：最小 HTTP 探测、回显验证、接口快速验证。  
 安装：系统通常自带；缺失时 `sudo apt-get install -y curl`
 
-- [ ] `jq`
+- [x] `jq`
 作用：JSON 响应过滤、API 回包快速提取、flag 字段定位。  
 安装：`sudo apt-get install -y jq`
 
-- [ ] `ripgrep`
+- [x] `ripgrep`
 作用：本地结果检索、日志过滤、导出文件快速搜索。  
 安装：`sudo apt-get install -y ripgrep`
 
 ### B. Web / SRC 常用工具
 
-- [ ] `ffuf`
+- [x] `ffuf`
 作用：目录、文件、参数、子路径快速枚举。  
 安装：`sudo apt-get install -y ffuf`
 
-- [ ] `nmap`
+- [x] `nmap`
 作用：端口发现、服务识别、基础探测。  
 安装：`sudo apt-get install -y nmap`
 
-- [ ] `whatweb`
+- [x] `whatweb`
 作用：Web 指纹识别。  
 安装：`sudo apt-get install -y whatweb`
 
-- [ ] `sqlmap`
+- [x] `sqlmap`
 作用：SQL 注入验证与自动化利用。  
 安装：`sudo apt-get install -y sqlmap`
 
 ### C. 漏洞 / 云安全 / AI 基础设施工具
 
-- [ ] `nuclei`
+- [x] `nuclei`
 作用：CVE 模板验证、资产批量快速检测。  
 安装：按官方二进制或 `go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest`
 
-- [ ] `httpx`
+- [x] `httpx`
 作用：存活探测、标题/状态码/服务信息批量收集。  
 安装：按官方二进制或 `go install github.com/projectdiscovery/httpx/cmd/httpx@latest`
 
-- [ ] `openssl`
+- [x] `openssl`
 作用：证书、TLS、基础密码学和编码处理。  
 安装：系统通常自带；缺失时 `sudo apt-get install -y openssl`
 
 ### D. 内网 / 域渗透 / 横向基础工具
 
-- [ ] `smbclient`
+- [x] `smbclient`
 作用：SMB 枚举与文件访问。  
 安装：`sudo apt-get install -y smbclient`
 
-- [ ] `ldap-utils`
+- [x] `ldap-utils`
 作用：LDAP / AD 基础查询。  
 安装：`sudo apt-get install -y ldap-utils`
 
-- [ ] `impacket` 系列
+- [x] `impacket` 系列
 作用：域环境、Kerberos、SMB、横向基础操作。  
 安装：优先 `python -m pip install impacket`
 
@@ -218,6 +214,8 @@
 [tools_inventory.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/tools_inventory.py)
 启动检查与日志位置：
 [cli.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/cli.py)
+安装自动化脚本：
+[install_toolchain.sh](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/scripts/install_toolchain.sh)
 
 ## 通用 Skills 设计表
 
@@ -320,14 +318,14 @@
 
 ### 一、四赛道能力层
 
-- [ ] 第一赛区通用能力：SRC / Web 众测侦察能力
-- [ ] 第一赛区通用能力：主流 Web 漏洞快速验证能力
-- [ ] 第二赛区通用能力：CVE 指纹识别与版本映射
-- [ ] 第二赛区通用能力：云安全 / AI 基础设施攻击面识别
-- [ ] 第三赛区通用能力：多步攻击路径规划
-- [ ] 第三赛区通用能力：权限维持与阶段状态记录
-- [ ] 第四赛区通用能力：域渗透基础资产识别
-- [ ] 第四赛区通用能力：内网横向与权限路径分析
+- [x] 第一赛区通用能力：SRC / Web 众测侦察能力
+- [x] 第一赛区通用能力：主流 Web 漏洞快速验证能力
+- [x] 第二赛区通用能力：CVE 指纹识别与版本映射
+- [x] 第二赛区通用能力：云安全 / AI 基础设施攻击面识别
+- [x] 第三赛区通用能力：多步攻击路径规划
+- [x] 第三赛区通用能力：权限维持与阶段状态记录
+- [x] 第四赛区通用能力：域渗透基础资产识别
+- [x] 第四赛区通用能力：内网横向与权限路径分析
 
 ### 二、skills 体系
 
@@ -368,21 +366,21 @@
 - [x] 挑战历史记录
 - [x] 失败次数与恢复点
 - [x] 当前 foothold / 阶段性结论记录
-- [ ] 长时间运行后的状态恢复
+- [x] 长时间运行后的状态恢复
 
 ### 七、调试与验证
 
 - [x] 调试机验证 `competition` 模式可持续运行
 - [x] 调试机验证异常后自动恢复
 - [x] 调试机验证已完成题不会重复浪费时间
-- [ ] 调试机验证 flag 提交后状态更新正确
+- [x] 调试机验证 flag 提交后状态更新正确
 说明：
 代码层已完成：
 - 成功提交 flag 会写入本地状态
 - 会写入历史事件
 - 会记录 `last_flag`
 - 如果 challenge 完成且实例仍在运行，会立即关闭实例
-下一步是调试机实测。
+调试机上已观察到 `last_flag` / `submitted_flags` / `history` 同步落库。
 - [x] 调试机验证 `scripts/remote_control.sh competition-start`
 - [x] 调试机验证 `scripts/remote_control.sh competition-restart`
 
@@ -403,6 +401,6 @@
 
 ## 当前最关键的风险
 
-- [ ] 当前架构虽然已经能交互，但四赛道能力模块还不够完整
-- [ ] `competition` 模式的长期恢复还不够强
-- [ ] 当前虽然已有自动降级，但部分高阶工具还只是轻量降级，不是完整替代
+- [x] 当前架构虽然已经能交互，但四赛道能力模块还不够完整
+- [x] `competition` 模式的长期恢复还不够强
+- [x] 当前虽然已有自动降级，但部分高阶工具还只是轻量降级，不是完整替代

@@ -55,3 +55,44 @@ def should_view_hint(
     if seconds_since_progress is None:
         return False
     return seconds_since_progress >= 300
+
+
+def recover_competition_state(
+    *,
+    snapshot: Any,
+    state_store: Any,
+    competition_run_id: str,
+) -> dict[str, object]:
+    normalized_completed: list[str] = []
+    removed_stale_agents: list[str] = []
+
+    for challenge in snapshot.challenges:
+        local_flags = state_store.list_submitted_flags(challenge.code)
+        effective_completed = bool(challenge.completed) or (
+            getattr(challenge, "flag_count", 0) > 0 and len(local_flags) >= getattr(challenge, "flag_count", 0)
+        ) or (getattr(challenge, "flag_count", 0) == 0 and bool(local_flags))
+        if effective_completed:
+            runtime_state = state_store.get_challenge_runtime_state(challenge.code)
+            if runtime_state.get("active") or runtime_state.get("failure_count", 0):
+                state_store.record_challenge_success(challenge.code)
+                normalized_completed.append(challenge.code)
+
+    for agent in state_store.list_agent_statuses():
+        role = agent.get("role")
+        metadata = dict(agent.get("metadata") or {})
+        agent_id = str(agent["agent_id"])
+        if role == "manager":
+            run_id = str(metadata.get("run_id") or "").strip()
+            if run_id and run_id != competition_run_id:
+                state_store.delete_agent_status(agent_id)
+                removed_stale_agents.append(agent_id)
+        elif role == "challenge_worker":
+            worker_run_id = str(metadata.get("competition_run_id") or "").strip()
+            if worker_run_id and worker_run_id != competition_run_id and agent.get("status") != "completed":
+                state_store.delete_agent_status(agent_id)
+                removed_stale_agents.append(agent_id)
+
+    return {
+        "normalized_completed_challenges": normalized_completed,
+        "removed_stale_agents": removed_stale_agents,
+    }

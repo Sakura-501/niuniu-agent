@@ -53,6 +53,9 @@ class DummyStateStore:
     def list_history(self, challenge_code: str, limit: int = 10):
         return self.history[:limit]
 
+    def delete_agent_statuses_for_challenge(self, challenge_code: str, *, role: str | None = None, exclude_statuses: set[str] | None = None):
+        return None
+
 
 @pytest.mark.anyio
 async def test_challenge_store_refresh_and_next_candidate() -> None:
@@ -95,3 +98,24 @@ async def test_challenge_store_export_json_includes_official_fields_even_without
     assert challenge["hint_viewed"] is False
     assert challenge["notes"] == {}
     assert challenge["recent_history"] == []
+
+
+@pytest.mark.anyio
+async def test_challenge_store_treats_local_successful_flags_as_effective_completion() -> None:
+    class LocalSolvedStateStore(DummyStateStore):
+        def list_submitted_flags(self, challenge_code: str) -> list[str]:
+            if challenge_code == "c2":
+                return ["flag{one}", "flag{two}"]
+            return []
+
+    store = ChallengeStore(DummyContestClient(), LocalSolvedStateStore())
+
+    snapshot = await store.refresh()
+    challenge = next(item for item in snapshot.challenges if item.code == "c2")
+    exported = store.export_json(snapshot)
+    exported_challenge = next(item for item in exported["challenges"] if item["code"] == "c2")
+
+    assert store.is_effectively_completed(challenge) is True
+    assert store.next_candidate(snapshot) is None
+    assert exported_challenge["completed"] is True
+    assert exported["solved_challenges"] == 2

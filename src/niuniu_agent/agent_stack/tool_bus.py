@@ -243,15 +243,16 @@ class ToolBus:
             self.context.state_store.set_challenge_note(code, "last_flag", flag)
         snapshot = await self.context.challenge_store.refresh()
         challenge = next((item for item in snapshot.challenges if item.code == code), None)
+        effective_completed = self.context.challenge_store.is_effectively_completed(challenge) if challenge is not None else False
         stopped_instance = False
-        if challenge is not None and challenge.completed and challenge.instance_status == "running":
+        if challenge is not None and effective_completed and challenge.instance_status == "running":
             await self.context.contest_gateway.stop_challenge(code)
             stopped_instance = True
         return {
             "code": code,
             "flag": flag,
             "payload": payload,
-            "completed": challenge.completed if challenge is not None else False,
+            "completed": effective_completed,
             "stopped_instance": stopped_instance,
         }
 

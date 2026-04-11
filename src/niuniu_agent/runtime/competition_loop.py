@@ -20,7 +20,7 @@ from niuniu_agent.runtime.coordinator import CompetitionCoordinator
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
 from niuniu_agent.runtime.manager import CompetitionManagerAgent, partition_dispatchable_challenges
-from niuniu_agent.runtime.recovery import extract_runtime_notes, should_view_hint
+from niuniu_agent.runtime.recovery import extract_runtime_notes, recover_competition_state, should_view_hint
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
 
@@ -45,6 +45,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
     manager_context = context.spawn(agent_id=build_manager_agent_id(competition_run_id), agent_role="manager")
     manager = CompetitionManagerAgent(manager_context, findings_bus)
     refresh_backoff = 1
+    recovery_ran = False
 
     async def run_worker(challenge_code: str) -> None:
         worker_agent_id = build_worker_agent_id(challenge_code)
@@ -311,17 +312,25 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     },
                 )
                 manager_context.state_store.upsert_agent_status(
-                    agent_id="manager:competition",
+                    agent_id=manager.agent_id,
                     role="manager",
                     challenge_code=None,
                     status="degraded",
                     summary="challenge refresh failed; retrying",
-                    metadata={"backoff_seconds": refresh_backoff},
+                    metadata={"backoff_seconds": refresh_backoff, "run_id": competition_run_id},
                     last_error=str(exc),
                 )
                 await asyncio.sleep(refresh_backoff)
                 refresh_backoff = min(refresh_backoff * 2, context.settings.competition_max_error_backoff_seconds)
                 continue
+            if not recovery_ran:
+                recovery_summary = recover_competition_state(
+                    snapshot=snapshot,
+                    state_store=context.state_store,
+                    competition_run_id=competition_run_id,
+                )
+                context.event_logger.log("competition.recovery", recovery_summary)
+                recovery_ran = True
             manager.heartbeat(snapshot, coordinator)
             manager.reconcile(coordinator)
             candidates, _paused = partition_dispatchable_challenges(snapshot, context.state_store)

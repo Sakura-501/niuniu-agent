@@ -10,6 +10,9 @@ class DummyStateStore:
     def get_challenge_notes(self, code: str):
         return self.notes_map.get(code, {})
 
+    def list_submitted_flags(self, code: str):
+        return []
+
 
 def test_partition_dispatchable_challenges_excludes_paused_items() -> None:
     snapshot = SimpleNamespace(
