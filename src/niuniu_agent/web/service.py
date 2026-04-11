@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import html
 import json
 import os
@@ -112,6 +113,8 @@ class DebugSessionManager:
     def __init__(self, base_context: RuntimeContext) -> None:
         self.base_context = base_context
         self._histories: dict[str, list[dict[str, object]]] = {}
+        self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._partial_outputs: dict[str, str] = {}
         self._lock = asyncio.Lock()
 
     async def create_session(self) -> str:
@@ -128,9 +131,87 @@ class DebugSessionManager:
         )
         return session_id
 
+    async def get_session(self, session_id: str) -> dict[str, object]:
+        agent_id = f"debug:{session_id}"
+        async with self._lock:
+            task = self._tasks.get(session_id)
+            partial_output = self._partial_outputs.get(session_id, "")
+            if task is not None and task.done():
+                self._tasks.pop(session_id, None)
+        status = self.base_context.state_store.get_agent_status(agent_id)
+        transcript: list[dict[str, object]] = []
+        for event in self.base_context.state_store.list_agent_events(
+            agent_id=agent_id,
+            limit=400,
+            ascending=True,
+        ):
+            if event["event_type"] == "debug_user_message":
+                transcript.append({"role": "user", "text": event["payload"], "created_at": event["created_at"]})
+            elif event["event_type"] == "debug_assistant_message":
+                transcript.append({"role": "assistant", "text": event["payload"], "created_at": event["created_at"]})
+            elif event["event_type"] in {"tool_start", "tool_done", "tool_error"}:
+                transcript.append(
+                    {
+                        "role": "tool",
+                        "event_type": event["event_type"],
+                        "text": event["payload"],
+                        "created_at": event["created_at"],
+                    }
+                )
+        return {
+            "session_id": session_id,
+            "agent_id": agent_id,
+            "status": status["status"] if status is not None else "missing",
+            "agent_status": status,
+            "partial_output": partial_output,
+            "transcript": transcript,
+            "actions": ["stop", "delete"],
+        }
+
+    async def stop_session(self, session_id: str) -> dict[str, object]:
+        agent_id = f"debug:{session_id}"
+        async with self._lock:
+            task = self._tasks.get(session_id)
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self.base_context.state_store.upsert_agent_status(
+            agent_id=agent_id,
+            role="debug",
+            challenge_code=None,
+            status="cancelled",
+            summary="session stopped by operator",
+            metadata={"session_id": session_id},
+        )
+        self.base_context.state_store.append_agent_event(
+            agent_id=agent_id,
+            challenge_code=None,
+            event_type="debug_session_stopped",
+            payload="stopped by operator",
+        )
+        async with self._lock:
+            self._tasks.pop(session_id, None)
+            self._partial_outputs.pop(session_id, None)
+        return {"ok": True, "agent_id": agent_id, "action": "stop"}
+
+    async def delete_session(self, session_id: str) -> dict[str, object]:
+        agent_id = f"debug:{session_id}"
+        await self.stop_session(session_id)
+        async with self._lock:
+            self._histories.pop(session_id, None)
+            self._tasks.pop(session_id, None)
+            self._partial_outputs.pop(session_id, None)
+        self.base_context.state_store.delete_agent(agent_id)
+        return {"ok": True, "agent_id": agent_id, "action": "delete"}
+
     async def stream_reply(self, session_id: str, user_input: str) -> AsyncIterator[str]:
         async with self._lock:
             history = list(self._histories.setdefault(session_id, []))
+            running = self._tasks.get(session_id)
+        if running is not None and not running.done():
+            yield self._sse("error", {"message": "session already running"})
+            return
 
         snapshot = await self.base_context.challenge_store.refresh()
         active = self.base_context.challenge_store.next_candidate(snapshot)
@@ -185,6 +266,8 @@ class DebugSessionManager:
 
         async def on_text_delta(text: str) -> None:
             buffered_text_chunks.append(text)
+            async with self._lock:
+                self._partial_outputs[session_id] = self._partial_outputs.get(session_id, "") + text
             await queue.put(self._sse("model", {"text": text}))
 
         async def on_tool_start(name: str, arguments: dict[str, object]) -> None:
@@ -200,6 +283,12 @@ class DebugSessionManager:
 
         async def run() -> None:
             try:
+                turn_context.state_store.append_agent_event(
+                    agent_id=turn_context.agent_id or f"debug:{session_id}",
+                    challenge_code=turn_context.challenge_code,
+                    event_type="debug_user_message",
+                    payload=user_input,
+                )
                 turn_context.state_store.upsert_agent_status(
                     agent_id=turn_context.agent_id or f"debug:{session_id}",
                     role="debug",
@@ -235,6 +324,7 @@ class DebugSessionManager:
                     final_output = formatted or "".join(formatted_chunks) or raw_output
                 async with self._lock:
                     self._histories[session_id] = result.history
+                    self._partial_outputs.pop(session_id, None)
                 turn_context.state_store.upsert_agent_status(
                     agent_id=turn_context.agent_id or f"debug:{session_id}",
                     role="debug",
@@ -242,6 +332,12 @@ class DebugSessionManager:
                     status="idle",
                     summary=(final_output or user_input)[:240],
                     metadata={"session_id": session_id},
+                )
+                turn_context.state_store.append_agent_event(
+                    agent_id=turn_context.agent_id or f"debug:{session_id}",
+                    challenge_code=turn_context.challenge_code,
+                    event_type="debug_assistant_message",
+                    payload=final_output[:4000] if final_output else "",
                 )
                 turn_context.state_store.append_agent_event(
                     agent_id=turn_context.agent_id or f"debug:{session_id}",
@@ -266,11 +362,17 @@ class DebugSessionManager:
                     event_type="debug_turn_error",
                     payload=str(exc),
                 )
+                async with self._lock:
+                    self._partial_outputs.pop(session_id, None)
                 await queue.put(self._sse("error", {"message": str(exc)}))
             finally:
+                async with self._lock:
+                    self._tasks.pop(session_id, None)
                 await queue.put(None)
 
         task = asyncio.create_task(run())
+        async with self._lock:
+            self._tasks[session_id] = task
         try:
             while True:
                 chunk = await queue.get()
@@ -329,6 +431,17 @@ class AgentWebService:
         return {
             "listening_port": self.context.settings.web_port,
             "process": self.controller.status(),
+            "contest_capabilities": [
+                "list_challenges",
+                "start_challenge",
+                "stop_challenge",
+                "submit_flag",
+                "view_hint",
+            ],
+            "data_sources": {
+                "official": "contest MCP list_challenges/start_challenge/stop_challenge/submit_flag/view_hint",
+                "local": "state.db: runtime_state + notes + history + agent_status + agent_events",
+            },
             "contest": self.context.challenge_store.export_json(snapshot),
             "agents": self.context.state_store.list_agent_statuses(),
             "recent_agent_events": self.context.state_store.list_agent_events(limit=80),
@@ -338,34 +451,77 @@ class AgentWebService:
         assert self.context is not None
         snapshot = await self.context.challenge_store.refresh()
         exported = self.context.challenge_store.export_json(snapshot)
+        local = {
+            "runtime_state": self.context.state_store.get_challenge_runtime_state(code),
+            "submitted_flags": self.context.state_store.list_submitted_flags(code),
+            "notes": self.context.state_store.get_challenge_notes(code),
+            "history": self.context.state_store.list_history(code, limit=50),
+            "agent_statuses": self.context.state_store.list_agent_statuses(challenge_code=code),
+            "events": self.context.state_store.list_agent_events(challenge_code=code, limit=200, ascending=True),
+        }
         challenge = next((item for item in exported["challenges"] if item["code"] == code), None)
         if challenge is None:
-            return {"code": code, "history": [], "notes": {}, "events": [], "agent_statuses": []}
+            availability = "local-only" if any(local.values()) else "missing"
+            return {
+                "code": code,
+                "availability": availability,
+                "official": None,
+                "local": local,
+                "source_summary": {
+                    "official": "contest MCP list_challenges",
+                    "local": "state.db persisted runtime/history/notes",
+                },
+            }
+        official = {
+            key: value
+            for key, value in challenge.items()
+            if key
+            not in {"locally_submitted_flags", "runtime_state", "notes", "recent_history"}
+        }
         return {
             "code": code,
-            "challenge": challenge,
-            "history": self.context.state_store.list_history(code, limit=50),
-            "notes": self.context.state_store.get_challenge_notes(code),
-            "events": self.context.state_store.list_agent_events(challenge_code=code, limit=200),
-            "agent_statuses": self.context.state_store.list_agent_statuses(challenge_code=code),
+            "availability": "official+local",
+            "official": official,
+            "local": local,
+            "source_summary": {
+                "official": "contest MCP list_challenges",
+                "local": "state.db persisted runtime/history/notes",
+            },
         }
 
     async def agent_detail(self, agent_id: str) -> dict[str, object]:
         assert self.context is not None
+        status = self.context.state_store.get_agent_status(agent_id)
+        actions = ["stop", "delete"] if agent_id.startswith("debug:") else []
         return {
             "agent_id": agent_id,
-            "status": self.context.state_store.get_agent_status(agent_id),
-            "events": self.context.state_store.list_agent_events(agent_id=agent_id, limit=200),
+            "status": status,
+            "events": self.context.state_store.list_agent_events(agent_id=agent_id, limit=200, ascending=True),
+            "actions": actions,
         }
 
     async def create_debug_session(self) -> dict[str, object]:
         assert self.debug_sessions is not None
         return {"session_id": await self.debug_sessions.create_session()}
 
+    async def get_debug_session(self, session_id: str) -> dict[str, object]:
+        assert self.debug_sessions is not None
+        return await self.debug_sessions.get_session(session_id)
+
     async def stream_debug_reply(self, session_id: str, message: str) -> AsyncIterator[str]:
         assert self.debug_sessions is not None
         async for chunk in self.debug_sessions.stream_reply(session_id, message):
             yield chunk
+
+    async def stop_agent(self, agent_id: str) -> dict[str, object]:
+        if agent_id.startswith("debug:") and self.debug_sessions is not None:
+            return await self.debug_sessions.stop_session(agent_id.removeprefix("debug:"))
+        return {"ok": False, "agent_id": agent_id, "action": "stop", "reason": "unsupported"}
+
+    async def delete_agent(self, agent_id: str) -> dict[str, object]:
+        if agent_id.startswith("debug:") and self.debug_sessions is not None:
+            return await self.debug_sessions.delete_session(agent_id.removeprefix("debug:"))
+        return {"ok": False, "agent_id": agent_id, "action": "delete", "reason": "unsupported"}
 
     async def start_competition(self) -> dict[str, object]:
         assert self.controller is not None

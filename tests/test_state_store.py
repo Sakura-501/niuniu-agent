@@ -110,3 +110,40 @@ def test_state_store_tracks_agent_runtime_status_and_events(tmp_path) -> None:
     assert statuses[0]["metadata"]["stage"] == "recon"
     assert events[0]["agent_id"] == "worker:challenge-1"
     assert events[0]["event_type"] == "tool_start"
+
+
+def test_state_store_can_list_agent_events_in_ascending_order_and_delete_agent(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.upsert_agent_status(
+        agent_id="debug:session-1",
+        role="debug",
+        challenge_code=None,
+        status="idle",
+        summary="session created",
+        metadata={"session_id": "session-1"},
+    )
+    store.append_agent_event(
+        agent_id="debug:session-1",
+        challenge_code=None,
+        event_type="debug_user_message",
+        payload="hello",
+    )
+    store.append_agent_event(
+        agent_id="debug:session-1",
+        challenge_code=None,
+        event_type="debug_assistant_message",
+        payload="world",
+    )
+
+    ascending = store.list_agent_events(agent_id="debug:session-1", ascending=True)
+
+    assert [item["event_type"] for item in ascending] == [
+        "debug_user_message",
+        "debug_assistant_message",
+    ]
+
+    store.delete_agent("debug:session-1")
+
+    assert store.get_agent_status("debug:session-1") is None
+    assert store.list_agent_events(agent_id="debug:session-1") == []

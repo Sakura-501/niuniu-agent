@@ -80,3 +80,18 @@ async def test_challenge_store_autonomous_prompt_includes_history_and_notes() ->
 
     assert "turn_completed" in prompt
     assert "foothold" in prompt
+
+
+@pytest.mark.anyio
+async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
+    store = ChallengeStore(DummyContestClient(), DummyStateStore())
+
+    snapshot = await store.refresh()
+    exported = store.export_json(snapshot)
+    challenge = next(item for item in exported["challenges"] if item["code"] == "c2")
+
+    assert challenge["instance_status"] == "running"
+    assert challenge["entrypoints"] == ["127.0.0.1:8080"]
+    assert challenge["hint_viewed"] is False
+    assert challenge["notes"] == {}
+    assert challenge["recent_history"] == []

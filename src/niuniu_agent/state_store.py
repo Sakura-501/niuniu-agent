@@ -423,6 +423,7 @@ class StateStore:
         agent_id: str | None = None,
         challenge_code: str | None = None,
         limit: int = 100,
+        ascending: bool = False,
     ) -> list[dict[str, object]]:
         query = (
             "SELECT agent_id, challenge_code, event_type, payload, created_at "
@@ -438,7 +439,7 @@ class StateStore:
             params.append(challenge_code)
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
-        query += " ORDER BY id DESC LIMIT ?"
+        query += " ORDER BY id " + ("ASC" if ascending else "DESC") + " LIMIT ?"
         params.append(limit)
         with self._connect() as connection:
             rows = connection.execute(query, tuple(params)).fetchall()
@@ -452,6 +453,23 @@ class StateStore:
             }
             for row in rows
         ]
+
+    def delete_agent(self, agent_id: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                DELETE FROM agent_events
+                WHERE agent_id = ?
+                """,
+                (agent_id,),
+            )
+            connection.execute(
+                """
+                DELETE FROM agent_status
+                WHERE agent_id = ?
+                """,
+                (agent_id,),
+            )
 
     @staticmethod
     def _load_json_dict(raw: str | None) -> dict[str, object]:
