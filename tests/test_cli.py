@@ -1,6 +1,10 @@
 from typer.testing import CliRunner
 
-from niuniu_agent.cli import app
+import asyncio
+
+import pytest
+
+from niuniu_agent.cli import _run_competition_supervisor, app
 
 
 def test_cli_exposes_run_subcommand() -> None:
@@ -24,3 +28,62 @@ def test_cli_help_mentions_debug_chat_behavior() -> None:
 
     assert result.exit_code == 0
     assert "--mode" in result.stdout
+
+
+class DummyGateway:
+    def __init__(self) -> None:
+        self.connect_calls = 0
+        self.cleanup_calls = 0
+
+    async def connect(self) -> None:
+        self.connect_calls += 1
+
+    async def cleanup(self) -> None:
+        self.cleanup_calls += 1
+
+
+class DummyLogger:
+    def __init__(self) -> None:
+        self.events = []
+
+    def log(self, event: str, payload: dict | None = None) -> None:
+        self.events.append((event, payload or {}))
+
+
+@pytest.mark.anyio
+async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> None:
+    gateway = DummyGateway()
+    logger = DummyLogger()
+    attempts = 0
+    sleeps = []
+
+    async def runner(context) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("boom")
+        raise asyncio.CancelledError()
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    with pytest.raises(asyncio.CancelledError):
+        await _run_competition_supervisor(
+            settings_kwargs={
+                "model": "test-model",
+                "model_base_url": "https://example.invalid/v1",
+                "model_api_key": "key",
+                "contest_host": "https://challenge.zc.tencent.com",
+                "contest_token": "token",
+                "runtime_dir": tmp_path / "runtime",
+            },
+            event_logger=logger,
+            make_gateway=lambda settings: gateway,
+            competition_runner=runner,
+            sleep_fn=fake_sleep,
+        )
+
+    assert gateway.connect_calls == 2
+    assert gateway.cleanup_calls == 2
+    assert sleeps == [10]
+    assert any(event == "competition.supervisor_error" for event, _ in logger.events)

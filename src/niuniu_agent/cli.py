@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, Callable
 
 import typer
 
@@ -45,28 +46,97 @@ async def _run(settings: AgentSettings) -> None:
         {"missing_tools": missing_tools, "tool_count": len(inventory["tools"])},
     )
     skill_registry = SkillRegistry()
-    contest_gateway = ContestGateway.from_settings(settings)
-
-    await contest_gateway.connect()
-    try:
-        challenge_store = ChallengeStore(contest_client=contest_gateway, state_store=state_store)
-        context = RuntimeContext(
-            settings=settings,
-            contest_gateway=contest_gateway,
-            challenge_store=challenge_store,
-            state_store=state_store,
-            event_logger=event_logger,
-            local_toolbox=local_toolbox,
-            skill_registry=skill_registry,
-        )
-        event_logger.log("agent.started", {"mode": settings.mode.value, "architecture": "openai-agents"})
-
-        if settings.mode is AgentMode.DEBUG:
+    if settings.mode is AgentMode.DEBUG:
+        contest_gateway = ContestGateway.from_settings(settings)
+        await contest_gateway.connect()
+        try:
+            challenge_store = ChallengeStore(contest_client=contest_gateway, state_store=state_store)
+            context = RuntimeContext(
+                settings=settings,
+                contest_gateway=contest_gateway,
+                challenge_store=challenge_store,
+                state_store=state_store,
+                event_logger=event_logger,
+                local_toolbox=local_toolbox,
+                skill_registry=skill_registry,
+            )
+            event_logger.log("agent.started", {"mode": settings.mode.value, "architecture": "openai-agents"})
             await run_debug_repl(context)
-        else:
-            await run_competition_loop(context)
-    finally:
-        await contest_gateway.cleanup()
+        finally:
+            await contest_gateway.cleanup()
+        return
+
+    await _run_competition_supervisor(
+        settings_kwargs=settings.model_dump(),
+        event_logger=event_logger,
+        state_store=state_store,
+        local_toolbox=local_toolbox,
+        skill_registry=skill_registry,
+    )
+
+
+async def _run_competition_supervisor(
+    *,
+    settings_kwargs: dict[str, Any],
+    event_logger: EventLogger,
+    state_store: StateStore | None = None,
+    local_toolbox: LocalToolbox | None = None,
+    skill_registry: SkillRegistry | None = None,
+    make_gateway: Callable[[AgentSettings], Any] = ContestGateway.from_settings,
+    competition_runner: Callable[[RuntimeContext], Any] = run_competition_loop,
+    sleep_fn: Callable[[float], Any] = asyncio.sleep,
+) -> None:
+    settings = AgentSettings(**settings_kwargs)
+    state_store = state_store or StateStore(settings.runtime_dir / "state.db")
+    local_toolbox = local_toolbox or LocalToolbox(settings.runtime_dir)
+    skill_registry = skill_registry or SkillRegistry()
+    backoff = settings.competition_error_backoff_seconds
+    attempt = 0
+
+    while True:
+        contest_gateway = make_gateway(settings)
+        attempt += 1
+        try:
+            await contest_gateway.connect()
+            challenge_store = ChallengeStore(contest_client=contest_gateway, state_store=state_store)
+            context = RuntimeContext(
+                settings=settings,
+                contest_gateway=contest_gateway,
+                challenge_store=challenge_store,
+                state_store=state_store,
+                event_logger=event_logger,
+                local_toolbox=local_toolbox,
+                skill_registry=skill_registry,
+            )
+            event_logger.log(
+                "agent.started",
+                {
+                    "mode": settings.mode.value,
+                    "architecture": "openai-agents",
+                    "supervisor_attempt": attempt,
+                },
+            )
+            await competition_runner(context)
+            event_logger.log(
+                "competition.supervisor_runner_returned",
+                {"attempt": attempt, "backoff_seconds": backoff},
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # pragma: no cover - runtime recovery path
+            event_logger.log(
+                "competition.supervisor_error",
+                {
+                    "attempt": attempt,
+                    "error": str(exc),
+                    "backoff_seconds": backoff,
+                },
+            )
+        finally:
+            await contest_gateway.cleanup()
+
+        await sleep_fn(backoff)
+        backoff = min(backoff * 2, settings.competition_max_error_backoff_seconds)
 
 
 def main() -> None:
