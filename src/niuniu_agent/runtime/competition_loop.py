@@ -34,6 +34,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
     coordinator = CompetitionCoordinator(max_parallel_challenges=3)
     manager_context = context.spawn(agent_id="manager:competition", agent_role="manager")
     manager = CompetitionManagerAgent(manager_context, findings_bus)
+    refresh_backoff = 1
 
     async def run_worker(challenge_code: str) -> None:
         worker_context = context.spawn(
@@ -210,7 +211,31 @@ async def run_competition_loop(context: RuntimeContext) -> None:
 
     try:
         while True:
-            snapshot = await context.challenge_store.refresh()
+            try:
+                snapshot = await context.challenge_store.refresh()
+                refresh_backoff = 1
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # pragma: no cover - runtime recovery path
+                context.event_logger.log(
+                    "competition.refresh_error",
+                    {
+                        "error": str(exc),
+                        "backoff_seconds": refresh_backoff,
+                    },
+                )
+                manager_context.state_store.upsert_agent_status(
+                    agent_id="manager:competition",
+                    role="manager",
+                    challenge_code=None,
+                    status="degraded",
+                    summary="challenge refresh failed; retrying",
+                    metadata={"backoff_seconds": refresh_backoff},
+                    last_error=str(exc),
+                )
+                await asyncio.sleep(refresh_backoff)
+                refresh_backoff = min(refresh_backoff * 2, context.settings.competition_max_error_backoff_seconds)
+                continue
             manager.heartbeat(snapshot, coordinator)
             manager.reconcile(coordinator)
             candidates = [challenge.code for challenge in snapshot.challenges if not challenge.completed]

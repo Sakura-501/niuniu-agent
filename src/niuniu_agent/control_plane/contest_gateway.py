@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -10,8 +11,15 @@ from niuniu_agent.config import AgentSettings
 
 
 class ContestGateway:
-    def __init__(self, server: MCPServerStreamableHttp) -> None:
+    def __init__(
+        self,
+        server: MCPServerStreamableHttp,
+        *,
+        sleep_fn: Any | None = None,
+    ) -> None:
         self.server = server
+        self._sleep = sleep_fn or asyncio.sleep
+        self._list_challenges_lock = asyncio.Lock()
 
     @classmethod
     def from_settings(cls, settings: AgentSettings) -> "ContestGateway":
@@ -33,7 +41,8 @@ class ContestGateway:
         await self.server.cleanup()
 
     async def list_challenges(self) -> Any:
-        return await self._call("list_challenges")
+        async with self._list_challenges_lock:
+            return await self._call_with_rate_limit_retry("list_challenges")
 
     async def start_challenge(self, code: str) -> Any:
         return await self._call("start_challenge", {"code": code})
@@ -52,6 +61,28 @@ class ContestGateway:
         if result.isError:
             raise RuntimeError(self.decode_call_result(result) or f"MCP call failed: {name}")
         return self.decode_call_result(result)
+
+    async def _call_with_rate_limit_retry(
+        self,
+        name: str,
+        arguments: dict[str, Any] | None = None,
+        *,
+        max_attempts: int = 3,
+    ) -> Any:
+        delay = 0.5
+        last_error: Exception | None = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return await self._call(name, arguments)
+            except RuntimeError as exc:
+                last_error = exc
+                if "请求频率超出限制" not in str(exc) or attempt >= max_attempts:
+                    raise
+                await self._sleep(delay)
+                delay *= 2
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError(f"MCP call failed without error details: {name}")
 
     @staticmethod
     def decode_call_result(result: CallToolResult) -> Any:

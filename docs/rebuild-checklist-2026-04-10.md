@@ -54,6 +54,7 @@
 - [x] 调试机验证 `git pull` 后 `8081` Web UI 可启动并返回首页 HTML
 - [x] Web UI 已补充 `hint` 状态、challenge `official/local` 数据来源说明、debug 会话恢复、debug agent stop/delete
 - [x] `Start Competition` 后 Web Agents 列表会立即 seed manager 状态并共享同一 `runtime_dir`
+- [x] `competition` 遇到官方 MCP `list_challenges` 限速时会退避重试，不再直接把进程打停
 
 ## 进行中
 
