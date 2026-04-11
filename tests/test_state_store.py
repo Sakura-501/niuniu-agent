@@ -147,3 +147,27 @@ def test_state_store_can_list_agent_events_in_ascending_order_and_delete_agent(t
 
     assert store.get_agent_status("debug:session-1") is None
     assert store.list_agent_events(agent_id="debug:session-1") == []
+
+
+def test_state_store_can_clear_agent_status_without_deleting_events(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.upsert_agent_status(
+        agent_id="worker:challenge-1",
+        role="challenge_worker",
+        challenge_code="challenge-1",
+        status="completed",
+        summary="challenge completed",
+        metadata={"challenge_code": "challenge-1"},
+    )
+    store.append_agent_event(
+        agent_id="worker:challenge-1",
+        challenge_code="challenge-1",
+        event_type="worker_turn_completed",
+        payload="done",
+    )
+
+    store.delete_agent_status("worker:challenge-1")
+
+    assert store.get_agent_status("worker:challenge-1") is None
+    assert store.list_agent_events(agent_id="worker:challenge-1")[0]["event_type"] == "worker_turn_completed"

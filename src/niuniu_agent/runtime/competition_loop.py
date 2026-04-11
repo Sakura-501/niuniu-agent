@@ -49,14 +49,14 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 target = next((item for item in snapshot.challenges if item.code == challenge_code), None)
                 if target is None or target.completed:
                     worker_context.state_store.record_challenge_success(challenge_code)
-                    worker_context.state_store.upsert_agent_status(
-                        agent_id=worker_context.agent_id or f"worker:{challenge_code}",
-                        role="challenge_worker",
+                    worker_agent_id = worker_context.agent_id or f"worker:{challenge_code}"
+                    worker_context.state_store.append_agent_event(
+                        agent_id=worker_agent_id,
                         challenge_code=challenge_code,
-                        status="completed",
-                        summary="challenge completed",
-                        metadata={"challenge_code": challenge_code},
+                        event_type="worker_retired",
+                        payload="challenge completed; worker status removed from active agents",
                     )
+                    worker_context.state_store.delete_agent_status(worker_agent_id)
                     return
 
                 worker_context.notes["active_challenge"] = target.code

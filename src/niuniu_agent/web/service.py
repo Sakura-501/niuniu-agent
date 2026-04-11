@@ -772,7 +772,14 @@ def build_agent_overview_rows(
     *,
     max_parallel_workers: int,
 ) -> list[dict[str, object]]:
-    rows = list(stored_agents)
+    rows = [
+        item
+        for item in stored_agents
+        if not (
+            item.get("role") == "challenge_worker"
+            and item.get("status") in {"completed", "cancelled"}
+        )
+    ]
     by_id = {str(item["agent_id"]): item for item in rows}
     competition_state = dict(process_status.get("competition") or {})
     if competition_state.get("running"):

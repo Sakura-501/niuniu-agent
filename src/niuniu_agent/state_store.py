@@ -471,6 +471,16 @@ class StateStore:
                 (agent_id,),
             )
 
+    def delete_agent_status(self, agent_id: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                DELETE FROM agent_status
+                WHERE agent_id = ?
+                """,
+                (agent_id,),
+            )
+
     @staticmethod
     def _load_json_dict(raw: str | None) -> dict[str, object]:
         if not raw:
