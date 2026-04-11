@@ -50,6 +50,7 @@
 - [x] skills 模块已切到磁盘 `skills/*/SKILL.md` 目录 + `load_skill` 动态加载
 - [x] `competition` 已增加 `manager agent + 最多 3 个 worker agent` 的状态兜底骨架
 - [x] 已增加 `8081` Web UI、在线 debug 页面、agent 日志/流程查看和后台热更新控制脚本
+- [x] 调试机验证 `git pull` 后 `8081` Web UI 可启动并返回首页 HTML
 
 ## 进行中
 
@@ -65,8 +66,8 @@
 
 - [ ] 补强 Web UI 的远端实机验证与更多页面交互
 说明：
-当前已落地 dashboard、challenge detail、agent detail、online debug chat、competition start/stop/restart。
-剩余工作是调试机实机验证、页面细节打磨和更多控制项。
+当前已落地 dashboard、challenge detail、agent detail、online debug chat、competition start/stop/restart，且调试机已验证 `ui-start` 可拉起 `8081` 首页。
+剩余工作是调试页流式交互、更多控制项与页面细节打磨。
 
 ## 强制规则落实情况
 
