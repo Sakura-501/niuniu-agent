@@ -1,3 +1,5 @@
+import sqlite3
+
 from niuniu_agent.state_store import StateStore
 
 
@@ -53,3 +55,29 @@ def test_state_store_tracks_progress_timestamp(tmp_path) -> None:
     elapsed = store.seconds_since_progress("challenge-1", now=float(last_progress_at) + 120)
 
     assert elapsed == 120
+
+
+def test_state_store_migrates_old_runtime_schema(tmp_path) -> None:
+    db_path = tmp_path / "state.db"
+    connection = sqlite3.connect(db_path)
+    try:
+        connection.execute(
+            """
+            CREATE TABLE challenge_runtime_state (
+                challenge_code TEXT PRIMARY KEY,
+                active INTEGER NOT NULL DEFAULT 0,
+                failure_count INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    store = StateStore(db_path)
+    state = store.get_challenge_runtime_state("challenge-1")
+
+    assert "last_progress_at" in state
+    assert state["last_progress_at"] is None

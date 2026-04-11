@@ -60,6 +60,28 @@ class StateStore:
                 )
                 """
             )
+            self._migrate_schema(connection)
+
+    def _migrate_schema(self, connection: sqlite3.Connection) -> None:
+        self._ensure_column(
+            connection,
+            table="challenge_runtime_state",
+            column="last_progress_at",
+            definition="REAL",
+        )
+
+    def _ensure_column(
+        self,
+        connection: sqlite3.Connection,
+        table: str,
+        column: str,
+        definition: str,
+    ) -> None:
+        rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+        existing = {row[1] for row in rows}
+        if column in existing:
+            return
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def record_submitted_flag(self, challenge_code: str, flag: str) -> None:
         with self._connect() as connection:
