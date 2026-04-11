@@ -97,8 +97,12 @@ print_plan() {
 
 install_plan() {
   local failures=()
-  sudo apt-get update
-  sudo apt-get install -y "${APT_PACKAGES[@]}"
+  if ! sudo apt-get update -o Dir::Etc::sourceparts=/dev/null -o Dir::Etc::sourcelist=/etc/apt/sources.list; then
+    sudo apt-get update
+  fi
+  if ! sudo apt-get install -y -o Dir::Etc::sourceparts=/dev/null -o Dir::Etc::sourcelist=/etc/apt/sources.list "${APT_PACKAGES[@]}"; then
+    sudo apt-get install -y "${APT_PACKAGES[@]}"
+  fi
   if command -v go >/dev/null 2>&1; then
     for package in "${GO_PACKAGES[@]}"; do
       if ! go install "${package}"; then
