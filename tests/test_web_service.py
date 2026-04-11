@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from niuniu_agent.web.service import build_agent_overview_rows, build_agent_tree
+from pathlib import Path
+
+from niuniu_agent.web.service import (
+    CompetitionProcessController,
+    build_agent_overview_rows,
+    build_agent_tree,
+)
 
 
 def test_build_agent_overview_rows_keeps_completed_workers_but_preserves_free_slots() -> None:
@@ -67,3 +73,15 @@ def test_build_agent_tree_groups_workers_under_manager_run() -> None:
 
     assert tree[0]["manager"]["agent_id"] == "manager:competition:run1"
     assert tree[0]["workers"][0]["agent_id"] == "worker:c1:abc"
+
+
+def test_competition_process_controller_prefers_uv_launch_command() -> None:
+    controller = CompetitionProcessController(
+        repo_root=Path("/tmp/repo"),
+        runtime_dir=Path("/tmp/repo/runtime"),
+        web_port=8081,
+    )
+
+    command = controller._build_competition_command(prefer_uv=True)
+
+    assert command == ["uv", "run", "niuniu-agent", "run", "--mode", "competition"]

@@ -6,9 +6,9 @@ import html
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
-import sys
 from typing import AsyncIterator
 from uuid import uuid4
 
@@ -68,9 +68,10 @@ class CompetitionProcessController:
             return {"ok": True, "already_running": True, "pid": pid, "run_id": self._read_run_id()}
         run_id = uuid4().hex[:8]
         self.competition_log_file.parent.mkdir(parents=True, exist_ok=True)
+        command = self._build_competition_command(prefer_uv=shutil.which("uv") is not None)
         with self.competition_log_file.open("a", encoding="utf-8") as handle:
             process = subprocess.Popen(
-                [sys.executable, "-m", "niuniu_agent.cli", "run", "--mode", "competition"],
+                command,
                 cwd=self.repo_root,
                 stdout=handle,
                 stderr=subprocess.STDOUT,
@@ -84,6 +85,12 @@ class CompetitionProcessController:
         self.competition_pid_file.write_text(str(process.pid), encoding="utf-8")
         self.competition_run_id_file.write_text(run_id, encoding="utf-8")
         return {"ok": True, "pid": process.pid, "run_id": run_id}
+
+    @staticmethod
+    def _build_competition_command(*, prefer_uv: bool) -> list[str]:
+        if prefer_uv:
+            return ["uv", "run", "niuniu-agent", "run", "--mode", "competition"]
+        return ["python", "-m", "niuniu_agent.cli", "run", "--mode", "competition"]
 
     async def stop_competition(self) -> dict[str, object]:
         pid = self._read_pid(self.competition_pid_file)
