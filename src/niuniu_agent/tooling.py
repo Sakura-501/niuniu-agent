@@ -149,6 +149,8 @@ class LocalToolbox:
         timeout_seconds: int = 30,
     ) -> dict[str, Any]:
         parts = shlex.split(command)
+        command = self._prefer_uv_command(parts, command)
+        parts = shlex.split(command)
         if parts and shutil.which(parts[0]) is None:
             fallback = await self._fallback_shell_command(parts)
             if fallback is not None:
@@ -191,7 +193,7 @@ class LocalToolbox:
             script_path = Path(handle.name)
 
         return await self.run_shell_command(
-            f"python3 {script_path}",
+            f"{self._python_runner()} {script_path}",
             timeout_seconds=timeout_seconds,
         )
 
@@ -247,3 +249,22 @@ class LocalToolbox:
             except Exception:
                 results.append({"port": port, "state": "closed"})
         return {"host": host, "ports": results}
+
+    @staticmethod
+    def _python_runner() -> str:
+        if shutil.which("uv") is not None:
+            return "uv run python"
+        return "python3"
+
+    @staticmethod
+    def _prefer_uv_command(parts: list[str], original_command: str) -> str:
+        if not parts or parts[0] == "uv" or shutil.which("uv") is None:
+            return original_command
+
+        if parts[0] in {"python", "python3"}:
+            return shlex.join(["uv", "run", "python", *parts[1:]])
+
+        if parts[0] == "pytest":
+            return shlex.join(["uv", "run", *parts])
+
+        return original_command

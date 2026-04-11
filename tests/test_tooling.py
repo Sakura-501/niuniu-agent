@@ -60,3 +60,47 @@ async def test_run_shell_command_falls_back_for_missing_ffuf(monkeypatch, tmp_pa
 
     assert result["fallback_used"] is True
     assert "findings" in result["stdout"]
+
+
+@pytest.mark.anyio
+async def test_run_shell_command_prefers_uv_for_python_commands(monkeypatch, tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+    seen = {}
+
+    monkeypatch.setattr("niuniu_agent.tooling.shutil.which", lambda name: "/usr/bin/uv" if name == "uv" else "/usr/bin/true")
+
+    class DummyProcess:
+        returncode = 0
+
+        async def communicate(self):
+            return b"ok", b""
+
+    async def fake_subprocess(command, **kwargs):
+        seen["command"] = command
+        return DummyProcess()
+
+    monkeypatch.setattr("niuniu_agent.tooling.asyncio.create_subprocess_shell", fake_subprocess)
+
+    result = await toolbox.run_shell_command("python3 /tmp/demo.py")
+
+    assert result["exit_code"] == 0
+    assert seen["command"].startswith("uv run python ")
+
+
+@pytest.mark.anyio
+async def test_run_python_snippet_prefers_uv_python(monkeypatch, tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+    seen = {}
+
+    monkeypatch.setattr("niuniu_agent.tooling.shutil.which", lambda name: "/usr/bin/uv" if name == "uv" else "/usr/bin/true")
+
+    async def fake_run_shell_command(command, **kwargs):
+        seen["command"] = command
+        return {"exit_code": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr(toolbox, "run_shell_command", fake_run_shell_command)
+
+    result = await toolbox.run_python_snippet("print('hi')")
+
+    assert result["exit_code"] == 0
+    assert seen["command"].startswith("uv run python ")
