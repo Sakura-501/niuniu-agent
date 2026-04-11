@@ -19,3 +19,5 @@ def test_install_toolchain_script_prints_expected_commands() -> None:
     assert "ripgrep" in result.stdout
     assert "openssl" in result.stdout
     assert "impacket" in result.stdout
+    assert "masscan" in result.stdout
+    assert "kerbrute" in result.stdout

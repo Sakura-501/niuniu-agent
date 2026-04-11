@@ -9,6 +9,9 @@ def test_default_tool_inventory_contains_core_tools() -> None:
     assert "curl" in names
     assert "jq" in names
     assert "rg" in names
+    assert "nikto" in names
+    assert "masscan" in names
     assert "nmap" in names
     assert "openssl" in names
     assert "impacket-secretsdump" in names
+    assert "bloodhound-python" in names

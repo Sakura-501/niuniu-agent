@@ -10,22 +10,35 @@ APT_PACKAGES=(
   curl
   jq
   ripgrep
+  netcat-openbsd
+  dnsutils
   ffuf
+  nikto
   nmap
+  masscan
   whatweb
   sqlmap
   openssl
+  redis-tools
+  mysql-client
+  postgresql-client
   smbclient
   ldap-utils
+  hydra
+  john
+  hashcat
 )
 
 GO_PACKAGES=(
   github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
   github.com/projectdiscovery/httpx/cmd/httpx@latest
+  github.com/ropnop/kerbrute@latest
 )
 
 PIP_PACKAGES=(
   impacket
+  bloodhound
+  netexec
 )
 
 print_plan() {
@@ -43,6 +56,11 @@ install_plan() {
     done
   else
     echo "go not found; skipping Go tools" >&2
+  fi
+  if command -v cargo >/dev/null 2>&1; then
+    cargo install feroxbuster || true
+  else
+    echo "cargo not found; skipping feroxbuster" >&2
   fi
   python -m pip install "${PIP_PACKAGES[@]}"
 }
