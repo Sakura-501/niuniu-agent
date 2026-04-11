@@ -481,12 +481,22 @@ class StateStore:
                 (agent_id,),
             )
 
-    def delete_agent_statuses_for_challenge(self, challenge_code: str, *, role: str | None = None) -> None:
+    def delete_agent_statuses_for_challenge(
+        self,
+        challenge_code: str,
+        *,
+        role: str | None = None,
+        exclude_statuses: set[str] | None = None,
+    ) -> None:
         query = "DELETE FROM agent_status WHERE challenge_code = ?"
         params: list[object] = [challenge_code]
         if role is not None:
             query += " AND role = ?"
             params.append(role)
+        if exclude_statuses:
+            placeholders = ", ".join("?" for _ in exclude_statuses)
+            query += f" AND status NOT IN ({placeholders})"
+            params.extend(sorted(exclude_statuses))
         with self._connect() as connection:
             connection.execute(query, tuple(params))
 

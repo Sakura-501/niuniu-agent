@@ -7,7 +7,7 @@ def test_build_agent_overview_rows_keeps_completed_workers_but_preserves_free_sl
     rows = build_agent_overview_rows(
         stored_agents=[
             {
-                "agent_id": "manager:competition",
+                "agent_id": "manager:competition:run1",
                 "role": "manager",
                 "challenge_code": None,
                 "status": "running",
@@ -27,7 +27,7 @@ def test_build_agent_overview_rows_keeps_completed_workers_but_preserves_free_sl
                 "updated_at": "now",
             },
         ],
-        process_status={"competition": {"running": True}},
+        process_status={"competition": {"running": True, "run_id": "run1"}},
         max_parallel_workers=3,
     )
 

@@ -8,7 +8,7 @@ from niuniu_agent.web.app import create_app
 class FakeWebService:
     async def overview(self) -> dict[str, object]:
         return {
-            "process": {"competition": {"running": False}, "ui": {"running": True}},
+            "process": {"competition": {"running": False, "run_id": "run1"}, "ui": {"running": True}},
             "contest": {
                 "current_level": 1,
                 "total_challenges": 2,
@@ -24,7 +24,7 @@ class FakeWebService:
                     }
                 ],
             },
-            "agents": [{"agent_id": "manager:competition", "status": "running", "role": "manager"}],
+            "agents": [{"agent_id": "manager:competition:run1", "status": "running", "role": "manager"}],
         }
 
     async def challenge_detail(self, code: str) -> dict[str, object]:
@@ -68,7 +68,7 @@ class FakeWebService:
         return {
             "ok": True,
             "agents_seeded": [
-                {"agent_id": "manager:competition", "role": "manager", "status": "starting"},
+                {"agent_id": "manager:competition:run1", "role": "manager", "status": "starting"},
             ],
         }
 
@@ -97,7 +97,7 @@ def test_web_overview_endpoint_returns_json() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["process"]["ui"]["running"] is True
-    assert payload["agents"][0]["agent_id"] == "manager:competition"
+    assert payload["agents"][0]["agent_id"] == "manager:competition:run1"
     assert payload["contest"]["challenges"][0]["hint_viewed"] is True
 
 
@@ -132,4 +132,4 @@ def test_web_start_competition_returns_seeded_agent_status() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["agents_seeded"][0]["agent_id"] == "manager:competition"
+    assert payload["agents_seeded"][0]["agent_id"] == "manager:competition:run1"

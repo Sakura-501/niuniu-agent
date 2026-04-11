@@ -25,6 +25,10 @@ from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
 
 
+def build_manager_agent_id(run_id: str) -> str:
+    return f"manager:competition:{run_id}"
+
+
 def build_worker_agent_id(challenge_code: str) -> str:
     return f"worker:{challenge_code}:{uuid4().hex[:8]}"
 
@@ -37,7 +41,8 @@ async def run_competition_loop(context: RuntimeContext) -> None:
     histories: dict[str, list[dict[str, object]]] = {}
     findings_bus = ChallengeFindingsBus()
     coordinator = CompetitionCoordinator(max_parallel_challenges=3)
-    manager_context = context.spawn(agent_id="manager:competition", agent_role="manager")
+    competition_run_id = context.settings.competition_run_id or uuid4().hex[:8]
+    manager_context = context.spawn(agent_id=build_manager_agent_id(competition_run_id), agent_role="manager")
     manager = CompetitionManagerAgent(manager_context, findings_bus)
     refresh_backoff = 1
 
@@ -51,6 +56,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
         worker_context.state_store.delete_agent_statuses_for_challenge(
             challenge_code,
             role="challenge_worker",
+            exclude_statuses={"completed"},
         )
         worker_context.state_store.append_agent_event(
             agent_id=worker_agent_id,
@@ -92,9 +98,16 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         agent_id=worker_agent_id,
                         challenge_code=challenge_code,
                         event_type="worker_retired",
-                        payload="challenge completed; worker status removed from active agents",
+                        payload="challenge completed; worker retired from active execution",
                     )
-                    worker_context.state_store.delete_agent_status(worker_agent_id)
+                    worker_context.state_store.upsert_agent_status(
+                        agent_id=worker_agent_id,
+                        role="challenge_worker",
+                        challenge_code=challenge_code,
+                        status="completed",
+                        summary="challenge completed",
+                        metadata={"challenge_code": challenge_code, "retired": True},
+                    )
                     return
 
                 worker_context.notes["active_challenge"] = target.code

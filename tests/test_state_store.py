@@ -197,3 +197,33 @@ def test_state_store_can_clear_worker_statuses_for_one_challenge(tmp_path) -> No
 
     assert store.get_agent_status("worker:c1:old") is None
     assert store.get_agent_status("worker:c2:keep") is not None
+
+
+def test_state_store_can_clear_only_non_completed_worker_statuses(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.upsert_agent_status(
+        agent_id="worker:c1:completed",
+        role="challenge_worker",
+        challenge_code="c1",
+        status="completed",
+        summary="done",
+        metadata={},
+    )
+    store.upsert_agent_status(
+        agent_id="worker:c1:error",
+        role="challenge_worker",
+        challenge_code="c1",
+        status="error",
+        summary="old error",
+        metadata={},
+    )
+
+    store.delete_agent_statuses_for_challenge(
+        "c1",
+        role="challenge_worker",
+        exclude_statuses={"completed"},
+    )
+
+    assert store.get_agent_status("worker:c1:completed") is not None
+    assert store.get_agent_status("worker:c1:error") is None

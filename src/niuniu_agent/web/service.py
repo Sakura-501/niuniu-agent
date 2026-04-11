@@ -42,6 +42,7 @@ class CompetitionProcessController:
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.competition_pid_file = self.runtime_dir / "competition.pid"
         self.competition_log_file = self.runtime_dir / "competition.log"
+        self.competition_run_id_file = self.runtime_dir / "competition.run_id"
 
     def status(self) -> dict[str, object]:
         pid = self._read_pid(self.competition_pid_file)
@@ -51,6 +52,7 @@ class CompetitionProcessController:
                 "pid": pid,
                 "log_path": str(self.competition_log_file),
                 "runtime_dir": str(self.runtime_dir),
+                "run_id": self._read_run_id(),
             },
             "ui": {
                 "running": True,
@@ -63,7 +65,8 @@ class CompetitionProcessController:
     async def start_competition(self) -> dict[str, object]:
         pid = self._read_pid(self.competition_pid_file)
         if self._pid_running(pid):
-            return {"ok": True, "already_running": True, "pid": pid}
+            return {"ok": True, "already_running": True, "pid": pid, "run_id": self._read_run_id()}
+        run_id = uuid4().hex[:8]
         self.competition_log_file.parent.mkdir(parents=True, exist_ok=True)
         with self.competition_log_file.open("a", encoding="utf-8") as handle:
             process = subprocess.Popen(
@@ -75,19 +78,23 @@ class CompetitionProcessController:
                 env={
                     **os.environ.copy(),
                     "NIUNIU_AGENT_RUNTIME_DIR": str(self.runtime_dir),
+                    "NIUNIU_AGENT_COMPETITION_RUN_ID": run_id,
                 },
             )
         self.competition_pid_file.write_text(str(process.pid), encoding="utf-8")
-        return {"ok": True, "pid": process.pid}
+        self.competition_run_id_file.write_text(run_id, encoding="utf-8")
+        return {"ok": True, "pid": process.pid, "run_id": run_id}
 
     async def stop_competition(self) -> dict[str, object]:
         pid = self._read_pid(self.competition_pid_file)
         if not self._pid_running(pid):
             self.competition_pid_file.unlink(missing_ok=True)
+            self.competition_run_id_file.unlink(missing_ok=True)
             return {"ok": True, "already_stopped": True}
         assert pid is not None
         os.kill(pid, signal.SIGTERM)
         self.competition_pid_file.unlink(missing_ok=True)
+        self.competition_run_id_file.unlink(missing_ok=True)
         return {"ok": True, "pid": pid}
 
     async def restart_competition(self) -> dict[str, object]:
@@ -102,6 +109,12 @@ class CompetitionProcessController:
             return int(path.read_text(encoding="utf-8").strip())
         except ValueError:
             return None
+
+    def _read_run_id(self) -> str | None:
+        if not self.competition_run_id_file.exists():
+            return None
+        value = self.competition_run_id_file.read_text(encoding="utf-8").strip()
+        return value or None
 
     @staticmethod
     def _pid_running(pid: int | None) -> bool:
@@ -592,23 +605,24 @@ class AgentWebService:
 
     async def start_competition(self) -> dict[str, object]:
         assert self.controller is not None and self.context is not None
+        result = await self.controller.start_competition()
+        manager_agent_id = f"manager:competition:{result.get('run_id') or 'pending'}"
         self.context.state_store.upsert_agent_status(
-            agent_id="manager:competition",
+            agent_id=manager_agent_id,
             role="manager",
             challenge_code=None,
             status="starting",
             summary="competition process starting",
-            metadata={"source": "web-ui", "runtime_dir": str(self.context.settings.runtime_dir)},
+            metadata={"source": "web-ui", "runtime_dir": str(self.context.settings.runtime_dir), "run_id": result.get("run_id")},
         )
         self.context.state_store.append_agent_event(
-            agent_id="manager:competition",
+            agent_id=manager_agent_id,
             challenge_code=None,
             event_type="competition_start_requested",
             payload="requested from web ui",
         )
-        result = await self.controller.start_competition()
         result["agents_seeded"] = [
-            self.context.state_store.get_agent_status("manager:competition"),
+            self.context.state_store.get_agent_status(manager_agent_id),
         ]
         return result
 
@@ -836,16 +850,17 @@ def build_agent_overview_rows(
     by_id = {str(item["agent_id"]): item for item in rows}
     competition_state = dict(process_status.get("competition") or {})
     if competition_state.get("running"):
-        if "manager:competition" not in by_id:
+        manager_agent_id = f"manager:competition:{competition_state.get('run_id') or 'current'}"
+        if manager_agent_id not in by_id:
             rows.insert(
                 0,
                 {
-                    "agent_id": "manager:competition",
+                    "agent_id": manager_agent_id,
                     "role": "manager",
                     "challenge_code": None,
                     "status": "starting",
                     "summary": "competition process is running but manager status has not been persisted yet",
-                    "metadata": {"synthetic": True},
+                    "metadata": {"synthetic": True, "run_id": competition_state.get("run_id")},
                     "last_error": None,
                     "updated_at": None,
                 },
