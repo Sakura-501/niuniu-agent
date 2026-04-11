@@ -269,3 +269,56 @@ async def test_tool_bus_submit_flag_stops_completed_instance(tmp_path) -> None:
     assert result["completed"] is True
     assert result["stopped_instance"] is True
     assert gateway.stopped == ["c1"]
+
+
+@pytest.mark.anyio
+async def test_tool_bus_submit_flag_records_success_from_correct_payload(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        async def submit_flag(self, code: str, flag: str):
+            return {"correct": True, "message": "恭喜！答案正确"}
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {
+                        "title": "done",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 1,
+                        "instance_status": "stopped",
+                        "entrypoint": None,
+                    }
+                ],
+            }
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    await bus.submit_flag("c1", "flag{demo}")
+
+    assert state_store.has_submitted_flag("c1", "flag{demo}") is True
+    notes = state_store.get_challenge_notes("c1")
+    assert notes["last_flag"] == "flag{demo}"
+    history = state_store.list_history("c1")
+    assert history[0]["event_type"] == "flag_submitted"

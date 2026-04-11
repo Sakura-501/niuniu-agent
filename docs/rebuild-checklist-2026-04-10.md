@@ -354,6 +354,13 @@
 - [x] 调试机验证异常后自动恢复
 - [x] 调试机验证已完成题不会重复浪费时间
 - [ ] 调试机验证 flag 提交后状态更新正确
+说明：
+代码层已完成：
+- 成功提交 flag 会写入本地状态
+- 会写入历史事件
+- 会记录 `last_flag`
+- 如果 challenge 完成且实例仍在运行，会立即关闭实例
+下一步是调试机实测。
 - [x] 调试机验证 `scripts/remote_control.sh competition-start`
 - [x] 调试机验证 `scripts/remote_control.sh competition-restart`
 

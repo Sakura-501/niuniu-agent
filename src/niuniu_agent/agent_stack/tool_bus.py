@@ -211,8 +211,10 @@ class ToolBus:
 
     async def submit_flag(self, code: str, flag: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.submit_flag(code, flag)
-        if isinstance(payload, dict) and payload.get("code") == 0:
+        if self._is_successful_flag_submission(payload):
             self.context.state_store.record_submitted_flag(code, flag)
+            self.context.state_store.add_history_event(code, "flag_submitted", json.dumps({"flag": flag, "payload": payload}, ensure_ascii=False))
+            self.context.state_store.set_challenge_note(code, "last_flag", flag)
         snapshot = await self.context.challenge_store.refresh()
         challenge = next((item for item in snapshot.challenges if item.code == code), None)
         stopped_instance = False
@@ -226,6 +228,17 @@ class ToolBus:
             "completed": challenge.completed if challenge is not None else False,
             "stopped_instance": stopped_instance,
         }
+
+    @staticmethod
+    def _is_successful_flag_submission(payload: Any) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        if payload.get("code") == 0:
+            return True
+        if payload.get("correct") is True:
+            return True
+        message = str(payload.get("message", "")).lower()
+        return any(marker in message for marker in ("答案正确", "correct", "already solved", "已完成"))
 
     async def view_hint(self, code: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.view_hint(code)
