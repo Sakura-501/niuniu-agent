@@ -2,6 +2,8 @@
 set -euo pipefail
 
 MODE="${1:-install}"
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
 
 APT_PACKAGES=(
   python3
