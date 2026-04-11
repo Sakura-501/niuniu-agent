@@ -41,7 +41,7 @@ GO_PACKAGES=(
 
 PIP_PACKAGES=(
   impacket
-  bloodhound
+  bloodhound-python
   netexec
 )
 
@@ -75,17 +75,31 @@ for asset in data.get("assets", []):
 sys.exit(1)
 PY
 )" || return 1
-  curl -fsSL "${url}" -o "${tmpdir}/asset.zip"
-  python3 - <<PY
-import sys, zipfile
+  local asset_path="${tmpdir}/asset"
+  curl -fsSL "${url}" -o "${asset_path}"
+  case "${url}" in
+    *.zip)
+      python3 - <<PY
+import zipfile
 from pathlib import Path
-archive = Path(${tmpdir@Q}) / "asset.zip"
+archive = Path(${asset_path@Q})
 target = Path(${tmpdir@Q})
 with zipfile.ZipFile(archive) as zf:
     zf.extractall(target)
 PY
+      ;;
+    *.tar.gz|*.tgz)
+      tar -xzf "${asset_path}" -C "${tmpdir}"
+      ;;
+    *)
+      chmod +x "${asset_path}"
+      ;;
+  esac
   local binary_path
-  binary_path="$(find "${tmpdir}" -maxdepth 2 -type f -name "${binary_name}" | head -n 1)"
+  binary_path="$(find "${tmpdir}" -maxdepth 3 -type f -name "${binary_name}" | head -n 1)"
+  if [[ -z "${binary_path}" && -x "${asset_path}" ]]; then
+    binary_path="${asset_path}"
+  fi
   [[ -n "${binary_path}" ]] || return 1
   sudo install -m 0755 "${binary_path}" "/usr/local/bin/${binary_name}"
   rm -rf "${tmpdir}"

@@ -39,12 +39,12 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("hydra", "domain", ("track3", "track4"), "sudo apt-get install -y hydra"),
         ("john", "domain", ("track3", "track4"), "sudo apt-get install -y john"),
         ("hashcat", "domain", ("track3", "track4"), "sudo apt-get install -y hashcat"),
-        ("impacket-secretsdump", "domain", ("track4",), "python -m pip install impacket"),
-        ("impacket-psexec", "domain", ("track4",), "python -m pip install impacket"),
-        ("impacket-wmiexec", "domain", ("track4",), "python -m pip install impacket"),
-        ("bloodhound-python", "domain", ("track4",), "python -m pip install bloodhound"),
+        ("impacket-secretsdump", "domain", ("track4",), "python3 -m pip install --user impacket"),
+        ("impacket-psexec", "domain", ("track4",), "python3 -m pip install --user impacket"),
+        ("impacket-wmiexec", "domain", ("track4",), "python3 -m pip install --user impacket"),
+        ("bloodhound-python", "domain", ("track4",), "python3 -m pip install --user bloodhound-python"),
         ("kerbrute", "domain", ("track4",), "go install github.com/ropnop/kerbrute@latest"),
-        ("netexec", "domain", ("track4",), "python -m pip install netexec"),
+        ("netexec", "domain", ("track4",), "python3 -m pip install --user netexec"),
     ]
     return [
         ToolAvailability(
