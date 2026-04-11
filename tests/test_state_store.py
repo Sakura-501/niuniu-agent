@@ -171,3 +171,29 @@ def test_state_store_can_clear_agent_status_without_deleting_events(tmp_path) ->
 
     assert store.get_agent_status("worker:challenge-1") is None
     assert store.list_agent_events(agent_id="worker:challenge-1")[0]["event_type"] == "worker_turn_completed"
+
+
+def test_state_store_can_clear_worker_statuses_for_one_challenge(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.upsert_agent_status(
+        agent_id="worker:c1:old",
+        role="challenge_worker",
+        challenge_code="c1",
+        status="error",
+        summary="old worker",
+        metadata={},
+    )
+    store.upsert_agent_status(
+        agent_id="worker:c2:keep",
+        role="challenge_worker",
+        challenge_code="c2",
+        status="running",
+        summary="other worker",
+        metadata={},
+    )
+
+    store.delete_agent_statuses_for_challenge("c1", role="challenge_worker")
+
+    assert store.get_agent_status("worker:c1:old") is None
+    assert store.get_agent_status("worker:c2:keep") is not None

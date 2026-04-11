@@ -481,6 +481,15 @@ class StateStore:
                 (agent_id,),
             )
 
+    def delete_agent_statuses_for_challenge(self, challenge_code: str, *, role: str | None = None) -> None:
+        query = "DELETE FROM agent_status WHERE challenge_code = ?"
+        params: list[object] = [challenge_code]
+        if role is not None:
+            query += " AND role = ?"
+            params.append(role)
+        with self._connect() as connection:
+            connection.execute(query, tuple(params))
+
     @staticmethod
     def _load_json_dict(raw: str | None) -> dict[str, object]:
         if not raw:

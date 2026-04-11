@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from uuid import uuid4
 
 from openai import AsyncOpenAI
 
@@ -24,6 +25,10 @@ from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
 
 
+def build_worker_agent_id(challenge_code: str) -> str:
+    return f"worker:{challenge_code}:{uuid4().hex[:8]}"
+
+
 async def run_competition_loop(context: RuntimeContext) -> None:
     client = AsyncOpenAI(
         api_key=context.settings.model_api_key,
@@ -37,10 +42,21 @@ async def run_competition_loop(context: RuntimeContext) -> None:
     refresh_backoff = 1
 
     async def run_worker(challenge_code: str) -> None:
+        worker_agent_id = build_worker_agent_id(challenge_code)
         worker_context = context.spawn(
-            agent_id=f"worker:{challenge_code}",
+            agent_id=worker_agent_id,
             agent_role="challenge_worker",
             challenge_code=challenge_code,
+        )
+        worker_context.state_store.delete_agent_statuses_for_challenge(
+            challenge_code,
+            role="challenge_worker",
+        )
+        worker_context.state_store.append_agent_event(
+            agent_id=worker_agent_id,
+            challenge_code=challenge_code,
+            event_type="worker_started",
+            payload="worker run started",
         )
         backoff = context.settings.competition_error_backoff_seconds
         try:
@@ -49,7 +65,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 target = next((item for item in snapshot.challenges if item.code == challenge_code), None)
                 if target is None or target.completed:
                     worker_context.state_store.record_challenge_success(challenge_code)
-                    worker_agent_id = worker_context.agent_id or f"worker:{challenge_code}"
+                    worker_agent_id = worker_context.agent_id or worker_agent_id
                     worker_context.state_store.append_agent_event(
                         agent_id=worker_agent_id,
                         challenge_code=challenge_code,
@@ -96,7 +112,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     notes = worker_context.state_store.get_challenge_notes(target.code)
                 available_skills = worker_context.skill_registry.describe_available() if worker_context.skill_registry else None
                 worker_context.state_store.upsert_agent_status(
-                    agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                    agent_id=worker_context.agent_id or worker_agent_id,
                     role="challenge_worker",
                     challenge_code=target.code,
                     status="running",
@@ -158,7 +174,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 )
                 worker_context.state_store.record_challenge_success(target.code)
                 worker_context.state_store.append_agent_event(
-                    agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                    agent_id=worker_context.agent_id or worker_agent_id,
                     challenge_code=target.code,
                     event_type="worker_turn_completed",
                     payload=(result.output or "")[:1000],
@@ -167,7 +183,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             worker_context.state_store.upsert_agent_status(
-                agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                agent_id=worker_context.agent_id or worker_agent_id,
                 role="challenge_worker",
                 challenge_code=challenge_code,
                 status="cancelled",
@@ -181,7 +197,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
             worker_context.state_store.add_history_event(challenge_code, "error", str(exc))
             worker_context.state_store.set_challenge_note(challenge_code, "last_error", str(exc))
             worker_context.state_store.upsert_agent_status(
-                agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                agent_id=worker_context.agent_id or worker_agent_id,
                 role="challenge_worker",
                 challenge_code=challenge_code,
                 status="error",
@@ -190,7 +206,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 last_error=str(exc),
             )
             worker_context.state_store.append_agent_event(
-                agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                agent_id=worker_context.agent_id or worker_agent_id,
                 challenge_code=challenge_code,
                 event_type="worker_error",
                 payload=str(exc),
