@@ -42,7 +42,8 @@ class FakeWebService:
         }
 
     async def agent_detail(self, agent_id: str) -> dict[str, object]:
-        return {"agent_id": agent_id, "status": {"agent_id": agent_id, "role": "debug"}, "events": []}
+        role = "manager" if agent_id.startswith("manager:") else "debug"
+        return {"agent_id": agent_id, "status": {"agent_id": agent_id, "role": role}, "events": []}
 
     async def create_debug_session(self) -> dict[str, object]:
         return {"session_id": "session-1"}
@@ -135,6 +136,15 @@ def test_web_manager_delete_endpoint() -> None:
     client = TestClient(create_app(service=FakeWebService()))
 
     response = client.delete("/api/agents/manager:competition:run1")
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "delete"
+
+
+def test_web_legacy_manager_delete_endpoint() -> None:
+    client = TestClient(create_app(service=FakeWebService()))
+
+    response = client.delete("/api/agents/manager:competition")
 
     assert response.status_code == 200
     assert response.json()["action"] == "delete"

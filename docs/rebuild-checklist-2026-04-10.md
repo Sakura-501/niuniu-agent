@@ -62,6 +62,7 @@
 - [x] manager 也已切到单次 `competition_run_id`，不同 competition run 的日志相互隔离
 - [x] Agents UI 已改成按 `manager -> workers` 的树形展示
 - [x] manager 现在支持 Web `stop/delete`，删除会真正移除该次 competition run 的 manager 和 workers
+- [x] `remote_control.sh update` 已切到默认执行 `uv sync`，默认运行方式改为 `uv run`
 
 ## 进行中
 

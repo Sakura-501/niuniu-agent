@@ -8,6 +8,7 @@ PID_FILE="${REPO_ROOT}/runtime/competition.pid"
 LOG_FILE="${REPO_ROOT}/runtime/competition.log"
 UI_PID_FILE="${REPO_ROOT}/runtime/ui.pid"
 UI_LOG_FILE="${REPO_ROOT}/runtime/ui.log"
+USE_UV="${REMOTE_CONTROL_USE_UV:-1}"
 
 usage() {
   cat <<'EOF'
@@ -86,6 +87,9 @@ ensure_venv() {
   if [[ "${REMOTE_CONTROL_SKIP_INSTALL:-0}" == "1" ]]; then
     return 0
   fi
+  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
+    return 0
+  fi
   if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
     python3 -m venv "${VENV_DIR}"
   fi
@@ -93,6 +97,10 @@ ensure_venv() {
 
 install_project() {
   if [[ "${REMOTE_CONTROL_SKIP_INSTALL:-0}" == "1" ]]; then
+    return 0
+  fi
+  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
+    (cd "${REPO_ROOT}" && uv sync) >/dev/null
     return 0
   fi
   "${VENV_DIR}/bin/python" -m pip install --upgrade pip >/dev/null
@@ -153,7 +161,11 @@ start_competition() {
   fi
 
   load_env
-  nohup "${VENV_DIR}/bin/niuniu-agent" run --mode competition >>"${LOG_FILE}" 2>&1 &
+  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
+    nohup env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" uv run niuniu-agent run --mode competition >>"${LOG_FILE}" 2>&1 &
+  else
+    nohup "${VENV_DIR}/bin/niuniu-agent" run --mode competition >>"${LOG_FILE}" 2>&1 &
+  fi
   echo $! >"${PID_FILE}"
   echo "competition mode started (pid=$!)"
 }
@@ -200,10 +212,17 @@ start_ui() {
   fi
 
   load_env
-  nohup "${VENV_DIR}/bin/python" -m uvicorn niuniu_agent.web.app:app \
-    --host "${NIUNIU_AGENT_WEB_HOST:-0.0.0.0}" \
-    --port "${NIUNIU_AGENT_WEB_PORT:-8081}" \
-    --reload >>"${UI_LOG_FILE}" 2>&1 &
+  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
+    nohup env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" uv run uvicorn niuniu_agent.web.app:app \
+      --host "${NIUNIU_AGENT_WEB_HOST:-0.0.0.0}" \
+      --port "${NIUNIU_AGENT_WEB_PORT:-8081}" \
+      --reload >>"${UI_LOG_FILE}" 2>&1 &
+  else
+    nohup "${VENV_DIR}/bin/python" -m uvicorn niuniu_agent.web.app:app \
+      --host "${NIUNIU_AGENT_WEB_HOST:-0.0.0.0}" \
+      --port "${NIUNIU_AGENT_WEB_PORT:-8081}" \
+      --reload >>"${UI_LOG_FILE}" 2>&1 &
+  fi
   echo $! >"${UI_PID_FILE}"
   echo "web UI started (pid=$!, port=${NIUNIU_AGENT_WEB_PORT:-8081})"
 }
@@ -246,6 +265,9 @@ tail_ui_logs() {
 run_debug() {
   ensure_runtime_dir
   load_env
+  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
+    exec env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" uv run niuniu-agent run --mode debug
+  fi
   exec "${VENV_DIR}/bin/niuniu-agent" run --mode debug
 }
 
