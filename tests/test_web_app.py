@@ -27,7 +27,7 @@ class FakeWebService:
             "agents": [{"agent_id": "manager:competition:run1", "status": "running", "role": "manager"}],
             "agent_tree": [
                 {
-                    "manager": {"agent_id": "manager:competition:run1", "status": "running", "role": "manager"},
+                    "manager": {"agent_id": "manager:competition:run1", "status": "running", "role": "manager", "summary": "active=1 dispatchable=2 paused=1"},
                     "workers": [{"agent_id": "worker:c1:abcd", "status": "running", "role": "challenge_worker"}],
                 }
             ],

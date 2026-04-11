@@ -19,7 +19,7 @@ from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.runtime.coordinator import CompetitionCoordinator
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
-from niuniu_agent.runtime.manager import CompetitionManagerAgent
+from niuniu_agent.runtime.manager import CompetitionManagerAgent, partition_dispatchable_challenges
 from niuniu_agent.runtime.recovery import extract_runtime_notes, should_view_hint
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
@@ -324,12 +324,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 continue
             manager.heartbeat(snapshot, coordinator)
             manager.reconcile(coordinator)
-            candidates = [
-                challenge.code
-                for challenge in snapshot.challenges
-                if not challenge.completed
-                and context.state_store.get_challenge_notes(challenge.code).get("operator_pause") != "true"
-            ]
+            candidates, _paused = partition_dispatchable_challenges(snapshot, context.state_store)
 
             if not candidates:
                 context.event_logger.log("competition.idle", {"reason": "no-open-challenges"})

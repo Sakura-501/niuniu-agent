@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from typing import Any
 
 from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
 from niuniu_agent.runtime.context import RuntimeContext
@@ -21,15 +22,19 @@ class CompetitionManagerAgent:
         return self.context.agent_id or "manager:competition"
 
     def heartbeat(self, snapshot: ContestSnapshot, coordinator: CompetitionCoordinator) -> None:
+        dispatchable, paused = partition_dispatchable_challenges(snapshot, self.context.state_store)
         active_workers = [
             {"challenge_code": code, "task_running": coordinator.is_running(code)}
             for code in sorted(coordinator.worker_tasks.keys())
         ]
-        pending = [challenge.code for challenge in snapshot.challenges if not challenge.completed]
-        summary = f"active_workers={coordinator.active_count()} pending={len(pending)}"
+        summary = (
+            f"active_workers={coordinator.active_count()} "
+            f"dispatchable={len(dispatchable)} paused={len(paused)}"
+        )
         metadata = {
             "current_level": snapshot.current_level,
-            "pending_challenges": pending,
+            "pending_challenges": dispatchable,
+            "paused_challenges": paused,
             "active_workers": active_workers,
             "run_id": self.agent_id.split(":")[-1] if ":" in self.agent_id else None,
         }
@@ -104,3 +109,20 @@ class CompetitionManagerAgent:
             "Priorities:\n"
             f"{priorities or '- follow the most deterministic next step'}"
         )
+
+
+def partition_dispatchable_challenges(
+    snapshot: ContestSnapshot | Any,
+    state_store: Any,
+) -> tuple[list[str], list[str]]:
+    dispatchable: list[str] = []
+    paused: list[str] = []
+    for challenge in snapshot.challenges:
+        if challenge.completed:
+            continue
+        notes = state_store.get_challenge_notes(challenge.code)
+        if notes.get("operator_pause") == "true":
+            paused.append(challenge.code)
+        else:
+            dispatchable.append(challenge.code)
+    return dispatchable, paused

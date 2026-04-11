@@ -622,7 +622,6 @@ class AgentWebService:
         if status.get("role") == "challenge_worker":
             challenge_code = status.get("challenge_code")
             if challenge_code and status.get("status") not in {"completed", "cancelled", "paused"}:
-                self.context.state_store.set_challenge_note(str(challenge_code), "operator_pause", "true")
                 self.context.state_store.upsert_agent_status(
                     agent_id=agent_id,
                     role="challenge_worker",
