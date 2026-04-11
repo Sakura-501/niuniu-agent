@@ -50,11 +50,13 @@ class CompetitionProcessController:
                 "running": self._pid_running(pid),
                 "pid": pid,
                 "log_path": str(self.competition_log_file),
+                "runtime_dir": str(self.runtime_dir),
             },
             "ui": {
                 "running": True,
                 "pid": os.getpid(),
                 "port": self.web_port,
+                "runtime_dir": str(self.runtime_dir),
             },
         }
 
@@ -70,7 +72,10 @@ class CompetitionProcessController:
                 stdout=handle,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
-                env=os.environ.copy(),
+                env={
+                    **os.environ.copy(),
+                    "NIUNIU_AGENT_RUNTIME_DIR": str(self.runtime_dir),
+                },
             )
         self.competition_pid_file.write_text(str(process.pid), encoding="utf-8")
         return {"ok": True, "pid": process.pid}
@@ -428,9 +433,11 @@ class AgentWebService:
     async def overview(self) -> dict[str, object]:
         assert self.context is not None and self.controller is not None
         snapshot = await self.context.challenge_store.refresh()
+        stored_agents = self.context.state_store.list_agent_statuses()
+        process_status = self.controller.status()
         return {
             "listening_port": self.context.settings.web_port,
-            "process": self.controller.status(),
+            "process": process_status,
             "contest_capabilities": [
                 "list_challenges",
                 "start_challenge",
@@ -443,7 +450,7 @@ class AgentWebService:
                 "local": "state.db: runtime_state + notes + history + agent_status + agent_events",
             },
             "contest": self.context.challenge_store.export_json(snapshot),
-            "agents": self.context.state_store.list_agent_statuses(),
+            "agents": build_agent_overview_rows(stored_agents, process_status, max_parallel_workers=3),
             "recent_agent_events": self.context.state_store.list_agent_events(limit=80),
         }
 
@@ -524,8 +531,26 @@ class AgentWebService:
         return {"ok": False, "agent_id": agent_id, "action": "delete", "reason": "unsupported"}
 
     async def start_competition(self) -> dict[str, object]:
-        assert self.controller is not None
-        return await self.controller.start_competition()
+        assert self.controller is not None and self.context is not None
+        self.context.state_store.upsert_agent_status(
+            agent_id="manager:competition",
+            role="manager",
+            challenge_code=None,
+            status="starting",
+            summary="competition process starting",
+            metadata={"source": "web-ui", "runtime_dir": str(self.context.settings.runtime_dir)},
+        )
+        self.context.state_store.append_agent_event(
+            agent_id="manager:competition",
+            challenge_code=None,
+            event_type="competition_start_requested",
+            payload="requested from web ui",
+        )
+        result = await self.controller.start_competition()
+        result["agents_seeded"] = [
+            self.context.state_store.get_agent_status("manager:competition"),
+        ]
+        return result
 
     async def stop_competition(self) -> dict[str, object]:
         assert self.controller is not None
@@ -739,3 +764,45 @@ def page_shell(title: str, body: str, script: str) -> str:
   <script>{script}</script>
 </body>
 </html>"""
+
+
+def build_agent_overview_rows(
+    stored_agents: list[dict[str, object]],
+    process_status: dict[str, object],
+    *,
+    max_parallel_workers: int,
+) -> list[dict[str, object]]:
+    rows = list(stored_agents)
+    by_id = {str(item["agent_id"]): item for item in rows}
+    competition_state = dict(process_status.get("competition") or {})
+    if competition_state.get("running"):
+        if "manager:competition" not in by_id:
+            rows.insert(
+                0,
+                {
+                    "agent_id": "manager:competition",
+                    "role": "manager",
+                    "challenge_code": None,
+                    "status": "starting",
+                    "summary": "competition process is running but manager status has not been persisted yet",
+                    "metadata": {"synthetic": True},
+                    "last_error": None,
+                    "updated_at": None,
+                },
+            )
+        worker_rows = [item for item in rows if item.get("role") == "challenge_worker"]
+        missing_slots = max(0, max_parallel_workers - len(worker_rows))
+        for index in range(1, missing_slots + 1):
+            rows.append(
+                {
+                    "agent_id": f"worker-slot:{index}",
+                    "role": "challenge_worker",
+                    "challenge_code": None,
+                    "status": "idle",
+                    "summary": "waiting for assignment",
+                    "metadata": {"synthetic": True},
+                    "last_error": None,
+                    "updated_at": None,
+                }
+            )
+    return rows

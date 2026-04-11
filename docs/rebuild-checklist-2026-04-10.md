@@ -53,6 +53,7 @@
 - [x] 已增加 `8081` Web UI、在线 debug 页面、agent 日志/流程查看和后台热更新控制脚本
 - [x] 调试机验证 `git pull` 后 `8081` Web UI 可启动并返回首页 HTML
 - [x] Web UI 已补充 `hint` 状态、challenge `official/local` 数据来源说明、debug 会话恢复、debug agent stop/delete
+- [x] `Start Competition` 后 Web Agents 列表会立即 seed manager 状态并共享同一 `runtime_dir`
 
 ## 进行中
 
