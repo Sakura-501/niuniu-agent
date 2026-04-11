@@ -7,6 +7,8 @@ APT_PACKAGES=(
   python3
   python3-pip
   python3.12-venv
+  cargo
+  rustc
   curl
   jq
   ripgrep
@@ -41,10 +43,56 @@ PIP_PACKAGES=(
   netexec
 )
 
+promote_user_binaries() {
+  local source_dir
+  for source_dir in "${HOME}/go/bin" "${HOME}/.local/bin" "${HOME}/.cargo/bin"; do
+    [[ -d "${source_dir}" ]] || continue
+    find "${source_dir}" -maxdepth 1 -type f -perm -111 | while read -r binary; do
+      sudo ln -sf "${binary}" "/usr/local/bin/$(basename "${binary}")"
+    done
+  done
+}
+
+install_projectdiscovery_binary() {
+  local repo="$1"
+  local asset_pattern="$2"
+  local binary_name="$3"
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  local url
+  url="$(python3 - <<PY
+import json, sys, urllib.request
+repo = ${repo@Q}
+pattern = ${asset_pattern@Q}
+with urllib.request.urlopen(f"https://api.github.com/repos/{repo}/releases/latest") as resp:
+    data = json.load(resp)
+for asset in data.get("assets", []):
+    if pattern in asset.get("name", ""):
+        print(asset["browser_download_url"])
+        sys.exit(0)
+sys.exit(1)
+PY
+)" || return 1
+  curl -fsSL "${url}" -o "${tmpdir}/asset.zip"
+  python3 - <<PY
+import sys, zipfile
+from pathlib import Path
+archive = Path(${tmpdir@Q}) / "asset.zip"
+target = Path(${tmpdir@Q})
+with zipfile.ZipFile(archive) as zf:
+    zf.extractall(target)
+PY
+  local binary_path
+  binary_path="$(find "${tmpdir}" -maxdepth 2 -type f -name "${binary_name}" | head -n 1)"
+  [[ -n "${binary_path}" ]] || return 1
+  sudo install -m 0755 "${binary_path}" "/usr/local/bin/${binary_name}"
+  rm -rf "${tmpdir}"
+}
+
 print_plan() {
   echo "APT: sudo apt-get update && sudo apt-get install -y ${APT_PACKAGES[*]}"
   echo "GO : $(printf 'go install %s && ' "${GO_PACKAGES[@]}")true"
-  echo "PIP: python -m pip install ${PIP_PACKAGES[*]}"
+  echo "PIP: python3 -m pip install --user ${PIP_PACKAGES[*]}"
 }
 
 install_plan() {
@@ -55,7 +103,13 @@ install_plan() {
     for package in "${GO_PACKAGES[@]}"; do
       if ! go install "${package}"; then
         echo "go install failed: ${package}" >&2
-        failures+=("go:${package}")
+        if [[ "${package}" == github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest ]]; then
+          install_projectdiscovery_binary "projectdiscovery/nuclei" "linux_amd64.zip" "nuclei" || failures+=("binary:nuclei")
+        elif [[ "${package}" == github.com/projectdiscovery/httpx/cmd/httpx@latest ]]; then
+          install_projectdiscovery_binary "projectdiscovery/httpx" "linux_amd64.zip" "httpx" || failures+=("binary:httpx")
+        else
+          failures+=("go:${package}")
+        fi
       fi
     done
   else
@@ -71,10 +125,11 @@ install_plan() {
     echo "cargo not found; skipping feroxbuster" >&2
     failures+=("cargo:missing")
   fi
-  if ! python -m pip install "${PIP_PACKAGES[@]}"; then
+  if ! python3 -m pip install --user --break-system-packages "${PIP_PACKAGES[@]}"; then
     echo "pip install failed: ${PIP_PACKAGES[*]}" >&2
     failures+=("pip:${PIP_PACKAGES[*]}")
   fi
+  promote_user_binaries
   if [[ "${#failures[@]}" -gt 0 ]]; then
     echo "INSTALL FAILURES: ${failures[*]}" >&2
     return 1
