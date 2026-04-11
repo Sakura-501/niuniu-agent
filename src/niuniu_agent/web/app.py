@@ -103,10 +103,17 @@ def create_app(service: object | None = None) -> FastAPI:
             details.open = true;
             const manager = group.manager || {};
             const summary = document.createElement('summary');
+            const managerControls = manager.agent_id && manager.agent_id.startsWith('manager:competition:') ? `
+              <div class="button-row" style="margin-top:10px;">
+                <button data-stop-agent="${manager.agent_id}">Stop</button>
+                <button class="secondary" data-delete-agent="${manager.agent_id}">Delete</button>
+              </div>
+            ` : '';
             summary.innerHTML = `
               <strong><a href="/agents/${encodeURIComponent(manager.agent_id || '')}">${manager.agent_id || 'manager'}</a></strong>
               <span class="muted"> · ${manager.status || ''}</span>
               <div class="mono">${manager.summary || ''}</div>
+              ${managerControls}
             `;
             details.appendChild(summary);
 

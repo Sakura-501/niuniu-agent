@@ -516,6 +516,8 @@ class AgentWebService:
         actions: list[str] = []
         if agent_id.startswith("debug:"):
             actions = ["stop", "delete"]
+        elif status is not None and status.get("role") == "manager":
+            actions = ["stop", "delete"]
         elif status is not None and status.get("role") == "challenge_worker":
             if status.get("status") not in {"completed", "cancelled", "paused"}:
                 actions.append("pause")
@@ -543,6 +545,12 @@ class AgentWebService:
     async def stop_agent(self, agent_id: str) -> dict[str, object]:
         if agent_id.startswith("debug:") and self.debug_sessions is not None:
             return await self.debug_sessions.stop_session(agent_id.removeprefix("debug:"))
+        if agent_id.startswith("manager:competition:"):
+            run_id = agent_id.split(":")[-1]
+            process_state = self.controller.status()["competition"] if self.controller is not None else {}
+            if process_state.get("running") and process_state.get("run_id") == run_id and self.controller is not None:
+                await self.controller.stop_competition()
+            return {"ok": True, "agent_id": agent_id, "action": "stop"}
         return {"ok": False, "agent_id": agent_id, "action": "stop", "reason": "unsupported"}
 
     async def pause_agent(self, agent_id: str) -> dict[str, object]:
@@ -576,6 +584,13 @@ class AgentWebService:
         assert self.context is not None
         if agent_id.startswith("debug:") and self.debug_sessions is not None:
             return await self.debug_sessions.delete_session(agent_id.removeprefix("debug:"))
+        if agent_id.startswith("manager:competition:"):
+            run_id = agent_id.split(":")[-1]
+            process_state = self.controller.status()["competition"] if self.controller is not None else {}
+            if process_state.get("running") and process_state.get("run_id") == run_id and self.controller is not None:
+                await self.controller.stop_competition()
+            self._delete_competition_run(run_id)
+            return {"ok": True, "agent_id": agent_id, "action": "delete"}
         status = self.context.state_store.get_agent_status(agent_id)
         if status is None:
             self.context.state_store.delete_agent(agent_id)
@@ -603,6 +618,13 @@ class AgentWebService:
             self.context.state_store.delete_agent(agent_id)
             return {"ok": True, "agent_id": agent_id, "action": "delete"}
         return {"ok": False, "agent_id": agent_id, "action": "delete", "reason": "unsupported"}
+
+    def _delete_competition_run(self, run_id: str) -> None:
+        assert self.context is not None
+        for agent in self.context.state_store.list_agent_statuses():
+            metadata = agent.get("metadata") or {}
+            if agent["agent_id"] == f"manager:competition:{run_id}" or metadata.get("competition_run_id") == run_id:
+                self.context.state_store.delete_agent(str(agent["agent_id"]))
 
     async def start_competition(self) -> dict[str, object]:
         assert self.controller is not None and self.context is not None

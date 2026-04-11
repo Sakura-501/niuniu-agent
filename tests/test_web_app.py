@@ -25,6 +25,12 @@ class FakeWebService:
                 ],
             },
             "agents": [{"agent_id": "manager:competition:run1", "status": "running", "role": "manager"}],
+            "agent_tree": [
+                {
+                    "manager": {"agent_id": "manager:competition:run1", "status": "running", "role": "manager"},
+                    "workers": [{"agent_id": "worker:c1:abcd", "status": "running", "role": "challenge_worker"}],
+                }
+            ],
         }
 
     async def challenge_detail(self, code: str) -> dict[str, object]:
@@ -123,6 +129,15 @@ def test_web_worker_pause_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["action"] == "pause"
+
+
+def test_web_manager_delete_endpoint() -> None:
+    client = TestClient(create_app(service=FakeWebService()))
+
+    response = client.delete("/api/agents/manager:competition:run1")
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "delete"
 
 
 def test_web_start_competition_returns_seeded_agent_status() -> None:
