@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import re
 
 
 @dataclass(frozen=True, slots=True)
@@ -10,82 +12,73 @@ class CapabilitySkill:
     trigger_keywords: tuple[str, ...]
     usage_guidance: str
     recommended_tracks: tuple[str, ...]
+    path: Path
+    body: str
 
 
 class SkillRegistry:
-    def __init__(self) -> None:
-        self.skills = [
-            CapabilitySkill(
-                "recon_web",
-                "Web attack surface discovery for portals, routes, parameters, and static clues.",
-                ("web", "portal", "site", "login", "admin", "dashboard", "http"),
-                "Start with route discovery, parameter discovery, and tech stack identification before exploitation.",
-                ("track1", "track2"),
-            ),
-            CapabilitySkill(
-                "recon_service",
-                "Service and protocol discovery for non-pure-web targets.",
-                ("service", "port", "tcp", "udp", "ssh", "redis", "mysql", "fastapi"),
-                "Enumerate ports, service banners, and versions before choosing exploit paths.",
-                ("track1", "track2", "track3", "track4"),
-            ),
-            CapabilitySkill(
-                "cve_mapping",
-                "Map versions and fingerprints to likely CVEs.",
-                ("cve", "version", "apache", "nginx", "spring", "grafana", "fastapi"),
-                "Identify component and version first, then rank likely exploit candidates.",
-                ("track2",),
-            ),
-            CapabilitySkill(
-                "exploit_web",
-                "Web exploitation for common vuln classes.",
-                ("sqli", "xss", "upload", "ssti", "idor", "auth", "template"),
-                "Exploit only after reconnaissance confirms a likely path and record exact requests.",
-                ("track1", "track2"),
-            ),
-            CapabilitySkill(
-                "exploit_api",
-                "JSON/API authn-authz and workflow exploitation.",
-                ("api", "json", "token", "jwt", "graphql", "rest"),
-                "Prefer structured API reasoning, authentication flow checks, and response diffing.",
-                ("track1", "track2"),
-            ),
-            CapabilitySkill(
-                "cloud_ai_surface",
-                "Cloud and AI infrastructure discovery.",
-                ("cloud", "bucket", "metadata", "ai", "model", "inference", "llm"),
-                "Look for metadata endpoints, object storage, model APIs, and infra exposure.",
-                ("track2",),
-            ),
-            CapabilitySkill(
-                "pivot_lateral",
-                "Multi-step pivot and lateral planning.",
-                ("pivot", "lateral", "internal", "foothold", "next hop"),
-                "Track current foothold, next reachable segment, and credentials worth reusing.",
-                ("track3", "track4"),
-            ),
-            CapabilitySkill(
-                "privesc_maintain",
-                "Privilege escalation and persistence planning.",
-                ("privesc", "sudo", "capability", "credential", "persistence"),
-                "Enumerate privilege paths and capture credentials or long-lived access paths.",
-                ("track3", "track4"),
-            ),
-            CapabilitySkill(
-                "domain_enum",
-                "Domain and Active Directory enumeration.",
-                ("domain", "ad", "ldap", "kerberos", "dc", "smb"),
-                "Map domain roles, core hosts, and shortest escalation paths before action.",
-                ("track4",),
-            ),
-            CapabilitySkill(
-                "flag_submit_recovery",
-                "Flag submission and follow-up recovery handling.",
-                ("flag", "submit", "retry", "recovery"),
-                "Submit candidate flags immediately and use result feedback to decide next step.",
-                ("track1", "track2", "track3", "track4"),
-            ),
-        ]
+    def __init__(self, skills_dir: Path | None = None) -> None:
+        self.skills_dir = skills_dir or self.default_skills_dir()
+        self.skills = self._load_skills()
+
+    @staticmethod
+    def default_skills_dir() -> Path:
+        return Path(__file__).resolve().parents[3] / "skills"
+
+    def _load_skills(self) -> list[CapabilitySkill]:
+        if not self.skills_dir.exists():
+            return []
+        loaded: list[CapabilitySkill] = []
+        for path in sorted(self.skills_dir.rglob("SKILL.md")):
+            meta, body = self._parse_frontmatter(path.read_text(encoding="utf-8"))
+            loaded.append(
+                CapabilitySkill(
+                    name=meta.get("name", path.parent.name),
+                    description=meta.get("description", "No description provided."),
+                    trigger_keywords=self._parse_list(meta.get("trigger_keywords", "")),
+                    usage_guidance=meta.get("usage_guidance", "Load the full skill body before acting."),
+                    recommended_tracks=self._parse_list(meta.get("recommended_tracks", "")),
+                    path=path,
+                    body=body.strip(),
+                )
+            )
+        return loaded
+
+    @staticmethod
+    def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+        match = re.match(r"^---\n(.*?)\n---\n(.*)$", text, re.DOTALL)
+        if not match:
+            return {}, text
+        meta: dict[str, str] = {}
+        for raw_line in match.group(1).splitlines():
+            line = raw_line.strip()
+            if not line or ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            meta[key.strip()] = value.strip()
+        return meta, match.group(2)
+
+    @staticmethod
+    def _parse_list(raw: str) -> tuple[str, ...]:
+        value = raw.strip().strip("[]")
+        if not value:
+            return ()
+        return tuple(part.strip().strip("'\"") for part in value.split(",") if part.strip())
+
+    def describe_available(self) -> str:
+        if not self.skills:
+            return "(no skills available)"
+        return "\n".join(
+            f"- {skill.name}: {skill.description}"
+            for skill in sorted(self.skills, key=lambda item: item.name)
+        )
+
+    def load_full_text(self, name: str) -> str:
+        skill = next((item for item in self.skills if item.name == name), None)
+        if skill is None:
+            known = ", ".join(sorted(item.name for item in self.skills)) or "(none)"
+            return f"Error: Unknown skill '{name}'. Available skills: {known}"
+        return f"<skill name=\"{skill.name}\">\n{skill.body}\n</skill>"
 
     def select_for_text(self, text: str) -> list[CapabilitySkill]:
         haystack = text.lower()

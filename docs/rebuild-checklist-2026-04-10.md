@@ -46,18 +46,27 @@
 - [x] 正确 flag 提交且题目完成后会立即关闭实例
 - [x] 完成一题后会自动继续下一题，不停留
 - [x] hint 查看已加 5 分钟无进展条件约束
+- [x] 当前代码对应的架构图与流程图已落地到文档
+- [x] skills 模块已切到磁盘 `skills/*/SKILL.md` 目录 + `load_skill` 动态加载
+- [x] `competition` 已增加 `manager agent + 最多 3 个 worker agent` 的状态兜底骨架
+- [x] 已增加 `8081` Web UI、在线 debug 页面、agent 日志/流程查看和后台热更新控制脚本
 
 ## 进行中
 
 - [ ] 把四赛道的通用 skills 真正接入赛题推进策略
 说明：
-目前 skills 注册表、planner、入口 prompt、trigger prompts 已落地并接入 `debug` / `competition`。
-剩余工作是继续增强四赛道的细粒度能力，而不是框架接线。
+目前 `skills/*/SKILL.md`、动态注册表、`load_skill`、planner、入口 prompt、trigger prompts 已落地并接入 `debug` / `competition`。
+剩余工作是继续增强四赛道的细粒度能力与更多触发覆盖，而不是框架接线。
 
 - [ ] 做强 `competition` 的长期状态恢复
 说明：
-当前已具备活跃赛题、失败次数、退避恢复、挑战历史、阶段性结论与基础 foothold 提取。
-剩余工作是长期多轮恢复与更准确的自动提取。
+当前已具备活跃赛题、失败次数、退避恢复、挑战历史、阶段性结论、manager/worker 状态与基础 foothold 提取。
+剩余工作是长期多轮恢复、更准确的自动提取与更强的 manager 调度策略。
+
+- [ ] 补强 Web UI 的远端实机验证与更多页面交互
+说明：
+当前已落地 dashboard、challenge detail、agent detail、online debug chat、competition start/stop/restart。
+剩余工作是调试机实机验证、页面细节打磨和更多控制项。
 
 ## 强制规则落实情况
 

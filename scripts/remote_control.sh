@@ -6,6 +6,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VENV_DIR="${REPO_ROOT}/.venv"
 PID_FILE="${REPO_ROOT}/runtime/competition.pid"
 LOG_FILE="${REPO_ROOT}/runtime/competition.log"
+UI_PID_FILE="${REPO_ROOT}/runtime/ui.pid"
+UI_LOG_FILE="${REPO_ROOT}/runtime/ui.log"
 
 usage() {
   cat <<'EOF'
@@ -20,6 +22,11 @@ Commands:
   competition-restart  Update, then start competition mode in background
   competition-stop     Stop background competition mode
   competition-status   Show background competition process status
+  ui-start             Start web UI in background with reload enabled
+  ui-restart           Restart web UI in background with reload enabled
+  ui-stop              Stop background web UI
+  ui-status            Show background web UI status
+  ui-logs              Tail the web UI log
   logs                 Tail the competition log
 EOF
 }
@@ -173,6 +180,69 @@ show_competition_status() {
   fi
 }
 
+ui_pid() {
+  if [[ -f "${UI_PID_FILE}" ]]; then
+    cat "${UI_PID_FILE}"
+  fi
+}
+
+ui_running() {
+  local pid
+  pid="$(ui_pid || true)"
+  [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null
+}
+
+start_ui() {
+  ensure_runtime_dir
+  if ui_running; then
+    echo "web UI already running (pid=$(ui_pid))"
+    return 0
+  fi
+
+  load_env
+  nohup "${VENV_DIR}/bin/python" -m uvicorn niuniu_agent.web.app:app \
+    --host "${NIUNIU_AGENT_WEB_HOST:-0.0.0.0}" \
+    --port "${NIUNIU_AGENT_WEB_PORT:-8081}" \
+    --reload >>"${UI_LOG_FILE}" 2>&1 &
+  echo $! >"${UI_PID_FILE}"
+  echo "web UI started (pid=$!, port=${NIUNIU_AGENT_WEB_PORT:-8081})"
+}
+
+stop_ui() {
+  if ! ui_running; then
+    rm -f "${UI_PID_FILE}"
+    echo "web UI is not running"
+    return 0
+  fi
+
+  local pid
+  pid="$(ui_pid)"
+  kill "${pid}"
+  rm -f "${UI_PID_FILE}"
+  echo "web UI stopped (pid=${pid})"
+}
+
+restart_ui() {
+  stop_ui || true
+  ensure_venv
+  install_project
+  start_ui
+}
+
+show_ui_status() {
+  if ui_running; then
+    echo "web UI running (pid=$(ui_pid), port=${NIUNIU_AGENT_WEB_PORT:-8081})"
+  else
+    echo "web UI stopped"
+  fi
+}
+
+tail_ui_logs() {
+  ensure_runtime_dir
+  touch "${UI_LOG_FILE}"
+  exec tail -f "${UI_LOG_FILE}"
+}
+
 run_debug() {
   ensure_runtime_dir
   load_env
@@ -224,6 +294,21 @@ main() {
       ;;
     competition-status)
       show_competition_status
+      ;;
+    ui-start)
+      start_ui
+      ;;
+    ui-restart)
+      restart_ui
+      ;;
+    ui-stop)
+      stop_ui
+      ;;
+    ui-status)
+      show_ui_status
+      ;;
+    ui-logs)
+      tail_ui_logs
       ;;
     logs)
       tail_logs

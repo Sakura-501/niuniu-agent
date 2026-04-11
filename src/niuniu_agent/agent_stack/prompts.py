@@ -85,6 +85,7 @@ def build_entry_prompt(
     snapshot: ContestSnapshot | None,
     active: ChallengeSnapshot | None,
     skills: list,
+    available_skills: str | None = None,
     stage: str | None = None,
     runtime_state: dict | None = None,
     notes: dict | None = None,
@@ -122,11 +123,14 @@ def build_entry_prompt(
     skill_text = "\n".join(
         f"- {skill.name}: {skill.description} | guidance: {skill.usage_guidance}" for skill in skills
     )
+    available_skills_text = f"Available skills catalog:\n{available_skills}" if available_skills else ""
     mode_text = (
-        "Mode: competition. Keep running forever and recover from errors."
+        "Mode: competition. Keep running forever and recover from errors. "
+        "Use the load_skill tool when a task needs specialized instructions before acting."
         if mode == "competition"
         else (
             "Mode: debug. Explain your reasoning and keep responses concise. "
+            "Use the load_skill tool when a task needs specialized instructions before acting. "
             "If the user asks for a solution, summary, exploit path, or flag, "
             "format the final answer with clear markdown sections: 结论, 解法, 关键证据, Flag, 下一步."
         )
@@ -155,6 +159,7 @@ def build_entry_prompt(
             runtime_text,
             notes_text,
             track_text,
+            available_skills_text,
             snapshot_text.strip(),
             active_text.strip(),
             f"Selected skills:\n{skill_text}" if skill_text else "",

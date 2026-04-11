@@ -31,6 +31,7 @@ class ToolBus:
             "get_challenge_overview": self.get_challenge_overview,
             "get_challenge_snapshot": self.get_challenge_snapshot,
             "check_tool_inventory": self.check_tool_inventory,
+            "load_skill": self.load_skill,
             "get_challenge_history": self.get_challenge_history,
             "get_challenge_notes": self.get_challenge_notes,
             "set_challenge_note": self.set_challenge_note,
@@ -50,6 +51,11 @@ class ToolBus:
             RuntimeTool("get_challenge_overview", "Refresh and summarize contest challenges.", {"type": "object", "properties": {}}),
             RuntimeTool("get_challenge_snapshot", "Return the latest contest snapshot as JSON.", {"type": "object", "properties": {}}),
             RuntimeTool("check_tool_inventory", "Return local tool availability and install hints.", {"type": "object", "properties": {}}),
+            RuntimeTool(
+                "load_skill",
+                "Load the full body of a named skill into the current context.",
+                {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+            ),
             RuntimeTool(
                 "get_challenge_history",
                 "Return recent history events for a challenge.",
@@ -139,15 +145,23 @@ class ToolBus:
         handler = self._handlers.get(name)
         if handler is None:
             return f"Unknown tool: {name}"
+        self._record_agent_event("tool_start", {"name": name, "arguments": arguments})
         try:
             result = await handler(**arguments)
         except TypeError as exc:
-            return f"Error calling tool '{name}': {exc}"
+            output = f"Error calling tool '{name}': {exc}"
+            self._record_agent_event("tool_error", {"name": name, "arguments": arguments, "error": str(exc)})
+            return output
         except Exception as exc:  # noqa: BLE001
-            return f"Error calling tool '{name}': {exc}"
+            output = f"Error calling tool '{name}': {exc}"
+            self._record_agent_event("tool_error", {"name": name, "arguments": arguments, "error": str(exc)})
+            return output
         if isinstance(result, str):
+            self._record_agent_event("tool_done", {"name": name, "arguments": arguments, "output_preview": result[:300]})
             return result
-        return json.dumps(result, ensure_ascii=False)
+        output = json.dumps(result, ensure_ascii=False)
+        self._record_agent_event("tool_done", {"name": name, "arguments": arguments, "output_preview": output[:300]})
+        return output
 
     async def get_challenge_overview(self) -> str:
         snapshot = await self.context.challenge_store.refresh()
@@ -159,6 +173,11 @@ class ToolBus:
 
     async def check_tool_inventory(self) -> dict[str, Any]:
         return await self.context.local_toolbox.check_tool_inventory()
+
+    async def load_skill(self, name: str) -> str:
+        if self.context.skill_registry is None:
+            return "Error: skill registry unavailable"
+        return self.context.skill_registry.load_full_text(name)
 
     async def get_challenge_history(self, code: str, limit: int = 10) -> dict[str, Any]:
         return {"code": code, "history": self.context.state_store.list_history(code, limit)}
@@ -210,7 +229,14 @@ class ToolBus:
         return {"code": code, "payload": payload}
 
     async def submit_flag(self, code: str, flag: str) -> dict[str, Any]:
-        payload = await self.context.contest_gateway.submit_flag(code, flag)
+        try:
+            payload = await self.context.contest_gateway.submit_flag(code, flag)
+        except Exception as exc:  # noqa: BLE001
+            message = str(exc)
+            if "赛题实例未运行" not in message:
+                raise
+            await self.start_challenge(code)
+            payload = await self.context.contest_gateway.submit_flag(code, flag)
         if self._is_successful_flag_submission(payload):
             self.context.state_store.record_submitted_flag(code, flag)
             self.context.state_store.add_history_event(code, "flag_submitted", json.dumps({"flag": flag, "payload": payload}, ensure_ascii=False))
@@ -268,3 +294,14 @@ class ToolBus:
             "notes": self.context.notes,
             "snapshot": self.context.challenge_store.export_json(self.context.challenge_store.latest),
         }
+
+    def _record_agent_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        if not self.context.agent_id:
+            return
+        challenge_code = self.context.challenge_code or payload.get("code")
+        self.context.state_store.append_agent_event(
+            agent_id=self.context.agent_id,
+            challenge_code=str(challenge_code) if challenge_code else None,
+            event_type=event_type,
+            payload=json.dumps(payload, ensure_ascii=False),
+        )

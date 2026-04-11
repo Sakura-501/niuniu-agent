@@ -58,19 +58,25 @@ async def run_debug_repl(context: RuntimeContext) -> None:
 
         snapshot = await context.challenge_store.refresh()
         active = context.challenge_store.next_candidate(snapshot)
-        context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
+        turn_context = context.spawn(
+            agent_id="debug:repl",
+            agent_role="debug",
+            challenge_code=active.code if active is not None else None,
+        )
+        turn_context.notes["latest_snapshot"] = context.challenge_store.export_json(snapshot)
         runtime_state = (
-            context.state_store.get_challenge_runtime_state(active.code)
+            turn_context.state_store.get_challenge_runtime_state(active.code)
             if active is not None
             else {}
         )
-        notes = context.state_store.get_challenge_notes(active.code) if active is not None else {}
+        notes = turn_context.state_store.get_challenge_notes(active.code) if active is not None else {}
         track = infer_track(active.description) if active is not None else None
         skill_plan = (
-            plan_skills(context.skill_registry, active.description if active else "", runtime_state, notes, track=track)
-            if context.skill_registry and active is not None
+            plan_skills(turn_context.skill_registry, active.description if active else "", runtime_state, notes, track=track)
+            if turn_context.skill_registry and active is not None
             else None
         )
+        available_skills = turn_context.skill_registry.describe_available() if turn_context.skill_registry else None
         agent = AsyncPentestAgent(
             client=client,
             model_name=context.settings.model,
@@ -81,6 +87,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                         snapshot,
                         active,
                         skill_plan.skills if skill_plan else [],
+                        available_skills=available_skills,
                         stage=skill_plan.stage if skill_plan else None,
                         runtime_state=runtime_state,
                         notes=notes,
@@ -91,7 +98,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                     build_trigger_prompt(FLAG_SUBMIT_PROMPT),
                 ]
             ),
-            tool_bus=ToolBus(context),
+            tool_bus=ToolBus(turn_context),
         )
         buffered_text_chunks: list[str] = []
 
@@ -116,6 +123,20 @@ async def run_debug_repl(context: RuntimeContext) -> None:
         )
         history = result.history
         raw_output = result.output or "".join(buffered_text_chunks)
+        turn_context.state_store.upsert_agent_status(
+            agent_id=turn_context.agent_id or "debug:repl",
+            role="debug",
+            challenge_code=turn_context.challenge_code,
+            status="idle",
+            summary=(raw_output or user_input)[:240],
+            metadata={"summary_request": _is_summary_request(user_input)},
+        )
+        turn_context.state_store.append_agent_event(
+            agent_id=turn_context.agent_id or "debug:repl",
+            challenge_code=turn_context.challenge_code,
+            event_type="debug_turn_completed",
+            payload=raw_output[:1000] if raw_output else user_input,
+        )
 
         if should_format_debug_answer(user_input, result.tool_events):
             printed_final = False

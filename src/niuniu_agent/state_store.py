@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+import json
 from pathlib import Path
 
 
@@ -57,6 +58,32 @@ class StateStore:
                     note_value TEXT NOT NULL,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (challenge_code, note_key)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS agent_status (
+                    agent_id TEXT PRIMARY KEY,
+                    role TEXT NOT NULL,
+                    challenge_code TEXT,
+                    status TEXT NOT NULL,
+                    summary TEXT NOT NULL DEFAULT '',
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    last_error TEXT,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS agent_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    agent_id TEXT NOT NULL,
+                    challenge_code TEXT,
+                    event_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
@@ -277,3 +304,161 @@ class StateStore:
                 (challenge_code,),
             ).fetchall()
         return {row[0]: row[1] for row in rows}
+
+    def upsert_agent_status(
+        self,
+        agent_id: str,
+        role: str,
+        challenge_code: str | None,
+        status: str,
+        summary: str = "",
+        metadata: dict[str, object] | None = None,
+        last_error: str | None = None,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO agent_status (agent_id, role, challenge_code, status, summary, metadata, last_error)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_id) DO UPDATE SET
+                    role = excluded.role,
+                    challenge_code = excluded.challenge_code,
+                    status = excluded.status,
+                    summary = excluded.summary,
+                    metadata = excluded.metadata,
+                    last_error = excluded.last_error,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    agent_id,
+                    role,
+                    challenge_code,
+                    status,
+                    summary,
+                    json.dumps(metadata or {}, ensure_ascii=False),
+                    last_error,
+                ),
+            )
+
+    def get_agent_status(self, agent_id: str) -> dict[str, object] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT agent_id, role, challenge_code, status, summary, metadata, last_error, updated_at
+                FROM agent_status
+                WHERE agent_id = ?
+                """,
+                (agent_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "agent_id": row[0],
+            "role": row[1],
+            "challenge_code": row[2],
+            "status": row[3],
+            "summary": row[4],
+            "metadata": self._load_json_dict(row[5]),
+            "last_error": row[6],
+            "updated_at": row[7],
+        }
+
+    def list_agent_statuses(
+        self,
+        *,
+        role: str | None = None,
+        challenge_code: str | None = None,
+    ) -> list[dict[str, object]]:
+        query = (
+            "SELECT agent_id, role, challenge_code, status, summary, metadata, last_error, updated_at "
+            "FROM agent_status"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if role is not None:
+            clauses.append("role = ?")
+            params.append(role)
+        if challenge_code is not None:
+            clauses.append("challenge_code = ?")
+            params.append(challenge_code)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY updated_at DESC, agent_id ASC"
+        with self._connect() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+        return [
+            {
+                "agent_id": row[0],
+                "role": row[1],
+                "challenge_code": row[2],
+                "status": row[3],
+                "summary": row[4],
+                "metadata": self._load_json_dict(row[5]),
+                "last_error": row[6],
+                "updated_at": row[7],
+            }
+            for row in rows
+        ]
+
+    def append_agent_event(
+        self,
+        *,
+        agent_id: str,
+        challenge_code: str | None,
+        event_type: str,
+        payload: str,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO agent_events (agent_id, challenge_code, event_type, payload)
+                VALUES (?, ?, ?, ?)
+                """,
+                (agent_id, challenge_code, event_type, payload),
+            )
+
+    def list_agent_events(
+        self,
+        *,
+        agent_id: str | None = None,
+        challenge_code: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, object]]:
+        query = (
+            "SELECT agent_id, challenge_code, event_type, payload, created_at "
+            "FROM agent_events"
+        )
+        clauses: list[str] = []
+        params: list[object] = []
+        if agent_id is not None:
+            clauses.append("agent_id = ?")
+            params.append(agent_id)
+        if challenge_code is not None:
+            clauses.append("challenge_code = ?")
+            params.append(challenge_code)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+        return [
+            {
+                "agent_id": row[0],
+                "challenge_code": row[1],
+                "event_type": row[2],
+                "payload": row[3],
+                "created_at": row[4],
+            }
+            for row in rows
+        ]
+
+    @staticmethod
+    def _load_json_dict(raw: str | None) -> dict[str, object]:
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}

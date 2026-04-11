@@ -18,6 +18,7 @@ from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.runtime.coordinator import CompetitionCoordinator
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
+from niuniu_agent.runtime.manager import CompetitionManagerAgent
 from niuniu_agent.runtime.recovery import extract_runtime_notes, should_view_hint
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
@@ -31,52 +32,80 @@ async def run_competition_loop(context: RuntimeContext) -> None:
     histories: dict[str, list[dict[str, object]]] = {}
     findings_bus = ChallengeFindingsBus()
     coordinator = CompetitionCoordinator(max_parallel_challenges=3)
+    manager_context = context.spawn(agent_id="manager:competition", agent_role="manager")
+    manager = CompetitionManagerAgent(manager_context, findings_bus)
 
     async def run_worker(challenge_code: str) -> None:
+        worker_context = context.spawn(
+            agent_id=f"worker:{challenge_code}",
+            agent_role="challenge_worker",
+            challenge_code=challenge_code,
+        )
         backoff = context.settings.competition_error_backoff_seconds
         try:
             while True:
-                snapshot = await context.challenge_store.refresh()
+                snapshot = await worker_context.challenge_store.refresh()
                 target = next((item for item in snapshot.challenges if item.code == challenge_code), None)
                 if target is None or target.completed:
-                    context.state_store.record_challenge_success(challenge_code)
+                    worker_context.state_store.record_challenge_success(challenge_code)
+                    worker_context.state_store.upsert_agent_status(
+                        agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                        role="challenge_worker",
+                        challenge_code=challenge_code,
+                        status="completed",
+                        summary="challenge completed",
+                        metadata={"challenge_code": challenge_code},
+                    )
                     return
 
-                context.notes["active_challenge"] = target.code
-                context.state_store.mark_active_challenge(target.code)
-                runtime_state = context.state_store.get_challenge_runtime_state(target.code)
-                notes = context.state_store.get_challenge_notes(target.code)
-                seconds_since_progress = context.state_store.seconds_since_progress(target.code)
+                worker_context.notes["active_challenge"] = target.code
+                worker_context.state_store.mark_active_challenge(target.code)
+                runtime_state = worker_context.state_store.get_challenge_runtime_state(target.code)
+                notes = worker_context.state_store.get_challenge_notes(target.code)
+                seconds_since_progress = worker_context.state_store.seconds_since_progress(target.code)
                 if should_view_hint(
                     int(runtime_state.get("failure_count", 0)),
                     target.hint_viewed,
                     notes,
                     seconds_since_progress=seconds_since_progress,
                 ):
-                    hint_payload = await context.contest_gateway.view_hint(target.code)
-                    context.state_store.add_history_event(target.code, "hint_viewed", str(hint_payload))
-                    context.state_store.set_challenge_note(target.code, "hint_viewed", "true")
-                    notes = context.state_store.get_challenge_notes(target.code)
+                    hint_payload = await worker_context.contest_gateway.view_hint(target.code)
+                    worker_context.state_store.add_history_event(target.code, "hint_viewed", str(hint_payload))
+                    worker_context.state_store.set_challenge_note(target.code, "hint_viewed", "true")
+                    notes = worker_context.state_store.get_challenge_notes(target.code)
 
                 skill_plan = (
                     plan_skills(
-                        context.skill_registry,
+                        worker_context.skill_registry,
                         target.description,
                         runtime_state,
                         notes,
                         track=infer_track(target.description),
                     )
-                    if context.skill_registry
+                    if worker_context.skill_registry
                     else None
                 )
                 shared_findings = await findings_bus.check(target.code, consumer=f"worker:{target.code}")
                 if shared_findings:
-                    context.state_store.set_challenge_note(
+                    worker_context.state_store.set_challenge_note(
                         target.code,
                         "shared_findings",
                         findings_bus.format_unread(shared_findings)[:4000],
                     )
-                    notes = context.state_store.get_challenge_notes(target.code)
+                    notes = worker_context.state_store.get_challenge_notes(target.code)
+                available_skills = worker_context.skill_registry.describe_available() if worker_context.skill_registry else None
+                worker_context.state_store.upsert_agent_status(
+                    agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                    role="challenge_worker",
+                    challenge_code=target.code,
+                    status="running",
+                    summary=f"{target.title} / {skill_plan.stage if skill_plan else 'recon'}",
+                    metadata={
+                        "track": infer_track(target.description),
+                        "stage": skill_plan.stage if skill_plan else "recon",
+                        "instance_status": target.instance_status,
+                    },
+                )
 
                 agent = AsyncPentestAgent(
                     client=client,
@@ -88,6 +117,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                                 snapshot,
                                 target,
                                 skill_plan.skills if skill_plan else [],
+                                available_skills=available_skills,
                                 stage=skill_plan.stage if skill_plan else None,
                                 runtime_state=runtime_state,
                                 notes=notes,
@@ -100,21 +130,21 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                             build_trigger_prompt(FLAG_SUBMIT_PROMPT),
                         ]
                     ),
-                    tool_bus=ToolBus(context),
+                    tool_bus=ToolBus(worker_context),
                 )
-                prompt = context.challenge_store.build_autonomous_prompt(snapshot, target)
+                prompt = worker_context.challenge_store.build_autonomous_prompt(snapshot, target)
                 result = await agent.execute(prompt, histories.get(target.code))
                 histories[target.code] = result.history
-                context.state_store.add_history_event(target.code, "turn_completed", result.output or "")
+                worker_context.state_store.add_history_event(target.code, "turn_completed", result.output or "")
                 if result.output or result.tool_events:
-                    context.state_store.mark_progress(target.code)
+                    worker_context.state_store.mark_progress(target.code)
                 for key, value in extract_runtime_notes(
                     result.output,
                     [{"name": event.name, "arguments": event.arguments, "output": event.output} for event in result.tool_events],
                 ).items():
-                    context.state_store.set_challenge_note(target.code, key, value)
+                    worker_context.state_store.set_challenge_note(target.code, key, value)
                 await findings_bus.post(target.code, source=f"worker:{target.code}", content=(result.output or "")[:1000])
-                context.event_logger.log(
+                worker_context.event_logger.log(
                     "competition.turn_completed",
                     {
                         "challenge_code": target.code,
@@ -125,17 +155,46 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         ],
                     },
                 )
-                context.state_store.record_challenge_success(target.code)
+                worker_context.state_store.record_challenge_success(target.code)
+                worker_context.state_store.append_agent_event(
+                    agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                    challenge_code=target.code,
+                    event_type="worker_turn_completed",
+                    payload=(result.output or "")[:1000],
+                )
                 backoff = context.settings.competition_error_backoff_seconds
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
+            worker_context.state_store.upsert_agent_status(
+                agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                role="challenge_worker",
+                challenge_code=challenge_code,
+                status="cancelled",
+                summary="worker cancelled",
+                metadata={"challenge_code": challenge_code},
+            )
             raise
         except Exception as exc:  # pragma: no cover - runtime recovery path
-            context.notes["last_error"] = str(exc)
-            failure_count = context.state_store.record_challenge_failure(challenge_code, str(exc))
-            context.state_store.add_history_event(challenge_code, "error", str(exc))
-            context.state_store.set_challenge_note(challenge_code, "last_error", str(exc))
-            context.event_logger.log(
+            worker_context.notes["last_error"] = str(exc)
+            failure_count = worker_context.state_store.record_challenge_failure(challenge_code, str(exc))
+            worker_context.state_store.add_history_event(challenge_code, "error", str(exc))
+            worker_context.state_store.set_challenge_note(challenge_code, "last_error", str(exc))
+            worker_context.state_store.upsert_agent_status(
+                agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                role="challenge_worker",
+                challenge_code=challenge_code,
+                status="error",
+                summary="worker failed; waiting for recovery",
+                metadata={"challenge_code": challenge_code},
+                last_error=str(exc),
+            )
+            worker_context.state_store.append_agent_event(
+                agent_id=worker_context.agent_id or f"worker:{challenge_code}",
+                challenge_code=challenge_code,
+                event_type="worker_error",
+                payload=str(exc),
+            )
+            worker_context.event_logger.log(
                 "competition.error",
                 {
                     "error": str(exc),
@@ -152,6 +211,8 @@ async def run_competition_loop(context: RuntimeContext) -> None:
     try:
         while True:
             snapshot = await context.challenge_store.refresh()
+            manager.heartbeat(snapshot, coordinator)
+            manager.reconcile(coordinator)
             candidates = [challenge.code for challenge in snapshot.challenges if not challenge.completed]
 
             if not candidates:
@@ -161,6 +222,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
 
             started = await coordinator.schedule(candidates, run_worker)
             if started:
+                await manager.publish_assignment_guidance(snapshot, started)
                 context.event_logger.log(
                     "competition.scheduler",
                     {"started": started, "active_count": coordinator.active_count()},

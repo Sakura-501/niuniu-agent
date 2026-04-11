@@ -322,3 +322,65 @@ async def test_tool_bus_submit_flag_records_success_from_correct_payload(tmp_pat
     assert notes["last_flag"] == "flag{demo}"
     history = state_store.list_history("c1")
     assert history[0]["event_type"] == "flag_submitted"
+
+
+@pytest.mark.anyio
+async def test_tool_bus_submit_flag_starts_instance_when_needed(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        def __init__(self) -> None:
+            self.start_calls = 0
+            self.submit_calls = 0
+
+        async def submit_flag(self, code: str, flag: str):
+            self.submit_calls += 1
+            if self.submit_calls == 1:
+                raise RuntimeError("赛题实例未运行，请先启动赛题")
+            return {"correct": True, "message": "恭喜！答案正确"}
+
+        async def start_challenge(self, code: str):
+            self.start_calls += 1
+            return {"entrypoint": ["127.0.0.1:8080"]}
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {
+                        "title": "done",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 1,
+                        "instance_status": "running",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    result = await bus.submit_flag("c1", "flag{demo}")
+
+    assert gateway.start_calls == 1
+    assert gateway.submit_calls == 2
+    assert result["completed"] is True

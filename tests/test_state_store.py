@@ -81,3 +81,32 @@ def test_state_store_migrates_old_runtime_schema(tmp_path) -> None:
 
     assert "last_progress_at" in state
     assert state["last_progress_at"] is None
+
+
+def test_state_store_tracks_agent_runtime_status_and_events(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.upsert_agent_status(
+        agent_id="worker:challenge-1",
+        role="challenge_worker",
+        challenge_code="challenge-1",
+        status="running",
+        summary="recon in progress",
+        metadata={"stage": "recon"},
+    )
+    store.append_agent_event(
+        agent_id="worker:challenge-1",
+        challenge_code="challenge-1",
+        event_type="tool_start",
+        payload='{"tool":"http_request"}',
+    )
+
+    statuses = store.list_agent_statuses()
+    events = store.list_agent_events(challenge_code="challenge-1")
+
+    assert statuses[0]["agent_id"] == "worker:challenge-1"
+    assert statuses[0]["role"] == "challenge_worker"
+    assert statuses[0]["status"] == "running"
+    assert statuses[0]["metadata"]["stage"] == "recon"
+    assert events[0]["agent_id"] == "worker:challenge-1"
+    assert events[0]["event_type"] == "tool_start"

@@ -26,6 +26,10 @@ def test_remote_control_script_help_lists_commands() -> None:
     assert "competition-restart" in result.stdout
     assert "competition-stop" in result.stdout
     assert "competition-status" in result.stdout
+    assert "ui-start" in result.stdout
+    assert "ui-restart" in result.stdout
+    assert "ui-stop" in result.stdout
+    assert "ui-status" in result.stdout
 
 
 def test_remote_control_script_rejects_unknown_command() -> None:

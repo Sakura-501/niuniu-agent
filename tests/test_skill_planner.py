@@ -31,6 +31,21 @@ def test_plan_skills_respects_track_priority() -> None:
     assert plan.skills[0].name in {"cve_mapping", "cloud_ai_surface"}
 
 
+def test_plan_skills_loads_disk_backed_skill_metadata() -> None:
+    registry = SkillRegistry()
+
+    plan = plan_skills(
+        registry,
+        "web portal admin login token api",
+        runtime_state={"failure_count": 0},
+        notes={},
+        track="track1",
+    )
+
+    assert any(skill.path.name == "SKILL.md" for skill in plan.skills)
+    assert any("attack surface" in skill.body.lower() for skill in plan.skills if skill.name == "recon_web")
+
+
 def test_extract_runtime_notes_captures_foothold_and_summary() -> None:
     notes = extract_runtime_notes("uid=1000(www-data) gid=1000 shell established", [])
 

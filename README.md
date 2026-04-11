@@ -2,193 +2,312 @@
 
 `niuniu-agent` 是一个面向腾讯智能渗透挑战赛主赛场的异步自主渗透 Agent。
 
-这次版本不是在旧实现上继续打补丁，而是按 `learn-claude-code` 的主线思路重构：
+当前版本已经不是早期的单循环脚本，而是围绕下面几层组织：
 
-- `agent loop`
-- `tool control plane`
-- `memory / state`
-- `autonomous runtime`
-- `MCP integration`
+- `control_plane`
+- `agent_stack`
+- `runtime`
+- `state / telemetry`
+- `skills / prompts`
+- `web console`
 
-同时底层执行改成了 `openai-agents`，模型调用使用 `OpenAIChatCompletionsModel`，适配比赛环境常见的 OpenAI 兼容网关。
+目标是：
 
-当前主循环已经收敛成更接近 `learn-claude-code` / `base_agent` 的显式形态：
+- `debug` 模式能交互式对话调试
+- `competition` 模式能无人值守不停机运行
+- 比赛控制面、状态、错误恢复和并发调度都由代码明确控制，而不是完全交给模型即兴决定
+- `8081` Web UI 能查看 manager / worker / challenge 状态并在线调试
 
-- 模型有工具调用就继续
-- 工具结果写回消息历史
-- 模型没有工具调用才结束当前回合
+图示文档：
+
+- [架构图与流程图](docs/architecture-and-flow.md)
 
 ## 1. 当前架构
 
-重构后的代码按下面几层组织：
+### 1.1 控制平面 `control_plane`
 
-- `src/niuniu_agent/control_plane/`
-  - 赛题快照、完成态、选题和确定性控制逻辑
-- `src/niuniu_agent/agent_stack/`
-  - `openai-agents` 的 model、tool bus、manager agent、track specialists
-- `src/niuniu_agent/runtime/`
-  - `debug` 交互式 REPL
-  - `competition` 不停机自主循环
-- `src/niuniu_agent/state_store.py`
-  - 本地状态和已提交 flag 记忆
-- `src/niuniu_agent/contest_mcp.py`
-  - 官方主赛场 MCP 客户端
+位置：
+
+- [challenge_store.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/control_plane/challenge_store.py)
+- [contest_gateway.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/control_plane/contest_gateway.py)
+- [models.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/control_plane/models.py)
+
+职责：
+
+- 获取主赛场 challenge 列表
+- 解析 challenge 状态
+- 判断哪些题已完成
+- 选择下一个未完成 challenge
+- 输出 challenge 快照供 agent 使用
+
+### 1.2 Agent 栈 `agent_stack`
+
+位置：
+
+- [agent.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/agent_stack/agent.py)
+- [tool_bus.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/agent_stack/tool_bus.py)
+- [prompts.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/agent_stack/prompts.py)
+
+职责：
+
+- 使用 OpenAI 兼容接口运行显式 tool-use loop
+- 不是只靠 SDK 黑盒 `Runner.run()` 控主循环
+- 语义接近：
+
+```python
+if not tool_calls:
+    return
+results = []
+```
+
+也就是：
+
+- 有工具调用就继续
+- 工具结果回写消息历史
+- 没有工具调用才结束当前轮次
+
+### 1.3 Runtime `runtime`
+
+位置：
+
+- [debug_repl.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/debug_repl.py)
+- [competition_loop.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/competition_loop.py)
+- [coordinator.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/coordinator.py)
+- [findings_bus.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/findings_bus.py)
+- [recovery.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/recovery.py)
+
+职责：
+
+- `debug`
+  - 交互式 REPL
+  - 工具进度可见
+  - 最终答案会做结构化整理
+- `competition`
+  - 外层循环不停
+  - 最多 3 个并发 challenge worker
+  - 统一 coordinator 管理
+  - findings bus 共享阶段性结论
+  - 错误自动恢复与退避
+
+### 1.4 状态与日志
+
+位置：
+
+- [state_store.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/state_store.py)
+- [telemetry.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/telemetry.py)
+
+职责：
+
+- 已提交 flag
+- 当前活跃题
+- 失败次数
+- 最近错误
+- 最近进展时间
+- challenge 历史事件
+- challenge 笔记（foothold / last_flag / last_error / shared_findings 等）
+- 结构化事件日志
+- manager / worker / debug agent 状态
+- agent 事件流与工具执行日志
+
+### 1.5 Web Console `web`
+
+位置：
+
+- [app.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/web/app.py)
+- [service.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/web/service.py)
+
+职责：
+
+- 提供 `8081` Web 控制台
+- 展示比赛总览、challenge 详情、agent 详情
+- 在线流式调试 debug agent
+- 一键启动 / 停止 / 重启 `competition`
+- 展示 agent 事件流和执行过程
 
 ## 2. 两种运行模式
 
 ### 2.1 `debug`
 
-这是交互式对话模式，不是“一次跑完就退出”的脚本模式。
-
-特点：
-
-- 持久对话会话
-- 启动后自动刷新当前赛题状态
-- 模型可直接调用官方 MCP 工具
-- 模型也可调用本地 HTTP / shell / Python 工具
-- 支持中文输入
-- 会输出工具轨迹，便于排查 agent 在做什么
-
-启动方式：
+启动：
 
 ```bash
 niuniu-agent run --mode debug
 ```
 
-### 2.2 `competition`
-
-这是无人值守模式。
-
 特点：
 
-- 外层循环不会主动停止
-- 遇到错误会记录日志并自动重试
-- 空闲时会继续轮询赛题
-- 适合比赛阶段提前启动后持续运行
+- 中文输入可用
+- 交互式
+- 先显示 challenge 概览
+- 工具执行时有实时进度：
+  - `[tool:start]`
+  - `[tool:done]`
+- 最终回答尽量整理成更清晰的结构
 
-启动方式：
+### 2.2 `competition`
+
+启动：
 
 ```bash
 niuniu-agent run --mode competition
 ```
 
-## 3. 控制平面与 agent 分工
+特点：
 
-为了避免“模型既负责推理又负责维护全局状态”这种混乱结构，这次重构明确分层：
+- 外层循环不会主动停止
+- 自动拉题
+- 自动选择未完成题
+- 最多 3 个 challenge worker 并发
+- 错误后自动恢复
+- challenge 完成后自动切下一题
 
-### 控制平面
+## 3. 当前数据流
 
-由 Python 代码负责：
+### 3.1 `debug` 数据流
 
-- 获取赛题列表
-- 解析官方返回
-- 判断哪些赛题已完成
-- 维护本地 flag 去重状态
-- 给 agent 构造当前挑战快照
-
-### Agent 层
-
-由 `openai-agents` 负责：
-
-- manager agent 统一调度
-- specialist agents 负责不同赛道侧重点
-- 工具调用与 handoff
-- 持久会话驱动的交互调试
-
-这和 `learn-claude-code` 的核心思想是一致的：
-
-> 模型负责思考，代码负责工作环境和状态控制。
-
-## 4. 使用的 OpenAI Agents 方式
-
-当前实现使用：
-
-- `Agent`
-- `Runner`
-- `SQLiteSession`
-- `function_tool`
-- `MCPServerStreamableHttp`
-- `OpenAIChatCompletionsModel`
-
-这样做的目的：
-
-- 支持异步 agent loop
-- 支持 persistent session
-- 支持 MCP tools + 本地 tools 混合
-- 支持 OpenAI 兼容网关，而不强依赖 Responses API
-
-## 5. 环境变量
-
-复制 `.env.example` 到 `.env`：
-
-```bash
-cp .env.example .env
+```text
+用户输入
+  -> challenge_store.refresh()
+  -> 生成当前 challenge snapshot
+  -> 根据 description / notes / state 选择 skills
+  -> 构造 entry prompt + trigger prompts
+  -> agent 执行显式 tool-use loop
+  -> 工具进度实时输出
+  -> 最终回答输出
 ```
 
-至少需要配置：
+### 3.2 `competition` 数据流
 
-- `NIUNIU_AGENT_MODEL`
-- `NIUNIU_AGENT_MODEL_BASE_URL`
-- `NIUNIU_AGENT_MODEL_API_KEY`
-- `NIUNIU_AGENT_CONTEST_HOST`
-- `NIUNIU_AGENT_CONTEST_TOKEN`
-
-当前推荐示例：
-
-```bash
-NIUNIU_AGENT_MODE=debug
-NIUNIU_AGENT_MODEL=ep-jsc7o0kw
-NIUNIU_AGENT_MODEL_BASE_URL=https://tokenhub.tencentmaas.com/v1
-NIUNIU_AGENT_MODEL_API_KEY=replace-me
-NIUNIU_AGENT_CONTEST_HOST=https://challenge.zc.tencent.com
-NIUNIU_AGENT_CONTEST_TOKEN=replace-me
-NIUNIU_AGENT_POLL_INTERVAL_SECONDS=15
+```text
+competition outer loop
+  -> challenge_store.refresh()
+  -> coordinator 选择最多 3 个未完成 challenge
+  -> 为每个 challenge 启动 worker
+  -> worker 读取 challenge state / history / notes / shared findings
+  -> 构造 prompt
+  -> agent 执行显式 tool-use loop
+  -> 写回 history / notes / findings / telemetry
+  -> challenge 完成则释放 worker 槽位
+  -> 继续下一轮
 ```
 
-当前比赛域名：
+## 4. 关键比赛约束如何落实
 
-- 主赛场：`https://challenge.zc.tencent.com`
-- 零界：`https://challenge.zc.tencent.com:8443`
+### 4.1 最多 3 个实例
 
-当前仓库主路径只接主赛场；零界域名先作为预留信息保留，后续如接入再单独扩展。
+当前不只是 prompt 提示，而是代码层也在做：
 
-## 6. 本地启动
+- 启动 challenge 前先看当前运行中的实例数量
+- 达到上限时先停其他 running challenge，再重试启动
 
-### 6.1 用 `uv`
+位置：
 
-```bash
-cp .env.example .env
-uv sync
-set -a
-source .env
-set +a
-uv run niuniu-agent run --mode debug
+- [tool_bus.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/agent_stack/tool_bus.py)
+
+### 4.2 提交 flag 后立即关闭已完成实例
+
+当前代码会：
+
+1. 提交 flag
+2. 刷新 challenge 快照
+3. 如果 challenge 已完成且实例还在运行
+4. 立即关闭实例
+
+### 4.3 hint 使用限制
+
+当前策略已经接入：
+
+- 连续失败
+- 最近 5 分钟无进展
+- 已看过 hint 不再重复看
+
+位置：
+
+- [competition_loop.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/competition_loop.py)
+- [recovery.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/recovery.py)
+
+## 5. 为什么之前会报错
+
+你提到过这个报错：
+
+```text
+OperationalError: no such column: last_progress_at
 ```
 
-无人值守模式：
+原因是：
 
-```bash
-uv run niuniu-agent run --mode competition
-```
+- 调试机上旧版 `state.db` 没有 `last_progress_at` 列
+- 代码升级后开始查询新列
+- SQLite 旧 schema 没迁移，就直接报错
 
-### 6.2 不用 `uv`
+当前已经修复：
 
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e '.[dev]'
-set -a
-source .env
-set +a
-niuniu-agent run --mode debug
-```
+- 启动时会自动检查并迁移旧 schema
+- 不需要你手工删库
 
-## 7. 调试机用法
+## 6. 为什么之前 debug 容易退出
 
-### 7.1 更新
+早期问题主要有两类：
 
-如果调试机到 GitHub 网络正常：
+1. 工具异常直接上抛  
+现在已经改成：
+- 工具异常转成 tool result
+- 会话不直接退出
+
+2. 最终输出过于原始  
+现在已经改成：
+- 过程和最终回答分层
+- 工具进度简化输出
+- 最终答复尽量结构化
+
+## 7. 现在的策略框架
+
+### 7.1 通用 Skills
+
+位置：
+
+- [registry.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/skills/registry.py)
+- [planner.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/skills/planner.py)
+- [tracks.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/skills/tracks.py)
+- [skills/](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/skills)
+
+特点：
+
+- 不是四赛道四套独立硬编码
+- 是 learn-claude-code 风格的磁盘 skill 目录
+- 运行时只暴露轻量 catalog，需要时再通过 `load_skill` 加载全文
+- 再按赛道画像和当前阶段动态组合
+
+当前核心能力包括：
+
+- `recon_web`
+- `recon_service`
+- `cve_mapping`
+- `exploit_web`
+- `exploit_api`
+- `cloud_ai_surface`
+- `pivot_lateral`
+- `privesc_maintain`
+- `domain_enum`
+- `flag_submit_recovery`
+
+### 7.2 四赛道画像
+
+已定义：
+
+- `track1`: SRC / 主流 Web 漏洞
+- `track2`: CVE / 云安全 / AI 基础设施
+- `track3`: 多步攻击 / 横向移动 / 权限维持
+- `track4`: 域渗透 / 企业内网
+
+当前还在继续补强的是：
+
+- 每个赛道更细的 exploit 决策
+- 更强的优先级与阶段切换
+
+## 8. 调试机使用
+
+### 8.1 更新
 
 ```bash
 cd ~/niuniu-agent
@@ -197,102 +316,88 @@ git pull --ff-only origin main
 python -m pip install -e '.[dev]'
 ```
 
-### 7.2 一键控制脚本
-
-脚本路径：
+### 8.2 交互调试
 
 ```bash
-scripts/remote_control.sh
+niuniu-agent run --mode debug
 ```
 
-支持命令：
+### 8.3 无人值守
 
-- `update`
-- `debug`
-- `debug-update`
-- `competition-start`
-- `competition-restart`
-- `competition-stop`
-- `competition-status`
-- `logs`
+```bash
+niuniu-agent run --mode competition
+```
 
-当前语义：
-
-- `debug`
-  - 不自动更新
-  - 直接启动交互式调试
-- `debug-update`
-  - 先更新，再进入调试
-- `competition-start`
-  - 不自动更新
-  - 直接启动无人值守模式
-- `competition-restart`
-  - 先更新，再启动无人值守模式
-
-示例：
+### 8.4 控制脚本
 
 ```bash
 bash scripts/remote_control.sh debug
-```
-
-```bash
 bash scripts/remote_control.sh competition-start
-```
-
-```bash
+bash scripts/remote_control.sh ui-start
 bash scripts/remote_control.sh competition-status
+bash scripts/remote_control.sh ui-status
+bash scripts/remote_control.sh competition-stop
+bash scripts/remote_control.sh competition-restart
+bash scripts/remote_control.sh ui-stop
+bash scripts/remote_control.sh ui-restart
 ```
 
-## 8. 日志和状态
+### 8.5 Web UI
 
-关键运行文件：
+启动后默认访问：
 
-- `runtime/events.jsonl`
-- `runtime/state.db`
-- `runtime/sessions.sqlite3`
-- `runtime/competition.log`
-- `runtime/competition.pid`
+```text
+http://<host>:8081
+```
 
-说明：
+当前页面包括：
 
-- `events.jsonl`
-  - 结构化事件日志
-- `state.db`
-  - 本地提交状态
-- `sessions.sqlite3`
-  - `debug` / `competition` 的持久会话
+- dashboard：比赛总览、process 状态、agent 状态、最近执行流
+- debug：在线对话调试 agent，流式显示模型和工具事件
+- challenge detail：单题 history / notes / agent events
+- agent detail：单个 manager / worker / debug agent 的状态与事件
 
-## 9. 测试
+## 9. 环境变量
 
-本地执行：
+最少需要：
+
+- `NIUNIU_AGENT_MODEL`
+- `NIUNIU_AGENT_MODEL_BASE_URL`
+- `NIUNIU_AGENT_MODEL_API_KEY`
+- `NIUNIU_AGENT_CONTEST_HOST`
+- `NIUNIU_AGENT_CONTEST_TOKEN`
+- `NIUNIU_AGENT_WEB_HOST`
+- `NIUNIU_AGENT_WEB_PORT`
+
+当前主赛场：
 
 ```bash
-uv run pytest -v
+NIUNIU_AGENT_CONTEST_HOST=https://challenge.zc.tencent.com
 ```
 
-或：
+零界域名记录为：
 
 ```bash
-python -m pytest -v
+https://challenge.zc.tencent.com:8443
 ```
+
+当前主路径仍只接主赛场。
 
 ## 10. 当前验证结果
 
-当前版本已经验证：
+目前已经验证过：
 
 - 本地测试通过
-- 调试机可进入交互式 `debug`
-- 调试机中文输入不再报 `UnicodeDecodeError`
-- 调试机 `debug` 不会默认先 `update`
-- 调试机控制脚本可执行
+- `debug` 可交互
+- 中文输入可用
+- `competition` 可持续运行
+- 错误可自动恢复
+- 实例数量限制已在代码层执行
+- flag 成功提交后本地状态会同步更新
 
-## 11. 下一步
+## 11. 当前仍在继续做的事
 
-这次重构已经把运行骨架切到 `learn-claude-code` 风格和 `openai-agents` 异步 runtime 上。
-
-接下来最值得继续增强的是：
-
-1. 赛道专用 specialist prompt 和 handoff 策略
-2. `competition` 模式的持续恢复与更细粒度重试
-3. 提示查看策略
-4. Web UI / 日志可视化 / 运行控制面板
+- 四赛道能力进一步补强
+- 长时间运行后的状态恢复
+- 更完整的高阶工具降级
+- 更强的结果整理和调试体验
