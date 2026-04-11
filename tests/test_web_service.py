@@ -4,6 +4,7 @@ from pathlib import Path
 
 from niuniu_agent.web.service import (
     CompetitionProcessController,
+    build_challenge_scheduler_view,
     build_agent_overview_rows,
     build_agent_tree,
 )
@@ -85,3 +86,37 @@ def test_competition_process_controller_prefers_uv_launch_command() -> None:
     command = controller._build_competition_command(prefer_uv=True)
 
     assert command == ["uv", "run", "niuniu-agent", "run", "--mode", "competition"]
+
+
+def test_build_challenge_scheduler_view_marks_dispatchable_and_paused_and_running() -> None:
+    dispatchable = build_challenge_scheduler_view(
+        {
+            "code": "c1",
+            "completed": False,
+            "notes": {},
+            "runtime_state": {},
+        },
+        [],
+    )
+    paused = build_challenge_scheduler_view(
+        {
+            "code": "c2",
+            "completed": False,
+            "notes": {"operator_pause": "true"},
+            "runtime_state": {},
+        },
+        [],
+    )
+    running = build_challenge_scheduler_view(
+        {
+            "code": "c3",
+            "completed": False,
+            "notes": {},
+            "runtime_state": {},
+        },
+        [{"agent_id": "worker:c3:run1", "status": "running"}],
+    )
+
+    assert dispatchable["scheduler_status"] == "dispatchable"
+    assert paused["scheduler_status"] == "paused"
+    assert running["scheduler_status"] == "running"

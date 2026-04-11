@@ -455,6 +455,10 @@ class AgentWebService:
         snapshot = await self.context.challenge_store.refresh()
         stored_agents = self.context.state_store.list_agent_statuses()
         process_status = self.controller.status()
+        contest = self.context.challenge_store.export_json(snapshot)
+        for challenge in contest["challenges"]:
+            agent_statuses = self.context.state_store.list_agent_statuses(challenge_code=challenge["code"])
+            challenge.update(build_challenge_scheduler_view(challenge, agent_statuses))
         return {
             "listening_port": self.context.settings.web_port,
             "process": process_status,
@@ -469,7 +473,7 @@ class AgentWebService:
                 "official": "contest MCP list_challenges/start_challenge/stop_challenge/submit_flag/view_hint",
                 "local": "state.db: runtime_state + notes + history + agent_status + agent_events",
             },
-            "contest": self.context.challenge_store.export_json(snapshot),
+            "contest": contest,
             "agents": build_agent_overview_rows(stored_agents, process_status, max_parallel_workers=3),
             "agent_tree": build_agent_tree(stored_agents, process_status, max_parallel_workers=3),
             "recent_agent_events": self.context.state_store.list_agent_events(limit=80),
@@ -509,7 +513,10 @@ class AgentWebService:
         return {
             "code": code,
             "availability": "official+local",
-            "official": official,
+            "official": {
+                **official,
+                **build_challenge_scheduler_view(challenge, local["agent_statuses"]),
+            },
             "local": local,
             "source_summary": {
                 "official": "contest MCP list_challenges",
@@ -991,3 +998,60 @@ def build_agent_tree(
             }
         )
     return grouped
+
+
+def build_challenge_scheduler_view(
+    challenge: dict[str, object],
+    agent_statuses: list[dict[str, object]],
+) -> dict[str, object]:
+    code = str(challenge.get("code") or "")
+    if challenge.get("completed") is True:
+        return {
+            "scheduler_status": "completed",
+            "scheduler_reason": "official challenge state is completed",
+            "assigned_workers": [],
+        }
+
+    notes = dict(challenge.get("notes") or {})
+    assigned_workers = [
+        str(agent["agent_id"])
+        for agent in agent_statuses
+        if agent.get("role") in {None, "challenge_worker"}
+    ]
+
+    if notes.get("operator_pause") == "true":
+        return {
+            "scheduler_status": "paused",
+            "scheduler_reason": "challenge paused by operator",
+            "assigned_workers": assigned_workers,
+        }
+
+    active_statuses = [
+        str(agent.get("status") or "")
+        for agent in agent_statuses
+        if agent.get("role") in {None, "challenge_worker"}
+    ]
+    if any(status in {"running", "pause_requested", "delete_requested"} for status in active_statuses):
+        return {
+            "scheduler_status": "running",
+            "scheduler_reason": "worker currently assigned to this challenge",
+            "assigned_workers": assigned_workers,
+        }
+    if any(status in {"error", "waiting_recovery"} for status in active_statuses):
+        return {
+            "scheduler_status": "retrying",
+            "scheduler_reason": "worker previously failed and is waiting for another attempt",
+            "assigned_workers": assigned_workers,
+        }
+    if any(status == "paused" for status in active_statuses):
+        return {
+            "scheduler_status": "paused",
+            "scheduler_reason": "worker for this challenge is paused",
+            "assigned_workers": assigned_workers,
+        }
+
+    return {
+        "scheduler_status": "dispatchable",
+        "scheduler_reason": f"unsolved challenge {code} with no assigned worker",
+        "assigned_workers": assigned_workers,
+    }

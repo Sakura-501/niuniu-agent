@@ -161,6 +161,7 @@ def create_app(service: object | None = None) -> FastAPI:
           renderCardList('challenge-list', data.contest.challenges || [], (challenge) => `
             <strong><a href="/challenges/${encodeURIComponent(challenge.code)}">${challenge.code}</a> · ${challenge.title}</strong>
             <div class="muted">instance=${challenge.instance_status} · completed=${challenge.completed} · hint_viewed=${challenge.hint_viewed}</div>
+            <div class="muted">scheduler=${challenge.scheduler_status || 'unknown'} · reason=${challenge.scheduler_reason || ''}</div>
             <div class="mono">${(challenge.notes && Object.keys(challenge.notes).length) ? JSON.stringify(challenge.notes, null, 2) : 'no notes'}</div>
           `);
           document.getElementById('recent-events').textContent = JSON.stringify(data.recent_agent_events || [], null, 2);
@@ -351,6 +352,7 @@ def create_app(service: object | None = None) -> FastAPI:
             <div class="card"><strong>availability</strong><div class="mono">${{data.availability}}</div></div>
             <div class="card"><strong>official</strong><div class="mono">${{JSON.stringify(data.official || null, null, 2)}}</div></div>
             <div class="card"><strong>local</strong><div class="mono">${{JSON.stringify(data.local || null, null, 2)}}</div></div>
+            <div class="card"><strong>scheduler</strong><div class="mono">${{JSON.stringify({{status:(data.official||{{}}).scheduler_status, reason:(data.official||{{}}).scheduler_reason, workers:(data.official||{{}}).assigned_workers}}, null, 2)}}</div></div>
             <div class="card"><strong>source_summary</strong><div class="mono">${{JSON.stringify(data.source_summary || null, null, 2)}}</div></div>
           `;
           document.getElementById('challenge-events').textContent = JSON.stringify((data.local && data.local.events) || [], null, 2);

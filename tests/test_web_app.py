@@ -20,6 +20,8 @@ class FakeWebService:
                         "instance_status": "running",
                         "completed": False,
                         "hint_viewed": True,
+                        "scheduler_status": "dispatchable",
+                        "scheduler_reason": "unsolved challenge with no assigned worker",
                         "notes": {},
                     }
                 ],
@@ -106,6 +108,7 @@ def test_web_overview_endpoint_returns_json() -> None:
     assert payload["process"]["ui"]["running"] is True
     assert payload["agents"][0]["agent_id"] == "manager:competition:run1"
     assert payload["contest"]["challenges"][0]["hint_viewed"] is True
+    assert payload["contest"]["challenges"][0]["scheduler_status"] == "dispatchable"
 
 
 def test_web_debug_session_and_agent_action_endpoints() -> None:
