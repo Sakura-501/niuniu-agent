@@ -61,6 +61,28 @@ async def run_competition_loop(context: RuntimeContext) -> None:
         backoff = context.settings.competition_error_backoff_seconds
         try:
             while True:
+                agent_state = worker_context.state_store.get_agent_status(worker_agent_id)
+                if agent_state is not None and agent_state.get("status") in {"pause_requested", "delete_requested"}:
+                    command = str(agent_state["status"])
+                    worker_context.state_store.append_agent_event(
+                        agent_id=worker_agent_id,
+                        challenge_code=challenge_code,
+                        event_type=command,
+                        payload=f"worker acknowledged {command}",
+                    )
+                    if command == "delete_requested":
+                        worker_context.state_store.delete_agent(worker_agent_id)
+                    else:
+                        worker_context.state_store.upsert_agent_status(
+                            agent_id=worker_agent_id,
+                            role="challenge_worker",
+                            challenge_code=challenge_code,
+                            status="paused",
+                            summary="paused by operator",
+                            metadata=dict(agent_state.get("metadata") or {}),
+                            last_error=agent_state.get("last_error"),
+                        )
+                    return
                 snapshot = await worker_context.challenge_store.refresh()
                 target = next((item for item in snapshot.challenges if item.code == challenge_code), None)
                 if target is None or target.completed:
@@ -79,6 +101,22 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 worker_context.state_store.mark_active_challenge(target.code)
                 runtime_state = worker_context.state_store.get_challenge_runtime_state(target.code)
                 notes = worker_context.state_store.get_challenge_notes(target.code)
+                if notes.get("operator_pause") == "true":
+                    worker_context.state_store.append_agent_event(
+                        agent_id=worker_agent_id,
+                        challenge_code=challenge_code,
+                        event_type="worker_paused",
+                        payload="challenge paused by operator",
+                    )
+                    worker_context.state_store.upsert_agent_status(
+                        agent_id=worker_agent_id,
+                        role="challenge_worker",
+                        challenge_code=challenge_code,
+                        status="paused",
+                        summary="paused by operator",
+                        metadata={"challenge_code": challenge_code},
+                    )
+                    return
                 seconds_since_progress = worker_context.state_store.seconds_since_progress(target.code)
                 if should_view_hint(
                     int(runtime_state.get("failure_count", 0)),
@@ -254,7 +292,12 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 continue
             manager.heartbeat(snapshot, coordinator)
             manager.reconcile(coordinator)
-            candidates = [challenge.code for challenge in snapshot.challenges if not challenge.completed]
+            candidates = [
+                challenge.code
+                for challenge in snapshot.challenges
+                if not challenge.completed
+                and context.state_store.get_challenge_notes(challenge.code).get("operator_pause") != "true"
+            ]
 
             if not candidates:
                 context.event_logger.log("competition.idle", {"reason": "no-open-challenges"})

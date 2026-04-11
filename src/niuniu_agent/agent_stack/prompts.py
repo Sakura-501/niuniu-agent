@@ -20,6 +20,7 @@ ENTRY_PROMPT = TriggerPrompt(
         "Use tools to gather evidence. "
         "Only stop your current response when you have no more tool calls to make. "
         "You must respect these hard rules: "
+        "before starting any challenge instance, first check whether that challenge is already solved or completed; only unsolved challenges may be started. "
         "at most 3 challenge instances may run at the same time; before starting a challenge instance, check how many are already running. "
         "If a correct flag is submitted and the challenge is shown as completed, stop that challenge instance immediately. "
         "Once one challenge is completed, continue directly to the next unfinished challenge without lingering. "
@@ -32,6 +33,7 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
     body=(
         "A challenge is being actively taken over. "
         "First identify the most relevant capability skills, then choose the least wasteful next action. "
+        "Before starting any instance, verify from the latest challenge snapshot that the target challenge is not already solved. "
         "Before starting any new instance, inspect the currently running challenge count and stay within the 3-instance limit."
     ),
 )

@@ -58,6 +58,7 @@
 - [x] `competition` 已提升为 supervisor 运行模式，`run_competition_loop` 自身抛错后也会自动重建上下文继续运行
 - [x] challenge 完成后会移除对应 worker 的当前状态，不再继续占据 Agents 列表
 - [x] worker 已改成单次运行唯一 `worker_run_id`，agent 详情日志不再混入旧 run
+- [x] worker agent 已支持 Web `pause/delete`，已完成 worker 保留在 Agents 列表用于查看本次日志
 
 ## 进行中
 

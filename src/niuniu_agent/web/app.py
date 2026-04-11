@@ -101,9 +101,15 @@ def create_app(service: object | None = None) -> FastAPI:
             <div class="muted mono">${JSON.stringify(state, null, 2)}</div>
           `);
           renderCardList('agent-list', data.agents || [], (agent) => {
-            const controls = agent.agent_id.startsWith('debug:') ? `
+            const debugControls = agent.agent_id.startsWith('debug:') ? `
               <div class="button-row" style="margin-top:10px;">
                 <button data-stop-agent="${agent.agent_id}">Stop</button>
+                <button class="secondary" data-delete-agent="${agent.agent_id}">Delete</button>
+              </div>
+            ` : '';
+            const workerControls = agent.role === 'challenge_worker' ? `
+              <div class="button-row" style="margin-top:10px;">
+                <button data-pause-agent="${agent.agent_id}">Pause</button>
                 <button class="secondary" data-delete-agent="${agent.agent_id}">Delete</button>
               </div>
             ` : '';
@@ -111,7 +117,7 @@ def create_app(service: object | None = None) -> FastAPI:
               <strong><a href="/agents/${encodeURIComponent(agent.agent_id)}">${agent.agent_id}</a></strong>
               <div class="muted">${agent.role} · ${agent.status}</div>
               <div class="mono">${agent.summary || ''}</div>
-              ${controls}
+              ${debugControls || workerControls}
             `;
           });
           renderCardList('challenge-list', data.contest.challenges || [], (challenge) => `
@@ -127,6 +133,12 @@ def create_app(service: object | None = None) -> FastAPI:
           document.querySelectorAll('[data-stop-agent]').forEach((button) => {
             button.onclick = async () => {
               await api(`/api/agents/${encodeURIComponent(button.dataset.stopAgent)}/stop`, {method: 'POST'});
+              await loadOverview();
+            };
+          });
+          document.querySelectorAll('[data-pause-agent]').forEach((button) => {
+            button.onclick = async () => {
+              await api(`/api/agents/${encodeURIComponent(button.dataset.pauseAgent)}/pause`, {method: 'POST'});
               await loadOverview();
             };
           });
@@ -315,7 +327,7 @@ def create_app(service: object | None = None) -> FastAPI:
         controls = (
             '<button id="stop-agent">Stop</button><button id="delete-agent" class="secondary">Delete</button>'
             if agent_id.startswith("debug:")
-            else ""
+            else '<button id="pause-agent">Pause</button><button id="delete-agent" class="secondary">Delete</button>'
         )
         body = f"""
         <div class="layout">
@@ -342,8 +354,10 @@ def create_app(service: object | None = None) -> FastAPI:
           `;
           document.getElementById('agent-events').textContent = JSON.stringify(data.events || [], null, 2);
           const stopButton = document.getElementById('stop-agent');
+          const pauseButton = document.getElementById('pause-agent');
           const deleteButton = document.getElementById('delete-agent');
           if (stopButton) stopButton.onclick = async () => {{ await fetch('/api/agents/{html.escape(agent_id)}/stop', {{method: 'POST'}}); await loadAgent(); }};
+          if (pauseButton) pauseButton.onclick = async () => {{ await fetch('/api/agents/{html.escape(agent_id)}/pause', {{method: 'POST'}}); await loadAgent(); }};
           if (deleteButton) deleteButton.onclick = async () => {{ await fetch('/api/agents/{html.escape(agent_id)}', {{method: 'DELETE'}}); window.location.href = '/'; }};
         }}
         loadAgent();
@@ -400,6 +414,10 @@ def create_app(service: object | None = None) -> FastAPI:
     @app.post("/api/agents/{agent_id}/stop")
     async def api_stop_agent(agent_id: str, request: Request) -> JSONResponse:
         return JSONResponse(await current_service(request).stop_agent(agent_id))
+
+    @app.post("/api/agents/{agent_id}/pause")
+    async def api_pause_agent(agent_id: str, request: Request) -> JSONResponse:
+        return JSONResponse(await current_service(request).pause_agent(agent_id))
 
     @app.delete("/api/agents/{agent_id}")
     async def api_delete_agent(agent_id: str, request: Request) -> JSONResponse:

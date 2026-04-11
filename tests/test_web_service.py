@@ -3,7 +3,7 @@ from __future__ import annotations
 from niuniu_agent.web.service import build_agent_overview_rows
 
 
-def test_build_agent_overview_rows_hides_completed_workers() -> None:
+def test_build_agent_overview_rows_keeps_completed_workers_but_preserves_free_slots() -> None:
     rows = build_agent_overview_rows(
         stored_agents=[
             {
@@ -33,5 +33,5 @@ def test_build_agent_overview_rows_hides_completed_workers() -> None:
 
     agent_ids = [row["agent_id"] for row in rows]
 
-    assert "worker:done" not in agent_ids
+    assert "worker:done" in agent_ids
     assert "worker-slot:1" in agent_ids

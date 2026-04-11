@@ -45,6 +45,7 @@ def test_trigger_prompt_returns_body() -> None:
 def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     prompt = build_entry_prompt("competition", None, None, [])
 
+    assert "first check whether that challenge is already solved or completed" in prompt
     assert "at most 3 challenge instances" in prompt
     assert "stop that challenge instance immediately" in prompt
     assert "more than 5 minutes" in prompt

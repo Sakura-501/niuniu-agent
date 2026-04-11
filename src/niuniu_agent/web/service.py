@@ -499,7 +499,13 @@ class AgentWebService:
     async def agent_detail(self, agent_id: str) -> dict[str, object]:
         assert self.context is not None
         status = self.context.state_store.get_agent_status(agent_id)
-        actions = ["stop", "delete"] if agent_id.startswith("debug:") else []
+        actions: list[str] = []
+        if agent_id.startswith("debug:"):
+            actions = ["stop", "delete"]
+        elif status is not None and status.get("role") == "challenge_worker":
+            if status.get("status") not in {"completed", "cancelled", "paused"}:
+                actions.append("pause")
+            actions.append("delete")
         return {
             "agent_id": agent_id,
             "status": status,
@@ -525,9 +531,63 @@ class AgentWebService:
             return await self.debug_sessions.stop_session(agent_id.removeprefix("debug:"))
         return {"ok": False, "agent_id": agent_id, "action": "stop", "reason": "unsupported"}
 
+    async def pause_agent(self, agent_id: str) -> dict[str, object]:
+        assert self.context is not None
+        status = self.context.state_store.get_agent_status(agent_id)
+        if status is None:
+            return {"ok": False, "agent_id": agent_id, "action": "pause", "reason": "missing"}
+        if status.get("role") != "challenge_worker":
+            return {"ok": False, "agent_id": agent_id, "action": "pause", "reason": "unsupported"}
+        challenge_code = status.get("challenge_code")
+        if challenge_code:
+            self.context.state_store.set_challenge_note(str(challenge_code), "operator_pause", "true")
+        self.context.state_store.upsert_agent_status(
+            agent_id=agent_id,
+            role="challenge_worker",
+            challenge_code=str(challenge_code) if challenge_code else None,
+            status="pause_requested",
+            summary="pause requested by operator",
+            metadata=dict(status.get("metadata") or {}),
+            last_error=status.get("last_error"),
+        )
+        self.context.state_store.append_agent_event(
+            agent_id=agent_id,
+            challenge_code=str(challenge_code) if challenge_code else None,
+            event_type="pause_requested",
+            payload="pause requested by operator",
+        )
+        return {"ok": True, "agent_id": agent_id, "action": "pause"}
+
     async def delete_agent(self, agent_id: str) -> dict[str, object]:
+        assert self.context is not None
         if agent_id.startswith("debug:") and self.debug_sessions is not None:
             return await self.debug_sessions.delete_session(agent_id.removeprefix("debug:"))
+        status = self.context.state_store.get_agent_status(agent_id)
+        if status is None:
+            self.context.state_store.delete_agent(agent_id)
+            return {"ok": True, "agent_id": agent_id, "action": "delete"}
+        if status.get("role") == "challenge_worker":
+            challenge_code = status.get("challenge_code")
+            if challenge_code and status.get("status") not in {"completed", "cancelled", "paused"}:
+                self.context.state_store.set_challenge_note(str(challenge_code), "operator_pause", "true")
+                self.context.state_store.upsert_agent_status(
+                    agent_id=agent_id,
+                    role="challenge_worker",
+                    challenge_code=str(challenge_code),
+                    status="delete_requested",
+                    summary="delete requested by operator",
+                    metadata=dict(status.get("metadata") or {}),
+                    last_error=status.get("last_error"),
+                )
+                self.context.state_store.append_agent_event(
+                    agent_id=agent_id,
+                    challenge_code=str(challenge_code),
+                    event_type="delete_requested",
+                    payload="delete requested by operator",
+                )
+                return {"ok": True, "agent_id": agent_id, "action": "delete"}
+            self.context.state_store.delete_agent(agent_id)
+            return {"ok": True, "agent_id": agent_id, "action": "delete"}
         return {"ok": False, "agent_id": agent_id, "action": "delete", "reason": "unsupported"}
 
     async def start_competition(self) -> dict[str, object]:
@@ -772,14 +832,7 @@ def build_agent_overview_rows(
     *,
     max_parallel_workers: int,
 ) -> list[dict[str, object]]:
-    rows = [
-        item
-        for item in stored_agents
-        if not (
-            item.get("role") == "challenge_worker"
-            and item.get("status") in {"completed", "cancelled"}
-        )
-    ]
+    rows = list(stored_agents)
     by_id = {str(item["agent_id"]): item for item in rows}
     competition_state = dict(process_status.get("competition") or {})
     if competition_state.get("running"):
@@ -797,7 +850,12 @@ def build_agent_overview_rows(
                     "updated_at": None,
                 },
             )
-        worker_rows = [item for item in rows if item.get("role") == "challenge_worker"]
+        worker_rows = [
+            item
+            for item in rows
+            if item.get("role") == "challenge_worker"
+            and item.get("status") not in {"completed", "cancelled", "paused"}
+        ]
         missing_slots = max(0, max_parallel_workers - len(worker_rows))
         for index in range(1, missing_slots + 1):
             rows.append(

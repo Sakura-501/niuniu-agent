@@ -58,6 +58,9 @@ class FakeWebService:
     async def stop_agent(self, agent_id: str) -> dict[str, object]:
         return {"ok": True, "agent_id": agent_id, "action": "stop"}
 
+    async def pause_agent(self, agent_id: str) -> dict[str, object]:
+        return {"ok": True, "agent_id": agent_id, "action": "pause"}
+
     async def delete_agent(self, agent_id: str) -> dict[str, object]:
         return {"ok": True, "agent_id": agent_id, "action": "delete"}
 
@@ -111,6 +114,15 @@ def test_web_debug_session_and_agent_action_endpoints() -> None:
     assert stop_response.json()["action"] == "stop"
     assert delete_response.status_code == 200
     assert delete_response.json()["action"] == "delete"
+
+
+def test_web_worker_pause_endpoint() -> None:
+    client = TestClient(create_app(service=FakeWebService()))
+
+    response = client.post("/api/agents/worker:c1:abcd/pause")
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "pause"
 
 
 def test_web_start_competition_returns_seeded_agent_status() -> None:
