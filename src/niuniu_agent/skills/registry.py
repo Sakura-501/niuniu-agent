@@ -119,6 +119,11 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Constrain heavy tools explicitly and kill stale jobs that stop producing signal.",
         recommended_tracks=("track1", "track2", "track3", "track4"),
     ),
+    "ctf-core-knowledge": SkillBehavior(
+        trigger_keywords=("ctf", "flag", "sqli", "ssti", "idor", "xss", "ssrf", "lfi", "jwt", "default credentials"),
+        usage_guidance="Load this skill when the problem is mainly about recognizing the vulnerability family and the shortest common CTF path to the flag.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
     "tool-rustscan-nmap": SkillBehavior(
         trigger_keywords=("rustscan", "nmap", "masscan", "portscan"),
         usage_guidance="Load this skill when you need concrete rustscan/nmap operator steps instead of generic recon guidance.",
