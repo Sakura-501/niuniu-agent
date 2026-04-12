@@ -35,7 +35,7 @@ async def test_tool_bus_exposes_history_and_note_tools(tmp_path) -> None:
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -65,7 +65,7 @@ async def test_tool_bus_exposes_challenge_memory_tools(tmp_path) -> None:
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -97,7 +97,7 @@ async def test_tool_bus_returns_error_string_instead_of_raising(tmp_path) -> Non
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -169,7 +169,7 @@ async def test_tool_bus_start_challenge_handles_instance_limit(tmp_path) -> None
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -220,7 +220,7 @@ async def test_tool_bus_start_challenge_proactively_frees_slots(tmp_path) -> Non
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -278,7 +278,7 @@ async def test_tool_bus_submit_flag_stops_completed_instance(tmp_path) -> None:
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -329,7 +329,7 @@ async def test_tool_bus_submit_flag_records_success_from_correct_payload(tmp_pat
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -385,7 +385,7 @@ async def test_tool_bus_submit_flag_uses_local_completion_when_official_snapshot
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
@@ -445,7 +445,7 @@ async def test_tool_bus_submit_flag_starts_instance_when_needed(tmp_path) -> Non
     context = RuntimeContext(
         settings=AgentSettings(
             model="ep-jsc7o0kw",
-            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
             model_api_key="test-key",
             contest_host="10.0.0.44:8000",
             contest_token="token",
