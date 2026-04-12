@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = REPO_ROOT / "tools"
 BIN_DIR = TOOLS_ROOT / "bin"
 CACHE_DIR = TOOLS_ROOT / "portable"
+GITHUB_ASSET_PROXY = os.environ.get("NIUNIU_AGENT_GITHUB_ASSET_PROXY", "").strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,7 +126,10 @@ def latest_release(repo: str) -> dict:
 
 
 def download(url: str, target: Path) -> None:
-    with urllib.request.urlopen(url) as response, target.open("wb") as handle:
+    effective_url = url
+    if GITHUB_ASSET_PROXY and "github.com/" in url and not url.startswith(GITHUB_ASSET_PROXY):
+        effective_url = GITHUB_ASSET_PROXY.rstrip("/") + "/" + url
+    with urllib.request.urlopen(effective_url) as response, target.open("wb") as handle:
         shutil.copyfileobj(response, handle)
 
 
