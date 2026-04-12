@@ -41,8 +41,13 @@ class ContestGateway:
         await self.server.cleanup()
 
     async def list_challenges(self) -> Any:
-        async with self._list_challenges_lock:
-            return await self._call_with_rate_limit_retry("list_challenges")
+        try:
+            async with self._list_challenges_lock:
+                return await self._call_with_rate_limit_retry("list_challenges")
+        except asyncio.CancelledError as exc:
+            if self._is_external_cancellation():
+                raise
+            raise RuntimeError("contest gateway list_challenges internally cancelled") from exc
 
     async def start_challenge(self, code: str) -> Any:
         return await self._call("start_challenge", {"code": code})
@@ -57,7 +62,12 @@ class ContestGateway:
         return await self._call("view_hint", {"code": code})
 
     async def _call(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
-        result = await self.server.call_tool(name, arguments or {})
+        try:
+            result = await self.server.call_tool(name, arguments or {})
+        except asyncio.CancelledError as exc:
+            if self._is_external_cancellation():
+                raise
+            raise RuntimeError(f"contest gateway {name} internally cancelled") from exc
         if result.isError:
             raise RuntimeError(self.decode_call_result(result) or f"MCP call failed: {name}")
         return self.decode_call_result(result)
@@ -76,13 +86,33 @@ class ContestGateway:
                 return await self._call(name, arguments)
             except RuntimeError as exc:
                 last_error = exc
-                if "请求频率超出限制" not in str(exc) or attempt >= max_attempts:
+                if not self._is_retryable_runtime_error(str(exc)) or attempt >= max_attempts:
                     raise
                 await self._sleep(delay)
                 delay *= 2
         if last_error is not None:
             raise last_error
         raise RuntimeError(f"MCP call failed without error details: {name}")
+
+    @staticmethod
+    def _is_retryable_runtime_error(message: str) -> bool:
+        lowered = message.lower()
+        return any(
+            marker in lowered
+            for marker in (
+                "请求频率超出限制",
+                "rate limit",
+                "rate_limit",
+                "timed out",
+                "deadline exceeded",
+                "internally cancelled",
+            )
+        )
+
+    @staticmethod
+    def _is_external_cancellation() -> bool:
+        task = asyncio.current_task()
+        return task is not None and task.cancelling() > 0
 
     @staticmethod
     def decode_call_result(result: CallToolResult) -> Any:

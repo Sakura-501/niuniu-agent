@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from mcp.types import CallToolResult, TextContent
@@ -60,6 +62,38 @@ async def test_contest_gateway_retries_rate_limited_list_challenges() -> None:
         sleeps.append(seconds)
 
     gateway = ContestGateway(RateLimitedServer(), sleep_fn=fake_sleep)
+
+    payload = await gateway.list_challenges()
+
+    assert payload["current_level"] == 1
+    assert len(gateway.server.calls) == 3
+    assert sleeps == [0.5, 1.0]
+
+
+class InternallyCancelledServer(FakeServer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.count = 0
+
+    async def call_tool(self, tool_name, arguments):
+        self.calls.append((tool_name, arguments))
+        self.count += 1
+        if self.count < 3:
+            raise asyncio.CancelledError()
+        return CallToolResult(
+            content=[TextContent(type="text", text='{"current_level": 1, "challenges": []}')],
+            isError=False,
+        )
+
+
+@pytest.mark.anyio
+async def test_contest_gateway_retries_internal_cancelled_errors_for_list_challenges() -> None:
+    sleeps = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    gateway = ContestGateway(InternallyCancelledServer(), sleep_fn=fake_sleep)
 
     payload = await gateway.list_challenges()
 

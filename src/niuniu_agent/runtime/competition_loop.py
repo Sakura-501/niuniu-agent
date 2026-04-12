@@ -561,7 +561,28 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 snapshot = await context.challenge_store.refresh()
                 refresh_backoff = 1
             except asyncio.CancelledError:
-                raise
+                task = asyncio.current_task()
+                if task is not None and task.cancelling():
+                    raise
+                context.event_logger.log(
+                    "competition.refresh_error",
+                    {
+                        "error": "internal CancelledError during challenge refresh",
+                        "backoff_seconds": refresh_backoff,
+                    },
+                )
+                manager_context.state_store.upsert_agent_status(
+                    agent_id=manager.agent_id,
+                    role="manager",
+                    challenge_code=None,
+                    status="degraded",
+                    summary="challenge refresh internally cancelled; retrying",
+                    metadata={"backoff_seconds": refresh_backoff, "run_id": competition_run_id},
+                    last_error="internal CancelledError during challenge refresh",
+                )
+                await asyncio.sleep(refresh_backoff)
+                refresh_backoff = min(refresh_backoff * 2, context.settings.competition_max_error_backoff_seconds)
+                continue
             except Exception as exc:  # pragma: no cover - runtime recovery path
                 context.event_logger.log(
                     "competition.refresh_error",

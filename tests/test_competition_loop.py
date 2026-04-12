@@ -29,6 +29,17 @@ class RefreshFlakyStore:
         return SimpleNamespace(current_level=1, total_challenges=0, solved_challenges=0, challenges=[])
 
 
+class RefreshCancelledStore:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def refresh(self):
+        self.calls += 1
+        if self.calls == 1:
+            raise asyncio.CancelledError()
+        return SimpleNamespace(current_level=1, total_challenges=0, solved_challenges=0, challenges=[])
+
+
 class DummyStateStore:
     def list_agent_statuses(self, **kwargs):
         return []
@@ -70,6 +81,35 @@ async def test_competition_loop_survives_refresh_rate_limit() -> None:
         ),
         contest_gateway=object(),
         challenge_store=RefreshFlakyStore(),
+        state_store=DummyStateStore(),
+        event_logger=DummyEventLogger(),
+        local_toolbox=object(),
+        skill_registry=None,
+    )
+
+    task = asyncio.create_task(run_competition_loop(context))
+    await asyncio.sleep(1.2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert context.challenge_store.calls >= 2
+    assert any(event == "competition.refresh_error" for event, _ in context.event_logger.events)
+
+
+@pytest.mark.anyio
+async def test_competition_loop_survives_internal_refresh_cancelled_error() -> None:
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="test-model",
+            model_base_url="https://example.invalid/v1",
+            model_api_key="key",
+            contest_host="https://challenge.zc.tencent.com",
+            contest_token="token",
+            competition_idle_sleep_seconds=1,
+        ),
+        contest_gateway=object(),
+        challenge_store=RefreshCancelledStore(),
         state_store=DummyStateStore(),
         event_logger=DummyEventLogger(),
         local_toolbox=object(),
