@@ -113,6 +113,7 @@ def test_web_dashboard_renders() -> None:
     assert response.status_code == 200
     assert "Agent Console" in response.text
     assert "8081" in response.text
+    assert "defaultModel" in response.text
 
 
 def test_web_overview_endpoint_returns_json() -> None:

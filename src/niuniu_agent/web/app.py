@@ -181,15 +181,21 @@ def create_app(service: object | None = None) -> FastAPI:
             <div class="mono">${provider.state && provider.state.last_error ? provider.state.last_error : 'no provider errors'}</div>
           `);
           const providerSelect = document.getElementById('provider-select');
+          const providerModelInput = document.getElementById('provider-model');
           providerSelect.innerHTML = '';
           for (const provider of routing.providers || []) {
             const option = document.createElement('option');
             option.value = provider.provider_id;
             option.textContent = `${provider.display_name} (${provider.provider_id})`;
             option.selected = provider.provider_id === routing.selected_provider_id;
+            option.dataset.defaultModel = provider.model || '';
             providerSelect.appendChild(option);
           }
-          document.getElementById('provider-model').value = routing.selected_model || '';
+          providerSelect.onchange = () => {
+            const selected = providerSelect.options[providerSelect.selectedIndex];
+            providerModelInput.value = selected ? (selected.dataset.defaultModel || '') : '';
+          };
+          providerModelInput.value = routing.selected_model || '';
           renderAgentTree(data.agent_tree || []);
           renderCardList('challenge-list', data.contest.challenges || [], (challenge) => `
             <strong><a href="/challenges/${encodeURIComponent(challenge.code)}">${challenge.code}</a> · ${challenge.title}</strong>
