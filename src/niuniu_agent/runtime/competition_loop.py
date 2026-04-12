@@ -59,6 +59,28 @@ async def stop_challenge_instance_before_worker_exit(
         return False
 
 
+async def ensure_challenge_instance_running(
+    *,
+    contest_gateway: object,
+    challenge: object,
+    event_logger: object | None,
+) -> bool:
+    if getattr(challenge, "completed", False):
+        return False
+    if getattr(challenge, "instance_status", None) == "running":
+        return False
+    try:
+        await contest_gateway.start_challenge(challenge.code)
+        return True
+    except Exception as exc:  # pragma: no cover - best-effort recovery
+        if event_logger is not None:
+            event_logger.log(
+                "competition.instance_start_failed",
+                {"challenge_code": challenge.code, "error": str(exc)},
+            )
+        return False
+
+
 async def recover_stalled_workers(
     *,
     snapshot: object,
@@ -279,6 +301,14 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     return
 
                 worker_context.notes["active_challenge"] = target.code
+                if not target.completed and target.instance_status != "running":
+                    await ensure_challenge_instance_running(
+                        contest_gateway=worker_context.contest_gateway,
+                        challenge=target,
+                        event_logger=worker_context.event_logger,
+                    )
+                    snapshot = await worker_context.challenge_store.refresh()
+                    target = next((item for item in snapshot.challenges if item.code == challenge_code), target)
                 worker_context.state_store.mark_active_challenge(target.code)
                 runtime_state = worker_context.state_store.get_challenge_runtime_state(target.code)
                 notes = worker_context.state_store.get_challenge_notes(target.code)

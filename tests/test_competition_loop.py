@@ -8,6 +8,7 @@ import pytest
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.runtime.competition_loop import (
     close_completed_challenge_instances,
+    ensure_challenge_instance_running,
     recover_stalled_workers,
     stop_challenge_instance_before_worker_exit,
     retire_completed_workers,
@@ -63,10 +64,15 @@ class DummyEventLogger:
 class DummyContestGateway:
     def __init__(self) -> None:
         self.stopped: list[str] = []
+        self.started: list[str] = []
 
     async def stop_challenge(self, code: str):
         self.stopped.append(code)
         return {"ok": True}
+
+    async def start_challenge(self, code: str):
+        self.started.append(code)
+        return {"ok": True, "entrypoint": ["127.0.0.1:8080"]}
 
 
 @pytest.mark.anyio
@@ -352,3 +358,69 @@ async def test_stop_challenge_instance_before_worker_exit_skips_known_stopped_in
 
     assert stopped is False
     assert gateway.stopped == []
+
+
+@pytest.mark.anyio
+async def test_ensure_challenge_instance_running_starts_stopped_unsolved_challenge() -> None:
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    started = await ensure_challenge_instance_running(
+        contest_gateway=gateway,
+        challenge=ChallengeSnapshot(
+            code="c1",
+            title="demo",
+            description="demo",
+            difficulty="easy",
+            level=0,
+            flag_count=1,
+            flag_got_count=0,
+            instance_status="stopped",
+            entrypoints=[],
+        ),
+        event_logger=logger,
+    )
+
+    assert started is True
+    assert gateway.started == ["c1"]
+
+
+@pytest.mark.anyio
+async def test_ensure_challenge_instance_running_skips_running_or_completed_challenge() -> None:
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    started_running = await ensure_challenge_instance_running(
+        contest_gateway=gateway,
+        challenge=ChallengeSnapshot(
+            code="c1",
+            title="demo",
+            description="demo",
+            difficulty="easy",
+            level=0,
+            flag_count=1,
+            flag_got_count=0,
+            instance_status="running",
+            entrypoints=["127.0.0.1:8080"],
+        ),
+        event_logger=logger,
+    )
+    started_completed = await ensure_challenge_instance_running(
+        contest_gateway=gateway,
+        challenge=ChallengeSnapshot(
+            code="c2",
+            title="done",
+            description="demo",
+            difficulty="easy",
+            level=0,
+            flag_count=1,
+            flag_got_count=1,
+            instance_status="stopped",
+            entrypoints=[],
+        ),
+        event_logger=logger,
+    )
+
+    assert started_running is False
+    assert started_completed is False
+    assert gateway.started == []
