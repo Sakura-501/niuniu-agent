@@ -169,27 +169,3 @@ class ChallengeStore:
                 "official_reset_detected",
                 f"cleared {cleared} local submitted flag(s) because official snapshot shows unsolved state",
             )
-
-    def _reconcile_official_resets(self, snapshot: ContestSnapshot, now: float | None = None) -> None:
-        current = time.time() if now is None else now
-        for challenge in snapshot.challenges:
-            if challenge.completed:
-                continue
-            local_flags = self.state_store.list_submitted_flags(challenge.code)
-            if not local_flags:
-                continue
-            if not hasattr(self.state_store, "latest_submitted_flag_at") or not hasattr(self.state_store, "clear_submitted_flags"):
-                continue
-            latest_local_flag_at = self.state_store.latest_submitted_flag_at(challenge.code)
-            if latest_local_flag_at is None:
-                continue
-            if current - latest_local_flag_at < self.official_completion_grace_seconds:
-                continue
-            cleared = self.state_store.clear_submitted_flags(challenge.code)
-            if cleared <= 0:
-                continue
-            self.state_store.add_history_event(
-                challenge.code,
-                "official_reset_detected",
-                f"cleared {cleared} local submitted flag(s) because official snapshot shows unsolved state",
-            )
