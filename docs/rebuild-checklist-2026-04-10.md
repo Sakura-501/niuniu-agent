@@ -69,6 +69,7 @@
 - [x] `competition` 内部 worker/MCP 产生的非外部 `CancelledError` 不会再直接打死 supervisor 主进程
 - [x] process status 已增加 PID 命令校验，脏 PID/复用 PID 不会再被误判成仍在运行
 - [x] 已增加 stalled worker watchdog，running 但长期无活动的 worker 会自动取消并重排
+- [x] 已增加 completed worker retirement，已完成 challenge 上的旧 worker 会被自动取消并释放槽位
 - [x] 已补充 callback server 资源配置，debug/competition prompt 与 Web UI 都能直接看到可回连公网主机
 - [x] 单个 worker 在单题连续运行超过 1 小时且仍有未开始 challenge 时，会保存状态/记忆、关闭实例并临时降级让位
 - [x] challenge 关键过程与结果已持久化到本地 memory 表，manager / worker / Web UI 都可回看

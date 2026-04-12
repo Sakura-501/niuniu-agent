@@ -86,6 +86,49 @@ async def recover_stalled_workers(
     return recovered
 
 
+async def retire_completed_workers(
+    *,
+    snapshot: object,
+    context: RuntimeContext,
+    coordinator: CompetitionCoordinator,
+) -> list[dict[str, object]]:
+    challenge_index = {
+        challenge.code: challenge
+        for challenge in getattr(snapshot, "challenges", [])
+    }
+    retired: list[dict[str, object]] = []
+    for status in context.state_store.list_agent_statuses(role="challenge_worker"):
+        if status.get("status") != "running":
+            continue
+        challenge_code = str(status.get("challenge_code") or "")
+        challenge = challenge_index.get(challenge_code)
+        if challenge is None:
+            continue
+        if not context.challenge_store.is_effectively_completed(challenge):
+            continue
+        metadata = dict(status.get("metadata") or {})
+        metadata["retired_reason"] = "challenge already completed"
+        context.state_store.record_challenge_success(challenge_code)
+        context.state_store.upsert_agent_status(
+            agent_id=str(status["agent_id"]),
+            role="challenge_worker",
+            challenge_code=challenge_code,
+            status="completed",
+            summary="challenge completed; worker retired",
+            metadata=metadata,
+            last_error=str(status.get("last_error") or ""),
+        )
+        context.state_store.append_agent_event(
+            agent_id=str(status["agent_id"]),
+            challenge_code=challenge_code,
+            event_type="worker_retired_completed_challenge",
+            payload="worker cancelled because challenge is already completed",
+        )
+        await coordinator.cancel_worker(challenge_code)
+        retired.append({"agent_id": str(status["agent_id"]), "challenge_code": challenge_code})
+    return retired
+
+
 async def run_competition_loop(context: RuntimeContext) -> None:
     histories: dict[str, list[dict[str, object]]] = {}
     findings_bus = ChallengeFindingsBus()
@@ -498,6 +541,16 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 context.event_logger.log(
                     "competition.stalled_workers_recovered",
                     {"recovered_workers": recovered_workers},
+                )
+            retired_workers = await retire_completed_workers(
+                snapshot=snapshot,
+                context=context,
+                coordinator=coordinator,
+            )
+            if retired_workers:
+                context.event_logger.log(
+                    "competition.completed_workers_retired",
+                    {"retired_workers": retired_workers},
                 )
             manager.heartbeat(snapshot, coordinator)
             manager.reconcile(coordinator)
