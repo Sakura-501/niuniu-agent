@@ -120,3 +120,17 @@ def test_build_challenge_scheduler_view_marks_dispatchable_and_paused_and_runnin
     assert dispatchable["scheduler_status"] == "dispatchable"
     assert paused["scheduler_status"] == "paused"
     assert running["scheduler_status"] == "running"
+
+
+def test_build_challenge_scheduler_view_marks_deferred() -> None:
+    deferred = build_challenge_scheduler_view(
+        {
+            "code": "c9",
+            "completed": False,
+            "notes": {},
+            "runtime_state": {"defer_until": 4102444800.0},
+        },
+        [],
+    )
+
+    assert deferred["scheduler_status"] == "deferred"

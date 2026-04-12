@@ -34,6 +34,7 @@ class ToolBus:
             "load_skill": self.load_skill,
             "get_challenge_history": self.get_challenge_history,
             "get_challenge_notes": self.get_challenge_notes,
+            "get_challenge_memories": self.get_challenge_memories,
             "set_challenge_note": self.set_challenge_note,
             "start_challenge": self.start_challenge,
             "stop_challenge": self.stop_challenge,
@@ -65,6 +66,11 @@ class ToolBus:
                 "get_challenge_notes",
                 "Return stored notes for a challenge.",
                 {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]},
+            ),
+            RuntimeTool(
+                "get_challenge_memories",
+                "Return persisted memory items for a challenge.",
+                {"type": "object", "properties": {"code": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["code"]},
             ),
             RuntimeTool(
                 "set_challenge_note",
@@ -185,6 +191,9 @@ class ToolBus:
     async def get_challenge_notes(self, code: str) -> dict[str, Any]:
         return {"code": code, "notes": self.context.state_store.get_challenge_notes(code)}
 
+    async def get_challenge_memories(self, code: str, limit: int = 10) -> dict[str, Any]:
+        return {"code": code, "memories": self.context.state_store.list_challenge_memories(code, limit)}
+
     async def set_challenge_note(self, code: str, note_key: str, note_value: str) -> dict[str, Any]:
         self.context.state_store.set_challenge_note(code, note_key, note_value)
         return {"code": code, "note_key": note_key, "note_value": note_value}
@@ -241,6 +250,7 @@ class ToolBus:
             self.context.state_store.record_submitted_flag(code, flag)
             self.context.state_store.add_history_event(code, "flag_submitted", json.dumps({"flag": flag, "payload": payload}, ensure_ascii=False))
             self.context.state_store.set_challenge_note(code, "last_flag", flag)
+            self.context.state_store.add_challenge_memory(code, "flag_submitted", flag, source="submit_flag")
         snapshot = await self.context.challenge_store.refresh()
         challenge = next((item for item in snapshot.challenges if item.code == code), None)
         effective_completed = self.context.challenge_store.is_effectively_completed(challenge) if challenge is not None else False

@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from niuniu_agent.cli import _run_competition_supervisor, app
+from niuniu_agent.state_store import StateStore
 
 
 def test_cli_exposes_run_subcommand() -> None:
@@ -28,6 +29,29 @@ def test_cli_help_mentions_debug_chat_behavior() -> None:
 
     assert result.exit_code == 0
     assert "--mode" in result.stdout
+
+
+def test_cli_can_clear_runtime_memory(tmp_path) -> None:
+    runner = CliRunner()
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir(parents=True)
+    store = StateStore(runtime_dir / "state.db")
+    store.record_submitted_flag("c1", "flag{demo}")
+    store.add_history_event("c1", "turn_completed", "summary")
+    store.set_challenge_note("c1", "foothold", "user shell")
+    session_db = runtime_dir / "sessions.sqlite3"
+    session_db.write_text("demo", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["clear-memory", "--runtime-dir", str(runtime_dir), "--yes"],
+    )
+
+    assert result.exit_code == 0
+    assert store.list_submitted_flags("c1") == []
+    assert store.list_history("c1") == []
+    assert store.get_challenge_notes("c1") == {}
+    assert session_db.exists() is False
 
 
 class DummyGateway:

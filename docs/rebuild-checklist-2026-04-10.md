@@ -1,6 +1,6 @@
 # niuniu-agent 重构清单
 
-更新时间：2026-04-10
+更新时间：2026-04-12
 
 ## 执行约束
 
@@ -63,6 +63,9 @@
 - [x] Agents UI 已改成按 `manager -> workers` 的树形展示
 - [x] manager 现在支持 Web `stop/delete`，删除会真正移除该次 competition run 的 manager 和 workers
 - [x] `remote_control.sh update` 已切到默认执行 `uv sync`，默认运行方式改为 `uv run`
+- [x] 单个 worker 在单题连续运行超过 1 小时且仍有未开始 challenge 时，会保存状态/记忆、关闭实例并临时降级让位
+- [x] challenge 关键过程与结果已持久化到本地 memory 表，manager / worker / Web UI 都可回看
+- [x] 已增加 `niuniu-agent clear-memory --yes`，可清理本地 runtime 记忆和 debug session 数据，避免 demo 污染正式比赛
 
 ## 进行中
 
@@ -157,15 +160,43 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：本地结果检索、日志过滤、导出文件快速搜索。  
 安装：`sudo apt-get install -y ripgrep`
 
+- [x] `uv`
+作用：默认运行 agent、同步依赖、执行本地 Python 工具链。  
+安装：优先官方安装脚本或 `python3 -m pip install --user uv`
+
+- [x] `netcat`
+作用：快速 TCP/UDP 探测、简易交互验证、端口级回显确认。  
+安装：`sudo apt-get install -y netcat-openbsd`
+
+- [x] `dnsutils`
+作用：DNS 查询、域名解析、服务发现、内网名称验证。  
+安装：`sudo apt-get install -y dnsutils`
+
 ### B. Web / SRC 常用工具
 
 - [x] `ffuf`
 作用：目录、文件、参数、子路径快速枚举。  
 安装：`sudo apt-get install -y ffuf`
 
+- [x] `feroxbuster`
+作用：高并发目录与文件枚举，适合大型 Web 面。  
+安装：`cargo install feroxbuster`
+
+- [x] `gobuster`
+作用：目录、虚拟主机、DNS 目标枚举备用路径。  
+安装：`sudo apt-get install -y gobuster`
+
+- [x] `nikto`
+作用：Web 基础配置、危险文件、低门槛问题快速扫面。  
+安装：`sudo apt-get install -y nikto`
+
 - [x] `nmap`
 作用：端口发现、服务识别、基础探测。  
 安装：`sudo apt-get install -y nmap`
+
+- [x] `masscan`
+作用：高速端口探测、内网大范围资产发现。  
+安装：`sudo apt-get install -y masscan`
 
 - [x] `whatweb`
 作用：Web 指纹识别。  
@@ -189,6 +220,26 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：证书、TLS、基础密码学和编码处理。  
 安装：系统通常自带；缺失时 `sudo apt-get install -y openssl`
 
+- [x] `redis-cli`
+作用：Redis / key-value 服务交互验证。  
+安装：`sudo apt-get install -y redis-tools`
+
+- [x] `mysql-client`
+作用：MySQL 服务连通性与数据库交互验证。  
+安装：`sudo apt-get install -y mysql-client`
+
+- [x] `postgresql-client`
+作用：PostgreSQL 服务连通性与数据库交互验证。  
+安装：`sudo apt-get install -y postgresql-client`
+
+- [x] `socat`
+作用：端口转发、半交互 relay、轻量隧道与回连辅助。  
+安装：`sudo apt-get install -y socat`
+
+- [x] `proxychains4`
+作用：多跳代理转发、内网横向阶段链路复用。  
+安装：`sudo apt-get install -y proxychains4`
+
 ### D. 内网 / 域渗透 / 横向基础工具
 
 - [x] `smbclient`
@@ -202,6 +253,30 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 - [x] `impacket` 系列
 作用：域环境、Kerberos、SMB、横向基础操作。  
 安装：优先 `python -m pip install impacket`
+
+- [x] `netexec`
+作用：域环境认证、横向与服务探测的一体化执行。  
+安装：`python3 -m pip install --user netexec`
+
+- [x] `bloodhound-python`
+作用：域关系收集、权限路径图分析。  
+安装：`python3 -m pip install --user bloodhound-python`
+
+- [x] `kerbrute`
+作用：Kerberos 用户枚举与口令验证。  
+安装：`go install github.com/ropnop/kerbrute@latest`
+
+- [x] `hydra`
+作用：多协议口令爆破。  
+安装：`sudo apt-get install -y hydra`
+
+- [x] `john`
+作用：密码哈希破解。  
+安装：`sudo apt-get install -y john`
+
+- [x] `hashcat`
+作用：GPU/CPU 密码哈希破解。  
+安装：`sudo apt-get install -y hashcat`
 
 ### E. 工具接入实现要求
 
@@ -367,6 +442,17 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 - [x] 失败次数与恢复点
 - [x] 当前 foothold / 阶段性结论记录
 - [x] 长时间运行后的状态恢复
+- [x] challenge 长期记忆表（关键过程 / 结果 / 线索 / flag / hint / error）
+- [x] manager / worker prompt 已回灌本地记忆，不会每次从零开始
+- [x] 已提供一键清理本地记忆能力，正式比赛前可清空 demo 污染
+
+### 九、长时间卡题调度策略
+
+- [x] 单个 worker 在单题连续运行超过 1 小时且存在未开始题目时，不再无限占坑
+- [x] 触发降级前会先把当前过程摘要、错误、hint、关键结论落库
+- [x] 触发降级时会停止对应 challenge 实例，释放平台实例槽位
+- [x] challenge 会进入短暂 defer 状态，等待后续空闲 worker 再回捞
+- [x] Web/UI 已能显示 `deferred` 调度状态
 
 ### 七、调试与验证
 
@@ -404,3 +490,9 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 - [x] 当前架构虽然已经能交互，但四赛道能力模块还不够完整
 - [x] `competition` 模式的长期恢复还不够强
 - [x] 当前虽然已有自动降级，但部分高阶工具还只是轻量降级，不是完整替代
+
+## 调试机实测补充（2026-04-12）
+
+- [x] 调试机实测 `feroxbuster` 已可用
+- [x] 调试机实测 `gobuster / socat / proxychains4` 已安装并可调用
+- [x] 调试机实测工具清单中的四赛道基础工具已全部存在

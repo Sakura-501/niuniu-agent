@@ -17,19 +17,33 @@ def test_state_store_tracks_runtime_failure_state(tmp_path) -> None:
     store = StateStore(tmp_path / "state.db")
 
     store.mark_active_challenge("challenge-1")
+    active_state = store.get_challenge_runtime_state("challenge-1")
+    first_attempt_started_at = active_state["attempt_started_at"]
     first_failure = store.record_challenge_failure("challenge-1", "boom")
     second_failure = store.record_challenge_failure("challenge-1", "still boom")
     runtime_state = store.get_challenge_runtime_state("challenge-1")
+    store.mark_active_challenge("challenge-1")
+    retried_state = store.get_challenge_runtime_state("challenge-1")
     store.record_challenge_success("challenge-1")
     reset_state = store.get_challenge_runtime_state("challenge-1")
 
     assert first_failure == 1
     assert second_failure == 2
-    assert runtime_state["active"] is True
+    assert active_state["active"] is True
+    assert active_state["attempt_count"] == 1
+    assert active_state["attempt_started_at"] is not None
+    assert runtime_state["active"] is False
     assert runtime_state["failure_count"] == 2
     assert runtime_state["last_error"] == "still boom"
+    assert runtime_state["attempt_started_at"] is None
+    assert runtime_state["attempt_count"] == 1
+    assert retried_state["active"] is True
+    assert retried_state["attempt_count"] == 2
+    assert retried_state["attempt_started_at"] != first_attempt_started_at
     assert reset_state["active"] is False
     assert reset_state["failure_count"] == 0
+    assert reset_state["attempt_started_at"] is None
+    assert reset_state["defer_until"] is None
 
 
 def test_state_store_persists_history_and_notes(tmp_path) -> None:
@@ -81,6 +95,72 @@ def test_state_store_migrates_old_runtime_schema(tmp_path) -> None:
 
     assert "last_progress_at" in state
     assert state["last_progress_at"] is None
+
+
+def test_state_store_can_defer_one_challenge_attempt(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.mark_active_challenge("challenge-1")
+    store.defer_challenge("challenge-1", defer_seconds=300, reason="long running", now=1000.0)
+    state = store.get_challenge_runtime_state("challenge-1")
+
+    assert state["active"] is False
+    assert state["attempt_started_at"] is None
+    assert state["defer_until"] == 1300.0
+    assert state["last_error"] == "long running"
+    assert store.is_challenge_deferred("challenge-1", now=1200.0) is True
+    assert store.is_challenge_deferred("challenge-1", now=1301.0) is False
+    assert store.seconds_until_dispatchable("challenge-1", now=1200.0) == 100.0
+
+
+def test_state_store_persists_deduplicated_challenge_memories(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.add_challenge_memory("challenge-1", "turn_summary", "found admin path", source="worker")
+    store.add_challenge_memory("challenge-1", "turn_summary", "found admin path", source="worker")
+    store.add_challenge_memory("challenge-1", "credential_hint", "token=demo", source="worker")
+
+    memories = store.list_challenge_memories("challenge-1", limit=10)
+
+    assert len(memories) == 2
+    assert memories[0]["memory_type"] == "credential_hint"
+    assert memories[1]["memory_type"] == "turn_summary"
+
+
+def test_state_store_can_clear_runtime_memory(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.record_submitted_flag("challenge-1", "flag{demo}")
+    store.mark_active_challenge("challenge-1")
+    store.mark_progress("challenge-1")
+    store.add_history_event("challenge-1", "turn_completed", "summary")
+    store.set_challenge_note("challenge-1", "foothold", "www-data shell")
+    store.add_challenge_memory("challenge-1", "turn_summary", "summary", source="worker")
+    store.upsert_agent_status(
+        agent_id="worker:challenge-1",
+        role="challenge_worker",
+        challenge_code="challenge-1",
+        status="running",
+        summary="recon in progress",
+        metadata={"stage": "recon"},
+    )
+    store.append_agent_event(
+        agent_id="worker:challenge-1",
+        challenge_code="challenge-1",
+        event_type="tool_start",
+        payload='{"tool":"http_request"}',
+    )
+
+    cleared = store.clear_runtime_memory()
+
+    assert cleared["submitted_flags"] == 1
+    assert store.list_submitted_flags("challenge-1") == []
+    assert store.list_history("challenge-1") == []
+    assert store.get_challenge_notes("challenge-1") == {}
+    assert store.list_challenge_memories("challenge-1") == []
+    assert store.list_agent_statuses() == []
+    assert store.list_agent_events() == []
+    assert store.get_challenge_runtime_state("challenge-1")["attempt_count"] == 0
 
 
 def test_state_store_tracks_agent_runtime_status_and_events(tmp_path) -> None:

@@ -16,6 +16,8 @@ class ToolAvailability:
 def default_tool_inventory() -> list[ToolAvailability]:
     specs = [
         ("python3", "base", ("all",), "sudo apt-get install -y python3 python3-pip python3.12-venv"),
+        ("pip3", "base", ("all",), "sudo apt-get install -y python3-pip"),
+        ("uv", "base", ("all",), "python3 -m pip install --user uv"),
         ("curl", "base", ("all",), "sudo apt-get install -y curl"),
         ("jq", "base", ("all",), "sudo apt-get install -y jq"),
         ("rg", "base", ("all",), "sudo apt-get install -y ripgrep"),
@@ -23,6 +25,7 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("dig", "base", ("all",), "sudo apt-get install -y dnsutils"),
         ("ffuf", "web", ("track1",), "sudo apt-get install -y ffuf"),
         ("feroxbuster", "web", ("track1",), "cargo install feroxbuster or install the official Linux binary from GitHub releases"),
+        ("gobuster", "web", ("track1",), "sudo apt-get install -y gobuster"),
         ("nikto", "web", ("track1",), "sudo apt-get install -y nikto"),
         ("nmap", "service", ("track1", "track2", "track3", "track4"), "sudo apt-get install -y nmap"),
         ("masscan", "service", ("track2", "track3", "track4"), "sudo apt-get install -y masscan"),
@@ -34,6 +37,8 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("redis-cli", "service", ("track2", "track3"), "sudo apt-get install -y redis-tools"),
         ("mysql", "service", ("track2", "track3"), "sudo apt-get install -y mysql-client"),
         ("psql", "service", ("track2", "track3"), "sudo apt-get install -y postgresql-client"),
+        ("socat", "service", ("track2", "track3"), "sudo apt-get install -y socat"),
+        ("proxychains4", "pivot", ("track3", "track4"), "sudo apt-get install -y proxychains4"),
         ("smbclient", "domain", ("track4",), "sudo apt-get install -y smbclient"),
         ("ldapsearch", "domain", ("track4",), "sudo apt-get install -y ldap-utils"),
         ("hydra", "domain", ("track3", "track4"), "sudo apt-get install -y hydra"),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Any, Callable
 
 import typer
@@ -32,6 +33,27 @@ def run(
         settings_kwargs["mode"] = mode
     settings = AgentSettings(**settings_kwargs)
     asyncio.run(_run(settings))
+
+
+@app.command("clear-memory")
+def clear_memory(
+    runtime_dir: Path = typer.Option(Path("runtime"), "--runtime-dir"),
+    yes: bool = typer.Option(False, "--yes", help="Confirm deletion of local runtime memory."),
+    include_sessions: bool = typer.Option(True, "--include-sessions/--keep-sessions"),
+) -> None:
+    if not yes:
+        raise typer.BadParameter("pass --yes to clear persisted runtime memory")
+
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    state_store = StateStore(runtime_dir / "state.db")
+    cleared = state_store.clear_runtime_memory()
+    typer.echo(f"cleared runtime tables: {cleared}")
+
+    if include_sessions:
+        session_db = runtime_dir / "sessions.sqlite3"
+        if session_db.exists():
+            session_db.unlink()
+            typer.echo(f"removed session database: {session_db}")
 
 
 async def _run(settings: AgentSettings) -> None:

@@ -17,6 +17,7 @@
 - `competition` 模式能无人值守不停机运行
 - 比赛控制面、状态、错误恢复和并发调度都由代码明确控制，而不是完全交给模型即兴决定
 - `8081` Web UI 能查看 manager / worker / challenge 状态并在线调试
+- 长时间卡题时会自动保存记忆并临时让位给未开始题
 
 图示文档：
 
@@ -103,8 +104,10 @@ results = []
 - 失败次数
 - 最近错误
 - 最近进展时间
+- 单次尝试开始时间 / 已尝试次数 / defer 冷却状态
 - challenge 历史事件
 - challenge 笔记（foothold / last_flag / last_error / shared_findings 等）
+- challenge 持久化记忆（turn_summary / hint / error / credential_hint / deferred 等）
 - 结构化事件日志
 - manager / worker / debug agent 状态
 - agent 事件流与工具执行日志
@@ -160,6 +163,7 @@ niuniu-agent run --mode competition
 - 最多 3 个 challenge worker 并发
 - 错误后自动恢复
 - challenge 完成后自动切下一题
+- 单题单次尝试超过 1 小时且仍有未开始题目时会自动保存状态并临时切题
 
 ## 3. 当前数据流
 
@@ -183,10 +187,11 @@ competition outer loop
   -> challenge_store.refresh()
   -> coordinator 选择最多 3 个未完成 challenge
   -> 为每个 challenge 启动 worker
-  -> worker 读取 challenge state / history / notes / shared findings
+  -> worker 读取 challenge state / history / notes / memories / shared findings
   -> 构造 prompt
   -> agent 执行显式 tool-use loop
-  -> 写回 history / notes / findings / telemetry
+  -> 写回 history / notes / memories / findings / telemetry
+  -> 长时间卡题则 defer、停实例、让位给未开始题
   -> challenge 完成则释放 worker 槽位
   -> 继续下一轮
 ```
@@ -225,6 +230,35 @@ competition outer loop
 
 - [competition_loop.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/competition_loop.py)
 - [recovery.py](/Users/nonoge/Desktop/auto_pentest/niuniu-agent/src/niuniu_agent/runtime/recovery.py)
+
+### 4.4 长时间卡题自动降级
+
+当前代码会：
+
+1. 记录每个 challenge 单次尝试的开始时间
+2. 如果单个 worker 在同一题连续运行超过 1 小时
+3. 且此时仍有未开始的 challenge
+4. 则把当前总结、hint、error、关键线索写入本地 memory
+5. 停掉该题实例并进入短暂 defer
+6. 把 worker 槽位让给未开始题
+
+这样可以避免 3 个 worker 被少量卡题长期占满。
+
+### 4.5 本地持久化记忆与清理
+
+当前本地会持久化：
+
+- `history`
+- `notes`
+- `challenge_memories`
+- `submitted_flags`
+- agent 状态与事件
+
+正式比赛前如果要清掉 debug/demo 污染，可以执行：
+
+```bash
+niuniu-agent clear-memory --runtime-dir runtime --yes
+```
 
 ## 5. 为什么之前会报错
 
@@ -313,20 +347,19 @@ OperationalError: no such column: last_progress_at
 ```bash
 cd ~/niuniu-agent
 git pull --ff-only origin main
-. .venv/bin/activate
-python -m pip install -e '.[dev]'
+uv sync
 ```
 
 ### 8.2 交互调试
 
 ```bash
-niuniu-agent run --mode debug
+uv run niuniu-agent run --mode debug
 ```
 
 ### 8.3 无人值守
 
 ```bash
-niuniu-agent run --mode competition
+uv run niuniu-agent run --mode competition
 ```
 
 ### 8.4 控制脚本

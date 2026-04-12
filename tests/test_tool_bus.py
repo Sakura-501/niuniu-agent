@@ -58,6 +58,34 @@ async def test_tool_bus_exposes_history_and_note_tools(tmp_path) -> None:
 
 
 @pytest.mark.anyio
+async def test_tool_bus_exposes_challenge_memory_tools(tmp_path) -> None:
+    gateway = DummyContestGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="https://tokenhub.tencentmaas.com/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+    state_store.add_challenge_memory("c1", "turn_summary", "found login page", source="worker")
+
+    memories = await bus.get_challenge_memories("c1")
+
+    assert memories["memories"][0]["memory_type"] == "turn_summary"
+
+
+@pytest.mark.anyio
 async def test_tool_bus_returns_error_string_instead_of_raising(tmp_path) -> None:
     class RaisingGateway(DummyContestGateway):
         async def view_hint(self, code: str):

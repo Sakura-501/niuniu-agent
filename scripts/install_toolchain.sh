@@ -17,6 +17,7 @@ APT_PACKAGES=(
   netcat-openbsd
   dnsutils
   ffuf
+  gobuster
   nikto
   nmap
   masscan
@@ -26,6 +27,8 @@ APT_PACKAGES=(
   redis-tools
   mysql-client
   postgresql-client
+  socat
+  proxychains4
   smbclient
   ldap-utils
   hydra

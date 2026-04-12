@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
+import time
 from typing import AsyncIterator
 from uuid import uuid4
 
@@ -487,6 +488,7 @@ class AgentWebService:
             "runtime_state": self.context.state_store.get_challenge_runtime_state(code),
             "submitted_flags": self.context.state_store.list_submitted_flags(code),
             "notes": self.context.state_store.get_challenge_notes(code),
+            "memories": self.context.state_store.list_challenge_memories(code, limit=50),
             "history": self.context.state_store.list_history(code, limit=50),
             "agent_statuses": self.context.state_store.list_agent_statuses(challenge_code=code),
             "events": self.context.state_store.list_agent_events(challenge_code=code, limit=200, ascending=True),
@@ -501,14 +503,14 @@ class AgentWebService:
                 "local": local,
                 "source_summary": {
                     "official": "contest MCP list_challenges",
-                    "local": "state.db persisted runtime/history/notes",
+                    "local": "state.db persisted runtime/history/notes/memories",
                 },
             }
         official = {
             key: value
             for key, value in challenge.items()
             if key
-            not in {"locally_submitted_flags", "runtime_state", "notes", "recent_history"}
+            not in {"locally_submitted_flags", "runtime_state", "notes", "recent_history", "recent_memories"}
         }
         return {
             "code": code,
@@ -520,7 +522,7 @@ class AgentWebService:
             "local": local,
             "source_summary": {
                 "official": "contest MCP list_challenges",
-                "local": "state.db persisted runtime/history/notes",
+                "local": "state.db persisted runtime/history/notes/memories",
             },
         }
 
@@ -1013,6 +1015,7 @@ def build_challenge_scheduler_view(
         }
 
     notes = dict(challenge.get("notes") or {})
+    runtime_state = dict(challenge.get("runtime_state") or {})
     assigned_workers = [
         str(agent["agent_id"])
         for agent in agent_statuses
@@ -1023,6 +1026,14 @@ def build_challenge_scheduler_view(
         return {
             "scheduler_status": "paused",
             "scheduler_reason": "challenge paused by operator",
+            "assigned_workers": assigned_workers,
+        }
+
+    defer_until = runtime_state.get("defer_until")
+    if defer_until not in (None, "") and float(defer_until) > time.time():
+        return {
+            "scheduler_status": "deferred",
+            "scheduler_reason": "challenge temporarily deprioritized after a long-running attempt",
             "assigned_workers": assigned_workers,
         }
 

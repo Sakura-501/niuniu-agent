@@ -109,6 +109,7 @@ class ChallengeStore:
                     "runtime_state": self.state_store.get_challenge_runtime_state(challenge.code),
                     "notes": self.state_store.get_challenge_notes(challenge.code),
                     "recent_history": self.state_store.list_history(challenge.code, limit=5),
+                    "recent_memories": self.state_store.list_challenge_memories(challenge.code, limit=5),
                 }
                 for challenge in current.challenges
             ],
@@ -117,6 +118,7 @@ class ChallengeStore:
     def build_autonomous_prompt(self, snapshot: ContestSnapshot, challenge: ChallengeSnapshot) -> str:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
         notes = self.state_store.get_challenge_notes(challenge.code)
+        recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
         return json.dumps(
             {
                 "mode": "competition",
@@ -124,11 +126,12 @@ class ChallengeStore:
                 "active_challenge": asdict(challenge),
                 "recent_history": recent_history,
                 "notes": notes,
+                "recent_memories": recent_memories,
                 "instructions": [
                     "Work on the selected challenge autonomously.",
                     "Use available MCP and local tools.",
                     "Submit any discovered flags immediately.",
-                    "If prior history or notes exist, continue from them instead of restarting from scratch.",
+                    "If prior history, notes, or memories exist, continue from them instead of restarting from scratch.",
                     "Do not stop because of uncertainty; gather evidence and continue.",
                 ],
             },

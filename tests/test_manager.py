@@ -1,17 +1,25 @@
 from types import SimpleNamespace
 
-from niuniu_agent.runtime.manager import partition_dispatchable_challenges
+from niuniu_agent.runtime.manager import (
+    has_unstarted_dispatchable_challenges,
+    partition_dispatchable_challenges,
+)
 
 
 class DummyStateStore:
-    def __init__(self, notes_map):
+    def __init__(self, notes_map, runtime_map=None, submitted_flags_map=None):
         self.notes_map = notes_map
+        self.runtime_map = runtime_map or {}
+        self.submitted_flags_map = submitted_flags_map or {}
 
     def get_challenge_notes(self, code: str):
         return self.notes_map.get(code, {})
 
     def list_submitted_flags(self, code: str):
-        return []
+        return self.submitted_flags_map.get(code, [])
+
+    def get_challenge_runtime_state(self, code: str):
+        return self.runtime_map.get(code, {})
 
 
 def test_partition_dispatchable_challenges_excludes_paused_items() -> None:
@@ -29,3 +37,48 @@ def test_partition_dispatchable_challenges_excludes_paused_items() -> None:
 
     assert dispatchable == ["c1"]
     assert paused == ["c2"]
+
+
+def test_partition_dispatchable_challenges_excludes_deferred_items() -> None:
+    snapshot = SimpleNamespace(
+        challenges=[
+            SimpleNamespace(code="c1", completed=False, flag_count=1),
+            SimpleNamespace(code="c2", completed=False, flag_count=1),
+        ]
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={"c2": {"defer_until": 200.0}},
+        ),
+        now=100.0,
+    )
+
+    assert dispatchable == ["c1"]
+    assert paused == []
+
+
+def test_has_unstarted_dispatchable_challenges_detects_fresh_targets() -> None:
+    snapshot = SimpleNamespace(
+        challenges=[
+            SimpleNamespace(code="c1", completed=False, flag_count=1),
+            SimpleNamespace(code="c2", completed=False, flag_count=1),
+            SimpleNamespace(code="c3", completed=True, flag_count=1),
+        ]
+    )
+
+    result = has_unstarted_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "c1": {"attempt_count": 2},
+                "c2": {"attempt_count": 0},
+            },
+        ),
+        current_code="c1",
+    )
+
+    assert result is True

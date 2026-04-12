@@ -6,9 +6,14 @@ def test_default_tool_inventory_contains_core_tools() -> None:
     names = {item.name for item in inventory}
 
     assert "python3" in names
+    assert "pip3" in names
+    assert "uv" in names
     assert "curl" in names
     assert "jq" in names
     assert "rg" in names
+    assert "gobuster" in names
+    assert "proxychains4" in names
+    assert "socat" in names
     assert "nikto" in names
     assert "masscan" in names
     assert "nmap" in names

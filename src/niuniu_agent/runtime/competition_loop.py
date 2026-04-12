@@ -19,7 +19,11 @@ from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.runtime.coordinator import CompetitionCoordinator
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
-from niuniu_agent.runtime.manager import CompetitionManagerAgent, partition_dispatchable_challenges
+from niuniu_agent.runtime.manager import (
+    CompetitionManagerAgent,
+    has_unstarted_dispatchable_challenges,
+    partition_dispatchable_challenges,
+)
 from niuniu_agent.runtime.recovery import extract_runtime_notes, recover_competition_state, should_view_hint
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
@@ -71,6 +75,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 agent_state = worker_context.state_store.get_agent_status(worker_agent_id)
                 if agent_state is not None and agent_state.get("status") in {"pause_requested", "delete_requested"}:
                     command = str(agent_state["status"])
+                    worker_context.state_store.clear_active_challenge(challenge_code)
                     worker_context.state_store.append_agent_event(
                         agent_id=worker_agent_id,
                         challenge_code=challenge_code,
@@ -139,6 +144,64 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                             "manager_agent_id": manager.agent_id,
                         },
                     )
+                    worker_context.state_store.clear_active_challenge(target.code)
+                    return
+                seconds_in_attempt = worker_context.state_store.seconds_since_attempt_started(target.code)
+                if (
+                    seconds_in_attempt is not None
+                    and seconds_in_attempt >= context.settings.competition_worker_max_seconds_per_challenge
+                    and has_unstarted_dispatchable_challenges(
+                        snapshot,
+                        worker_context.state_store,
+                        current_code=target.code,
+                    )
+                ):
+                    reason = (
+                        "long-running challenge attempt exceeded "
+                        f"{context.settings.competition_worker_max_seconds_per_challenge} seconds; "
+                        "temporarily yielding slot to an unstarted challenge"
+                    )
+                    worker_context.state_store.set_challenge_note(target.code, "deprioritized", "true")
+                    worker_context.state_store.set_challenge_note(target.code, "deprioritized_reason", reason)
+                    worker_context.state_store.add_history_event(target.code, "deferred", reason)
+                    worker_context.state_store.add_challenge_memory(
+                        target.code,
+                        "deferred",
+                        reason,
+                        source=worker_context.agent_id or worker_agent_id,
+                    )
+                    worker_context.state_store.defer_challenge(
+                        target.code,
+                        defer_seconds=context.settings.competition_defer_seconds,
+                        reason=reason,
+                    )
+                    if target.instance_status == "running":
+                        try:
+                            await worker_context.contest_gateway.stop_challenge(target.code)
+                        except Exception as stop_exc:  # pragma: no cover - best-effort cleanup
+                            worker_context.event_logger.log(
+                                "competition.defer_stop_failed",
+                                {"challenge_code": target.code, "error": str(stop_exc)},
+                            )
+                    worker_context.state_store.append_agent_event(
+                        agent_id=worker_context.agent_id or worker_agent_id,
+                        challenge_code=target.code,
+                        event_type="worker_deferred",
+                        payload=reason,
+                    )
+                    worker_context.state_store.upsert_agent_status(
+                        agent_id=worker_context.agent_id or worker_agent_id,
+                        role="challenge_worker",
+                        challenge_code=target.code,
+                        status="deferred",
+                        summary="long-running challenge temporarily deferred",
+                        metadata={
+                            "challenge_code": target.code,
+                            "competition_run_id": competition_run_id,
+                            "manager_agent_id": manager.agent_id,
+                            "defer_seconds": context.settings.competition_defer_seconds,
+                        },
+                    )
                     return
                 seconds_since_progress = worker_context.state_store.seconds_since_progress(target.code)
                 if should_view_hint(
@@ -150,6 +213,12 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     hint_payload = await worker_context.contest_gateway.view_hint(target.code)
                     worker_context.state_store.add_history_event(target.code, "hint_viewed", str(hint_payload))
                     worker_context.state_store.set_challenge_note(target.code, "hint_viewed", "true")
+                    worker_context.state_store.add_challenge_memory(
+                        target.code,
+                        "hint_viewed",
+                        str(hint_payload),
+                        source=worker_context.agent_id or worker_agent_id,
+                    )
                     notes = worker_context.state_store.get_challenge_notes(target.code)
 
                 skill_plan = (
@@ -218,11 +287,25 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 worker_context.state_store.add_history_event(target.code, "turn_completed", result.output or "")
                 if result.output or result.tool_events:
                     worker_context.state_store.mark_progress(target.code)
-                for key, value in extract_runtime_notes(
+                if result.output:
+                    worker_context.state_store.add_challenge_memory(
+                        target.code,
+                        "turn_summary",
+                        result.output[:2000],
+                        source=worker_context.agent_id or worker_agent_id,
+                    )
+                extracted_notes = extract_runtime_notes(
                     result.output,
                     [{"name": event.name, "arguments": event.arguments, "output": event.output} for event in result.tool_events],
-                ).items():
+                )
+                for key, value in extracted_notes.items():
                     worker_context.state_store.set_challenge_note(target.code, key, value)
+                    worker_context.state_store.add_challenge_memory(
+                        target.code,
+                        key,
+                        value,
+                        source=worker_context.agent_id or worker_agent_id,
+                    )
                 await findings_bus.post(target.code, source=f"worker:{target.code}", content=(result.output or "")[:1000])
                 worker_context.event_logger.log(
                     "competition.turn_completed",
@@ -235,7 +318,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         ],
                     },
                 )
-                worker_context.state_store.record_challenge_success(target.code)
+                worker_context.state_store.record_challenge_turn_success(target.code)
                 worker_context.state_store.append_agent_event(
                     agent_id=worker_context.agent_id or worker_agent_id,
                     challenge_code=target.code,
@@ -245,6 +328,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 backoff = context.settings.competition_error_backoff_seconds
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
+            worker_context.state_store.clear_active_challenge(challenge_code)
             worker_context.state_store.upsert_agent_status(
                 agent_id=worker_context.agent_id or worker_agent_id,
                 role="challenge_worker",
@@ -263,6 +347,12 @@ async def run_competition_loop(context: RuntimeContext) -> None:
             failure_count = worker_context.state_store.record_challenge_failure(challenge_code, str(exc))
             worker_context.state_store.add_history_event(challenge_code, "error", str(exc))
             worker_context.state_store.set_challenge_note(challenge_code, "last_error", str(exc))
+            worker_context.state_store.add_challenge_memory(
+                challenge_code,
+                "error",
+                str(exc),
+                source=worker_context.agent_id or worker_agent_id,
+            )
             worker_context.state_store.upsert_agent_status(
                 agent_id=worker_context.agent_id or worker_agent_id,
                 role="challenge_worker",

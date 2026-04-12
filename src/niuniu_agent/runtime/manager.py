@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -65,7 +66,11 @@ class CompetitionManagerAgent:
             challenge = index.get(code)
             if challenge is None:
                 continue
-            guidance = self._build_guidance(challenge)
+            guidance = self._build_guidance(
+                challenge,
+                notes=self.context.state_store.get_challenge_notes(code),
+                memories=self.context.state_store.list_challenge_memories(code, limit=5),
+            )
             if self._last_guidance.get(code) == guidance:
                 continue
             await self.findings_bus.post(code, source=self.agent_id, content=guidance)
@@ -97,26 +102,41 @@ class CompetitionManagerAgent:
             )
 
     @staticmethod
-    def _build_guidance(challenge: ChallengeSnapshot) -> str:
+    def _build_guidance(
+        challenge: ChallengeSnapshot,
+        *,
+        notes: dict[str, str] | None = None,
+        memories: list[dict[str, object]] | None = None,
+    ) -> str:
         track = infer_track(challenge.description)
         profile = TRACK_PROFILES.get(track)
         priorities = "\n".join(f"- {item}" for item in (profile.priorities if profile else ()))
+        notes_text = json.dumps(notes or {}, ensure_ascii=False)[:1000]
+        memory_lines = "\n".join(
+            f"- [{item.get('memory_type')}] {str(item.get('content') or '')[:180]}"
+            for item in (memories or [])
+        )
         return (
             f"Manager guidance for {challenge.code} / {challenge.title}.\n"
             f"Track: {track}\n"
             f"Difficulty: {challenge.difficulty}\n"
             f"Entrypoints: {challenge.entrypoints}\n"
             "Priorities:\n"
-            f"{priorities or '- follow the most deterministic next step'}"
+            f"{priorities or '- follow the most deterministic next step'}\n"
+            f"Recovered notes: {notes_text or '{}'}\n"
+            f"Recent memories:\n{memory_lines or '- none'}"
         )
 
 
 def partition_dispatchable_challenges(
     snapshot: ContestSnapshot | Any,
     state_store: Any,
+    *,
+    now: float | None = None,
 ) -> tuple[list[str], list[str]]:
     dispatchable: list[str] = []
     paused: list[str] = []
+    current = time.time() if now is None else now
     for challenge in snapshot.challenges:
         local_flags = state_store.list_submitted_flags(challenge.code)
         effective_completed = bool(challenge.completed) or (
@@ -127,6 +147,39 @@ def partition_dispatchable_challenges(
         notes = state_store.get_challenge_notes(challenge.code)
         if notes.get("operator_pause") == "true":
             paused.append(challenge.code)
-        else:
-            dispatchable.append(challenge.code)
+            continue
+        runtime_state = state_store.get_challenge_runtime_state(challenge.code)
+        defer_until = runtime_state.get("defer_until")
+        if defer_until not in (None, "") and float(defer_until) > current:
+            continue
+        dispatchable.append(challenge.code)
     return dispatchable, paused
+
+
+def has_unstarted_dispatchable_challenges(
+    snapshot: ContestSnapshot | Any,
+    state_store: Any,
+    *,
+    current_code: str,
+    now: float | None = None,
+) -> bool:
+    current = time.time() if now is None else now
+    for challenge in snapshot.challenges:
+        if challenge.code == current_code:
+            continue
+        local_flags = state_store.list_submitted_flags(challenge.code)
+        effective_completed = bool(challenge.completed) or (
+            getattr(challenge, "flag_count", 0) > 0 and len(local_flags) >= getattr(challenge, "flag_count", 0)
+        ) or (getattr(challenge, "flag_count", 0) == 0 and bool(local_flags))
+        if effective_completed:
+            continue
+        notes = state_store.get_challenge_notes(challenge.code)
+        if notes.get("operator_pause") == "true":
+            continue
+        runtime_state = state_store.get_challenge_runtime_state(challenge.code)
+        defer_until = runtime_state.get("defer_until")
+        if defer_until not in (None, "") and float(defer_until) > current:
+            continue
+        if int(runtime_state.get("attempt_count", 0) or 0) == 0:
+            return True
+    return False

@@ -35,6 +35,9 @@ class StateStore:
                     failure_count INTEGER NOT NULL DEFAULT 0,
                     last_error TEXT,
                     last_progress_at REAL,
+                    attempt_started_at REAL,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    defer_until REAL,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -58,6 +61,19 @@ class StateStore:
                     note_value TEXT NOT NULL,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (challenge_code, note_key)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS challenge_memories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    challenge_code TEXT NOT NULL,
+                    memory_type TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'system',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (challenge_code, memory_type, content, source)
                 )
                 """
             )
@@ -94,6 +110,24 @@ class StateStore:
             connection,
             table="challenge_runtime_state",
             column="last_progress_at",
+            definition="REAL",
+        )
+        self._ensure_column(
+            connection,
+            table="challenge_runtime_state",
+            column="attempt_started_at",
+            definition="REAL",
+        )
+        self._ensure_column(
+            connection,
+            table="challenge_runtime_state",
+            column="attempt_count",
+            definition="INTEGER NOT NULL DEFAULT 0",
+        )
+        self._ensure_column(
+            connection,
+            table="challenge_runtime_state",
+            column="defer_until",
             definition="REAL",
         )
 
@@ -147,26 +181,61 @@ class StateStore:
         return [row[0] for row in rows]
 
     def mark_active_challenge(self, challenge_code: str) -> None:
+        now = time.time()
         with self._connect() as connection:
-            connection.execute(
+            row = connection.execute(
                 """
-                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
-                VALUES (?, 1, 0, NULL)
-                ON CONFLICT(challenge_code) DO UPDATE SET
-                    active = 1,
-                    updated_at = CURRENT_TIMESTAMP
+                SELECT active, attempt_count, attempt_started_at
+                FROM challenge_runtime_state
+                WHERE challenge_code = ?
                 """,
                 (challenge_code,),
+            ).fetchone()
+            if row is None:
+                connection.execute(
+                    """
+                    INSERT INTO challenge_runtime_state (
+                        challenge_code, active, failure_count, last_error,
+                        attempt_started_at, attempt_count, defer_until
+                    )
+                    VALUES (?, 1, 0, NULL, ?, 1, NULL)
+                    """,
+                    (challenge_code, now),
+                )
+                return
+            active = bool(row[0])
+            attempt_count = int(row[1] or 0)
+            attempt_started_at = row[2]
+            if active and attempt_started_at is not None:
+                next_started_at = attempt_started_at
+                next_attempt_count = attempt_count
+            else:
+                next_started_at = now
+                next_attempt_count = attempt_count + 1
+            connection.execute(
+                """
+                UPDATE challenge_runtime_state
+                SET active = 1,
+                    attempt_started_at = ?,
+                    attempt_count = ?,
+                    defer_until = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE challenge_code = ?
+                """,
+                (next_started_at, next_attempt_count, challenge_code),
             )
 
     def clear_active_challenge(self, challenge_code: str) -> None:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
-                VALUES (?, 0, 0, NULL)
+                INSERT INTO challenge_runtime_state (
+                    challenge_code, active, failure_count, last_error, attempt_started_at
+                )
+                VALUES (?, 0, 0, NULL, NULL)
                 ON CONFLICT(challenge_code) DO UPDATE SET
                     active = 0,
+                    attempt_started_at = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (challenge_code,),
@@ -176,12 +245,15 @@ class StateStore:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
-                VALUES (?, 1, 1, ?)
+                INSERT INTO challenge_runtime_state (
+                    challenge_code, active, failure_count, last_error, attempt_started_at
+                )
+                VALUES (?, 0, 1, ?, NULL)
                 ON CONFLICT(challenge_code) DO UPDATE SET
-                    active = 1,
+                    active = 0,
                     failure_count = failure_count + 1,
                     last_error = excluded.last_error,
+                    attempt_started_at = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (challenge_code, error),
@@ -200,10 +272,30 @@ class StateStore:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error)
-                VALUES (?, 0, 0, NULL)
+                INSERT INTO challenge_runtime_state (
+                    challenge_code, active, failure_count, last_error, attempt_started_at, defer_until
+                )
+                VALUES (?, 0, 0, NULL, NULL, NULL)
                 ON CONFLICT(challenge_code) DO UPDATE SET
                     active = 0,
+                    failure_count = 0,
+                    last_error = NULL,
+                    attempt_started_at = NULL,
+                    defer_until = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code,),
+            )
+
+    def record_challenge_turn_success(self, challenge_code: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_runtime_state (
+                    challenge_code, active, failure_count, last_error
+                )
+                VALUES (?, 1, 0, NULL)
+                ON CONFLICT(challenge_code) DO UPDATE SET
                     failure_count = 0,
                     last_error = NULL,
                     updated_at = CURRENT_TIMESTAMP
@@ -215,19 +307,30 @@ class StateStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT active, failure_count, last_error, last_progress_at
+                SELECT active, failure_count, last_error, last_progress_at, attempt_started_at, attempt_count, defer_until
                 FROM challenge_runtime_state
                 WHERE challenge_code = ?
                 """,
                 (challenge_code,),
             ).fetchone()
         if row is None:
-            return {"active": False, "failure_count": 0, "last_error": None, "last_progress_at": None}
+            return {
+                "active": False,
+                "failure_count": 0,
+                "last_error": None,
+                "last_progress_at": None,
+                "attempt_started_at": None,
+                "attempt_count": 0,
+                "defer_until": None,
+            }
         return {
             "active": bool(row[0]),
             "failure_count": int(row[1]),
             "last_error": row[2],
             "last_progress_at": row[3],
+            "attempt_started_at": row[4],
+            "attempt_count": int(row[5] or 0),
+            "defer_until": row[6],
         }
 
     def mark_progress(self, challenge_code: str) -> None:
@@ -235,13 +338,15 @@ class StateStore:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO challenge_runtime_state (challenge_code, active, failure_count, last_error, last_progress_at)
-                VALUES (?, 1, 0, NULL, ?)
+                INSERT INTO challenge_runtime_state (
+                    challenge_code, active, failure_count, last_error, last_progress_at, attempt_started_at, attempt_count
+                )
+                VALUES (?, 1, 0, NULL, ?, ?, 1)
                 ON CONFLICT(challenge_code) DO UPDATE SET
                     last_progress_at = excluded.last_progress_at,
                     updated_at = CURRENT_TIMESTAMP
                 """,
-                (challenge_code, now),
+                (challenge_code, now, now),
             )
 
     def seconds_since_progress(self, challenge_code: str, now: float | None = None) -> float | None:
@@ -251,6 +356,58 @@ class StateStore:
             return None
         current = time.time() if now is None else now
         return max(0.0, current - float(last))
+
+    def seconds_since_attempt_started(self, challenge_code: str, now: float | None = None) -> float | None:
+        state = self.get_challenge_runtime_state(challenge_code)
+        started = state.get("attempt_started_at")
+        if started in (None, ""):
+            return None
+        current = time.time() if now is None else now
+        return max(0.0, current - float(started))
+
+    def defer_challenge(
+        self,
+        challenge_code: str,
+        *,
+        defer_seconds: float,
+        reason: str,
+        now: float | None = None,
+    ) -> None:
+        current = time.time() if now is None else now
+        defer_until = current + defer_seconds
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO challenge_runtime_state (
+                    challenge_code, active, failure_count, last_error, attempt_started_at, defer_until
+                )
+                VALUES (?, 0, 0, ?, NULL, ?)
+                ON CONFLICT(challenge_code) DO UPDATE SET
+                    active = 0,
+                    last_error = excluded.last_error,
+                    attempt_started_at = NULL,
+                    defer_until = excluded.defer_until,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (challenge_code, reason, defer_until),
+            )
+
+    def is_challenge_deferred(self, challenge_code: str, now: float | None = None) -> bool:
+        state = self.get_challenge_runtime_state(challenge_code)
+        defer_until = state.get("defer_until")
+        if defer_until in (None, ""):
+            return False
+        current = time.time() if now is None else now
+        return float(defer_until) > current
+
+    def seconds_until_dispatchable(self, challenge_code: str, now: float | None = None) -> float | None:
+        state = self.get_challenge_runtime_state(challenge_code)
+        defer_until = state.get("defer_until")
+        if defer_until in (None, ""):
+            return None
+        current = time.time() if now is None else now
+        remaining = float(defer_until) - current
+        return remaining if remaining > 0 else 0.0
 
     def add_history_event(self, challenge_code: str, event_type: str, payload: str) -> None:
         with self._connect() as connection:
@@ -291,6 +448,48 @@ class StateStore:
                 """,
                 (challenge_code, note_key, note_value),
             )
+
+    def add_challenge_memory(
+        self,
+        challenge_code: str,
+        memory_type: str,
+        content: str,
+        *,
+        source: str = "system",
+    ) -> None:
+        normalized = content.strip()
+        if not normalized:
+            return
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO challenge_memories (challenge_code, memory_type, content, source)
+                VALUES (?, ?, ?, ?)
+                """,
+                (challenge_code, memory_type, normalized[:4000], source),
+            )
+
+    def list_challenge_memories(self, challenge_code: str, limit: int = 10) -> list[dict[str, object]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT memory_type, content, source, created_at
+                FROM challenge_memories
+                WHERE challenge_code = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (challenge_code, limit),
+            ).fetchall()
+        return [
+            {
+                "memory_type": row[0],
+                "content": row[1],
+                "source": row[2],
+                "created_at": row[3],
+            }
+            for row in rows
+        ]
 
     def get_challenge_notes(self, challenge_code: str) -> dict[str, str]:
         with self._connect() as connection:
@@ -499,6 +698,24 @@ class StateStore:
             params.extend(sorted(exclude_statuses))
         with self._connect() as connection:
             connection.execute(query, tuple(params))
+
+    def clear_runtime_memory(self) -> dict[str, int]:
+        tables = (
+            "submitted_flags",
+            "challenge_runtime_state",
+            "challenge_history",
+            "challenge_notes",
+            "challenge_memories",
+            "agent_status",
+            "agent_events",
+        )
+        cleared: dict[str, int] = {}
+        with self._connect() as connection:
+            for table in tables:
+                count = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+                cleared[table] = int(count[0] if count else 0)
+                connection.execute(f"DELETE FROM {table}")
+        return cleared
 
     @staticmethod
     def _load_json_dict(raw: str | None) -> dict[str, object]:

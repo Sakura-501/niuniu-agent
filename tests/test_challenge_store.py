@@ -40,18 +40,29 @@ class DummyStateStore:
     def __init__(self) -> None:
         self.history = []
         self.notes = {}
+        self.memories = []
 
     def list_submitted_flags(self, challenge_code: str) -> list[str]:
         return ["flag{local}"] if challenge_code == "c2" else []
 
     def get_challenge_runtime_state(self, challenge_code: str) -> dict[str, object]:
-        return {"active": False, "failure_count": 0, "last_error": None}
+        return {
+            "active": False,
+            "failure_count": 0,
+            "last_error": None,
+            "attempt_count": 0,
+            "attempt_started_at": None,
+            "defer_until": None,
+        }
 
     def get_challenge_notes(self, challenge_code: str) -> dict[str, str]:
         return self.notes
 
     def list_history(self, challenge_code: str, limit: int = 10):
         return self.history[:limit]
+
+    def list_challenge_memories(self, challenge_code: str, limit: int = 10):
+        return self.memories[:limit]
 
     def delete_agent_statuses_for_challenge(self, challenge_code: str, *, role: str | None = None, exclude_statuses: set[str] | None = None):
         return None
@@ -75,6 +86,7 @@ async def test_challenge_store_autonomous_prompt_includes_history_and_notes() ->
     state = DummyStateStore()
     state.history = [{"event_type": "turn_completed", "payload": "summary", "created_at": "now"}]
     state.notes = {"foothold": "user shell"}
+    state.memories = [{"memory_type": "turn_summary", "content": "summary", "source": "worker", "created_at": "now"}]
     store = ChallengeStore(DummyContestClient(), state)
     snapshot = await store.refresh()
     challenge = store.next_candidate(snapshot)
@@ -83,6 +95,7 @@ async def test_challenge_store_autonomous_prompt_includes_history_and_notes() ->
 
     assert "turn_completed" in prompt
     assert "foothold" in prompt
+    assert "turn_summary" in prompt
 
 
 @pytest.mark.anyio
@@ -98,6 +111,7 @@ async def test_challenge_store_export_json_includes_official_fields_even_without
     assert challenge["hint_viewed"] is False
     assert challenge["notes"] == {}
     assert challenge["recent_history"] == []
+    assert challenge["recent_memories"] == []
 
 
 @pytest.mark.anyio
