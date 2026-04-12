@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import re
 import shlex
 import shutil
@@ -19,6 +20,7 @@ class LocalToolbox:
     def __init__(self, runtime_dir: Path) -> None:
         self.runtime_dir = runtime_dir
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
+        self.managed_bin_dir = Path(__file__).resolve().parents[2] / "tools" / "bin"
 
     def describe_tools(self) -> list[dict[str, Any]]:
         return [
@@ -164,6 +166,7 @@ class LocalToolbox:
             cwd=cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=self._tool_env(),
         )
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
@@ -274,3 +277,10 @@ class LocalToolbox:
             return shlex.join(["uv", "run", *parts])
 
         return original_command
+
+    def _tool_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        managed = str(self.managed_bin_dir)
+        current_path = env.get("PATH", "")
+        env["PATH"] = f"{managed}:{current_path}" if current_path else managed
+        return env

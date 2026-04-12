@@ -140,3 +140,26 @@ async def test_run_shell_command_kills_process_when_cancelled(monkeypatch, tmp_p
         await task
 
     assert process.killed is True
+
+
+@pytest.mark.anyio
+async def test_run_shell_command_prepends_managed_bin_dir_to_path(monkeypatch, tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+    seen = {}
+
+    class DummyProcess:
+        returncode = 0
+
+        async def communicate(self):
+            return b"ok", b""
+
+    async def fake_subprocess(command, **kwargs):
+        seen["env"] = kwargs.get("env", {})
+        return DummyProcess()
+
+    monkeypatch.setattr("niuniu_agent.tooling.asyncio.create_subprocess_shell", fake_subprocess)
+
+    result = await toolbox.run_shell_command("echo ok")
+
+    assert result["exit_code"] == 0
+    assert str(toolbox.managed_bin_dir) in seen["env"]["PATH"]
