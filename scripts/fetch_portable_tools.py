@@ -31,6 +31,15 @@ class PortableTool:
 
 
 TOOLS: dict[str, PortableTool] = {
+    "rustscan": PortableTool(
+        name="rustscan",
+        repo="bee-san/RustScan",
+        assets={
+            "darwin_arm64": ("aarch64-macos-rustscan.tar.gz.zip",),
+            "linux_amd64": ("x86_64-linux-rustscan.tar.gz.zip",),
+        },
+        binaries=("rustscan",),
+    ),
     "cloudfox": PortableTool(
         name="cloudfox",
         repo="BishopFox/cloudfox",
@@ -203,6 +212,8 @@ def install() -> int:
                     source = next((path for path in extracted if path.name == asset_names[0]), None)
                 elif tool.name == "cloudfox":
                     source = next((path for path in temp_dir.rglob("cloudfox") if path.is_file()), None)
+                elif tool.name == "rustscan":
+                    source = next((path for path in temp_dir.rglob("rustscan") if path.is_file()), None)
                 elif tool.name == "pspy":
                     source = next((path for path in extracted if path.name == asset_names[0]), None)
                 else:
