@@ -181,6 +181,8 @@ def install() -> int:
     for name in selected:
         tool = TOOLS[name]
         asset_names = tool.assets.get(target)
+        if asset_names is None and tool.archive_only and tool.assets:
+            asset_names = next(iter(tool.assets.values()))
         if asset_names is None:
             skipped.append(f"{name}:unsupported:{target}")
             continue
@@ -247,6 +249,7 @@ def install() -> int:
                 if source is None:
                     raise RuntimeError(f"{name}: failed to locate binary {binary}")
                 destination = BIN_DIR / binary
+                destination.unlink(missing_ok=True)
                 shutil.copy2(source, destination)
                 destination.chmod(destination.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                 installed.append(binary)
