@@ -133,6 +133,30 @@ def download(url: str, target: Path) -> None:
         shutil.copyfileobj(response, handle)
 
 
+def extract_archive(path: Path, target_dir: Path) -> None:
+    if path.name.endswith(".zip"):
+        with zipfile.ZipFile(path) as zf:
+            zf.extractall(target_dir)
+        return
+    if path.name.endswith(".tar.gz"):
+        with tarfile.open(path, "r:gz") as tf:
+            tf.extractall(target_dir)
+        return
+
+
+def extract_nested_archives(root: Path) -> None:
+    changed = True
+    while changed:
+        changed = False
+        for path in list(root.rglob("*")):
+            if not path.is_file():
+                continue
+            if path.name.endswith(".zip") or path.name.endswith(".tar.gz"):
+                extract_archive(path, path.parent)
+                path.unlink(missing_ok=True)
+                changed = True
+
+
 def install() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("print", "install"))
@@ -180,14 +204,12 @@ def install() -> int:
                     raise RuntimeError(f"{name}: missing asset {asset_name} for {target}")
                 archive_path = temp_dir / asset_name
                 download(url, archive_path)
-                if asset_name.endswith(".zip"):
-                    with zipfile.ZipFile(archive_path) as zf:
-                        zf.extractall(temp_dir)
-                elif asset_name.endswith(".tar.gz"):
-                    with tarfile.open(archive_path, "r:gz") as tf:
-                        tf.extractall(temp_dir)
+                if asset_name.endswith(".zip") or asset_name.endswith(".tar.gz"):
+                    extract_archive(archive_path, temp_dir)
+                    archive_path.unlink(missing_ok=True)
                 else:
                     extracted.append(archive_path)
+            extract_nested_archives(temp_dir)
 
             if tool.archive_only:
                 installed.append(f"{name}:archived")
