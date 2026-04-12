@@ -40,6 +40,10 @@ BOOTSTRAP_CLEAN_PATHS=(
   "scripts/remote_control.sh"
 )
 
+IGNORED_DIRTY_PATHS=(
+  "tools/"
+)
+
 err() {
   echo "Unknown command: $1" >&2
   usage >&2
@@ -57,6 +61,17 @@ is_bootstrap_dirty_line() {
   return 1
 }
 
+is_ignored_dirty_line() {
+  local line="${1}"
+  local path="${line:3}"
+  for ignored in "${IGNORED_DIRTY_PATHS[@]}"; do
+    if [[ "${path}" == "${ignored}" || "${path}" == ${ignored}* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 cleanup_bootstrap_artifacts_if_safe() {
   local status
   status="$(git -C "${REPO_ROOT}" status --porcelain)"
@@ -65,6 +80,9 @@ cleanup_bootstrap_artifacts_if_safe() {
   local line
   while IFS= read -r line; do
     [[ -z "${line}" ]] && continue
+    if is_ignored_dirty_line "${line}"; then
+      continue
+    fi
     if ! is_bootstrap_dirty_line "${line}"; then
       return 0
     fi
@@ -75,9 +93,23 @@ cleanup_bootstrap_artifacts_if_safe() {
 
 ensure_clean_git_tree() {
   cleanup_bootstrap_artifacts_if_safe
-  if [[ -n "$(git -C "${REPO_ROOT}" status --porcelain)" ]]; then
+  local status
+  status="$(git -C "${REPO_ROOT}" status --porcelain)"
+  if [[ -n "${status}" ]]; then
+    local filtered=""
+    local line
+    while IFS= read -r line; do
+      [[ -z "${line}" ]] && continue
+      if is_ignored_dirty_line "${line}"; then
+        continue
+      fi
+      filtered+="${line}"$'\n'
+    done <<< "${status}"
+    if [[ -z "${filtered}" ]]; then
+      return 0
+    fi
     echo "Git working tree is dirty. Commit, stash, or clean changes before running update." >&2
-    git -C "${REPO_ROOT}" status --short >&2
+    printf "%s" "${filtered}" >&2
     exit 2
   fi
 }

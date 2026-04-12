@@ -98,6 +98,51 @@ def test_remote_control_update_cleans_bootstrap_script_dir() -> None:
         assert status.stdout.strip() == ""
 
 
+def test_remote_control_update_ignores_managed_tools_cache() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        origin = root / "origin.git"
+        seed = root / "seed"
+        target = root / "target"
+
+        subprocess.run(["git", "init", "--bare", str(origin)], check=True, capture_output=True, text=True)
+        subprocess.run(["git", "init", str(seed)], check=True, capture_output=True, text=True)
+        subprocess.run(["git", "-C", str(seed), "config", "user.name", "Test"], check=True)
+        subprocess.run(["git", "-C", str(seed), "config", "user.email", "test@example.com"], check=True)
+        (seed / "README.md").write_text("seed\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(seed), "add", "README.md"], check=True)
+        subprocess.run(["git", "-C", str(seed), "commit", "-m", "init"], check=True, capture_output=True, text=True)
+        subprocess.run(["git", "-C", str(seed), "branch", "-M", "main"], check=True)
+        subprocess.run(["git", "-C", str(seed), "remote", "add", "origin", str(origin)], check=True)
+        subprocess.run(["git", "-C", str(seed), "push", "origin", "main"], check=True, capture_output=True, text=True)
+
+        subprocess.run(["git", "clone", str(origin), str(target)], check=True, capture_output=True, text=True)
+        subprocess.run(["git", "-C", str(target), "checkout", "main"], check=True, capture_output=True, text=True)
+        scripts_dir = target / "scripts"
+        scripts_dir.mkdir()
+        (scripts_dir / "remote_control.sh").write_text(
+            SCRIPT_PATH.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        tools_dir = target / "tools" / "portable"
+        tools_dir.mkdir(parents=True)
+        (tools_dir / "cache.txt").write_text("cached\n", encoding="utf-8")
+
+        result = subprocess.run(
+            ["bash", str(scripts_dir / "remote_control.sh"), "update"],
+            cwd=target,
+            env={
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "REMOTE_CONTROL_SKIP_INSTALL": "1",
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+
+
 def test_remote_control_debug_does_not_require_update_on_dirty_tree() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
