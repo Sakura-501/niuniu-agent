@@ -64,6 +64,7 @@
 - [x] manager 现在支持 Web `stop/delete`，删除会真正移除该次 competition run 的 manager 和 workers
 - [x] `remote_control.sh update` 已切到默认执行 `uv sync`，默认运行方式改为 `uv run`
 - [x] `remote_control.sh competition-start` 现在会持久化 `competition.run_id`，UI 不会再凭空生成重复 manager
+- [x] Agents 列表已去掉 `worker-slot:*` 占位项，只展示真实 agent，空闲并发信息收敛到 manager 摘要
 - [x] 单个 worker 在单题连续运行超过 1 小时且仍有未开始 challenge 时，会保存状态/记忆、关闭实例并临时降级让位
 - [x] challenge 关键过程与结果已持久化到本地 memory 表，manager / worker / Web UI 都可回看
 - [x] 已增加 `niuniu-agent clear-memory --yes`，可清理本地 runtime 记忆和 debug session 数据，避免 demo 污染正式比赛

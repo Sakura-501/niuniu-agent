@@ -10,7 +10,7 @@ from niuniu_agent.web.service import (
 )
 
 
-def test_build_agent_overview_rows_keeps_completed_workers_but_preserves_free_slots() -> None:
+def test_build_agent_overview_rows_keeps_only_real_agents() -> None:
     rows = build_agent_overview_rows(
         stored_agents=[
             {
@@ -41,7 +41,7 @@ def test_build_agent_overview_rows_keeps_completed_workers_but_preserves_free_sl
     agent_ids = [row["agent_id"] for row in rows]
 
     assert "worker:done" in agent_ids
-    assert "worker-slot:1" in agent_ids
+    assert all(not agent_id.startswith("worker-slot:") for agent_id in agent_ids)
 
 
 def test_build_agent_tree_groups_workers_under_manager_run() -> None:

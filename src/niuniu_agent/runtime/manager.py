@@ -24,12 +24,14 @@ class CompetitionManagerAgent:
 
     def heartbeat(self, snapshot: ContestSnapshot, coordinator: CompetitionCoordinator) -> None:
         dispatchable, paused = partition_dispatchable_challenges(snapshot, self.context.state_store)
+        idle_slots = max(0, coordinator.max_parallel_challenges - coordinator.active_count())
         active_workers = [
             {"challenge_code": code, "task_running": coordinator.is_running(code)}
             for code in sorted(coordinator.worker_tasks.keys())
         ]
         summary = (
             f"active_workers={coordinator.active_count()} "
+            f"idle_slots={idle_slots} "
             f"dispatchable={len(dispatchable)} paused={len(paused)}"
         )
         metadata = {
@@ -37,6 +39,7 @@ class CompetitionManagerAgent:
             "pending_challenges": dispatchable,
             "paused_challenges": paused,
             "active_workers": active_workers,
+            "idle_slots": idle_slots,
             "run_id": self.agent_id.split(":")[-1] if ":" in self.agent_id else None,
         }
         self.context.state_store.upsert_agent_status(

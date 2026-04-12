@@ -928,26 +928,6 @@ def build_agent_overview_rows(
                     "updated_at": None,
                 },
             )
-        worker_rows = [
-            item
-            for item in rows
-            if item.get("role") == "challenge_worker"
-            and item.get("status") not in {"completed", "cancelled", "paused"}
-        ]
-        missing_slots = max(0, max_parallel_workers - len(worker_rows))
-        for index in range(1, missing_slots + 1):
-            rows.append(
-                {
-                    "agent_id": f"worker-slot:{index}",
-                    "role": "challenge_worker",
-                    "challenge_code": None,
-                    "status": "idle",
-                    "summary": "waiting for assignment",
-                    "metadata": {"synthetic": True},
-                    "last_error": None,
-                    "updated_at": None,
-                }
-            )
     return rows
 
 
@@ -981,7 +961,6 @@ def build_agent_tree(
             if (
                 (worker.get("metadata") or {}).get("manager_agent_id") == manager_id
                 or (worker.get("metadata") or {}).get("competition_run_id") == manager_run_id
-                or (str(worker["agent_id"]).startswith("worker-slot:") and effective_run_id == manager_run_id)
             )
         ]
         assigned.update(str(item["agent_id"]) for item in children)
