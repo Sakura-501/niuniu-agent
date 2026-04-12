@@ -73,6 +73,196 @@ Use this skill when the challenge is less about one specific tool and more about
 - Service-account pivots
 - Local privesc to domain impact
 
+## Knowledge Point Playbooks
+
+### 1. Default Credentials
+
+#### Recognition Signals
+
+- Login page or panel exists but no account provisioning flow is visible.
+- Challenge text hints at a named user or test account.
+- Source leakage or config exposure reveals hardcoded users.
+
+#### Practical Method
+
+1. Collect the exact login endpoint and session behavior.
+2. Try the smallest set of likely defaults first:
+   - challenge-provided pairs
+   - `admin/admin`, `admin/password`, `test/test`, `user/password123`
+3. Confirm success by session cookie, redirect, or role change.
+4. After login, re-map the attack surface because hidden endpoints often appear post-auth.
+
+#### Why It Matters
+
+Default credentials are often not the flag by themselves; they unlock the real vulnerable sink such as a SOAP, admin, or file-management endpoint.
+
+### 2. XXE / XML Parser Abuse
+
+#### Recognition Signals
+
+- SOAP or XML endpoints
+- WSDL or XML-like request bodies
+- File read symptoms inside XML fields
+- Libraries like `lxml`, `DocumentBuilder`, `SAXParser`, or loose XML wrappers
+
+#### Practical Method
+
+1. Confirm the endpoint accepts user-controlled XML.
+2. Start with a safe entity resolution probe.
+3. If entities resolve, pivot to local file read:
+   - target app config
+   - source code
+   - flag path
+4. If local file read works, test whether response reflection gives you direct exfil.
+
+#### Common Solution Pattern
+
+The Xfenser SOAP benchmark writeup reinforces a very common chain:
+- use default credentials to get a session
+- identify the SOAP/XML endpoint
+- inject a `DOCTYPE` with an external entity
+- read the flag or source file through an XML field reflected in the response
+
+### 3. Source / Backup File Enumeration
+
+#### Recognition Signals
+
+- Empty or odd endpoints like `/wsdl`, `/backup`, `/src`, `/static`
+- Old-school servers returning `~`, `.bak`, `.swp`, `.old`, `.orig`
+- Framework-specific source paths in predictable locations
+
+#### Practical Method
+
+1. Enumerate backup suffixes around known paths.
+2. Prioritize code or config files over generic docs.
+3. Once source is found, stop broad discovery and switch to code-driven exploit construction.
+
+#### Why It Matters
+
+Many “expert” CTF web chains are only solvable quickly once backup source reveals the exact gadget, callback, or hidden route.
+
+### 4. PHP Deserialization / Gadget Chains
+
+#### Recognition Signals
+
+- Serialized cookies or session blobs like `O:<len>:"Class"...`
+- Base64 or URL-encoded session tokens that decode to PHP object syntax
+- Backup source reveals `__wakeup`, `__destruct`, `__get`, `__toString`, `call_user_func`
+
+#### Practical Method
+
+1. Decode the session/cookie first and identify the serialized object type.
+2. Enumerate available classes from source or backups.
+3. Trace all magic methods and data flow.
+4. Search for dynamic invocation sinks:
+   - `call_user_func`
+   - file operations
+   - command execution
+   - dangerous include/require paths
+5. Build the smallest gadget chain that reaches the sink.
+6. If the payload fails, check language-specific serialization details before abandoning the path.
+
+#### Common Solution Pattern
+
+The Xfenser PortSwigger writeup reinforces several recurring lessons:
+- backup source disclosure is often the pivot from “blind poking” to deterministic exploit building
+- gadget-chain exploitation is mostly a call graph and object-shape problem
+- subtle syntax details matter, especially private/protected property encoding
+
+#### PHP-Specific Reminder
+
+Private property serialization in PHP may require null-byte-prefixed names tied to the declaring class. If a custom gadget chain is “almost working”, inspect object encoding details before discarding the chain.
+
+### 5. IDOR / Object Reference Abuse
+
+#### Recognition Signals
+
+- Numeric or UUID identifiers in requests
+- “My data” endpoints that still accept arbitrary IDs
+- Admin-only records accessible after auth
+
+#### Practical Method
+
+1. Capture one valid object request.
+2. Change the object reference only.
+3. Compare response shape, status, and leaked fields.
+4. If access changes post-auth, test whether another role/user sees more data.
+
+#### Why It Matters
+
+In many CTFs the flag is hidden in another user’s record, not behind a full RCE chain.
+
+### 6. Weak Comparison / Type Juggling
+
+#### Recognition Signals
+
+- PHP or loosely typed auth logic
+- MD5/SHA hashes compared with `==` instead of strict checks
+- Inputs or challenge text resembling `0e...`
+
+#### Practical Method
+
+1. Identify whether the check is numeric-string-like or loose boolean equality.
+2. Search for values with magic-hash properties.
+3. Test the smallest proof that flips the comparison branch.
+
+#### Why It Matters
+
+This is a classic CTF shortcut: no deep exploitation, just understanding how the runtime coerces values.
+
+### 7. GraphQL Surface Abuse
+
+#### Recognition Signals
+
+- `/graphql`, `/graphiql`, introspection artifacts, or schema error messages
+- Mutation names or object types visible in JS or traffic
+
+#### Practical Method
+
+1. Probe introspection or error messages to learn the schema shape.
+2. Enumerate object and mutation names.
+3. Test whether auth is enforced consistently across queries and mutations.
+4. Focus on object ID swaps, hidden fields, and privileged mutation inputs.
+
+### 8. Internal Service Pivoting
+
+#### Recognition Signals
+
+- One foothold reveals other hosts, internal URLs, or localhost-bound services
+- Open proxy/tunnel paths
+- Creds or tokens from one service are likely reusable elsewhere
+
+#### Practical Method
+
+1. Map what becomes reachable from the foothold.
+2. Pick the shortest next-hop that is most likely to contain the flag.
+3. Prefer tunnels or relays that directly enable the next service check.
+4. Save route, credential, and cleanup data in notes/memory.
+
+### 9. Local Privilege Escalation
+
+#### Recognition Signals
+
+- Shell exists but the flag path is inaccessible
+- `sudo`, cron, writable services, capabilities, or process scheduling opportunities appear
+
+#### Practical Method
+
+1. Confirm user, groups, `sudo -l`, writable paths, and scheduled tasks.
+2. Use `linpeas` or equivalent to collect high-signal clues.
+3. Use `pspy` when timed execution or service behavior matters.
+4. Rank paths before attempting exploitation.
+
+## Benchmark-Informed Notes
+
+The public Xfenser benchmark writeups reinforce several recurring benchmark truths:
+
+- A small number of vulnerability families dominate real CTF-style pentest labs.
+- The winning path is usually a chain of 2-3 crisp steps, not giant enumeration.
+- Backup/source disclosure often turns a hard challenge into a deterministic exploit path.
+- Post-auth attack surface changes are frequently more valuable than anonymous probing.
+- If a path is very close to working, serialization, encoding, or parser semantics may be the missing detail rather than a wrong vulnerability family.
+
 ## Shortest-Path Heuristics
 
 1. Prefer the vulnerability family that explains the fewest facts with the highest payoff.
