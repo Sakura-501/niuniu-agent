@@ -13,14 +13,58 @@ class SkillPlan:
 
 
 STAGE_PRIORITY = {
-    "recon": ("web-surface-mapping", "service-enumeration", "known-vulnerability-mapping", "cloud-asset-assessment"),
-    "exploit": ("web-vulnerability-testing", "api-workflow-testing", "evidence-capture"),
-    "post_exploit": ("lateral-movement-planning", "privilege-path-analysis", "directory-identity-enumeration", "evidence-capture"),
-    "recovery": ("evidence-capture", "web-surface-mapping", "service-enumeration", "web-vulnerability-testing", "api-workflow-testing"),
+    "recon": (
+        "web-surface-mapping",
+        "web-content-discovery",
+        "service-enumeration",
+        "port-scan-operations",
+        "known-vulnerability-mapping",
+        "cve-template-scanning",
+        "cloud-asset-assessment",
+        "cloud-security-enumeration",
+        "resource-aware-execution",
+    ),
+    "exploit": (
+        "web-vulnerability-testing",
+        "api-workflow-testing",
+        "cve-template-scanning",
+        "evidence-capture",
+        "resource-aware-execution",
+    ),
+    "post_exploit": (
+        "lateral-movement-planning",
+        "tunnel-and-pivot-operations",
+        "privilege-path-analysis",
+        "linux-privilege-escalation",
+        "persistence-operations",
+        "directory-identity-enumeration",
+        "domain-operations",
+        "evidence-capture",
+        "resource-aware-execution",
+    ),
+    "recovery": (
+        "evidence-capture",
+        "web-surface-mapping",
+        "web-content-discovery",
+        "service-enumeration",
+        "port-scan-operations",
+        "web-vulnerability-testing",
+        "api-workflow-testing",
+        "resource-aware-execution",
+    ),
 }
 
 TRACK_STAGE_PRIORITY = {
-    ("track2", "recon"): ("known-vulnerability-mapping", "cloud-asset-assessment", "service-enumeration", "web-surface-mapping"),
+    ("track2", "recon"): (
+        "known-vulnerability-mapping",
+        "cve-template-scanning",
+        "cloud-asset-assessment",
+        "cloud-security-enumeration",
+        "service-enumeration",
+        "port-scan-operations",
+        "web-surface-mapping",
+        "resource-aware-execution",
+    ),
 }
 
 

@@ -34,14 +34,29 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Enumerate ports, protocols, banners, and reachable services before choosing exploit tools.",
         recommended_tracks=("track1", "track2", "track3", "track4"),
     ),
+    "port-scan-operations": SkillBehavior(
+        trigger_keywords=("rustscan", "nmap", "masscan", "port scan", "tcp", "udp", "banner"),
+        usage_guidance="Use fast discovery first, then confirm with service fingerprinting before exploitation.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
     "known-vulnerability-mapping": SkillBehavior(
         trigger_keywords=("cve", "version", "apache", "nginx", "spring", "grafana", "fastapi"),
         usage_guidance="Normalize product and version clues, then rank likely known-vulnerability paths by fit.",
         recommended_tracks=("track2",),
     ),
+    "cve-template-scanning": SkillBehavior(
+        trigger_keywords=("nuclei", "fscan", "cve", "template", "fingerprint", "httpx"),
+        usage_guidance="Run scoped template validation only after fingerprinting supports a likely known-vulnerability path.",
+        recommended_tracks=("track2",),
+    ),
     "web-vulnerability-testing": SkillBehavior(
         trigger_keywords=("sqli", "xss", "upload", "ssti", "idor", "auth", "template"),
         usage_guidance="Exploit only after reconnaissance confirms a likely path, and keep the winning request reproducible.",
+        recommended_tracks=("track1", "track2"),
+    ),
+    "web-content-discovery": SkillBehavior(
+        trigger_keywords=("ffuf", "gobuster", "feroxbuster", "dir", "vhost", "content discovery", "route"),
+        usage_guidance="Use narrow wordlists and filters first, then recurse only where the signal justifies the load.",
         recommended_tracks=("track1", "track2"),
     ),
     "api-workflow-testing": SkillBehavior(
@@ -54,9 +69,19 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Check metadata, object storage, model-serving APIs, and exposed infrastructure control points.",
         recommended_tracks=("track2",),
     ),
+    "cloud-security-enumeration": SkillBehavior(
+        trigger_keywords=("cloudfox", "cloudsword", "bucket", "metadata", "iam", "aksk", "object storage"),
+        usage_guidance="Map cloud identities, metadata, storage, and public management surfaces before exploitation.",
+        recommended_tracks=("track2",),
+    ),
     "lateral-movement-planning": SkillBehavior(
         trigger_keywords=("pivot", "lateral", "internal", "foothold", "next hop"),
         usage_guidance="Track the current foothold, next reachable asset, and the least wasteful pivot option.",
+        recommended_tracks=("track3", "track4"),
+    ),
+    "tunnel-and-pivot-operations": SkillBehavior(
+        trigger_keywords=("frp", "stowaway", "pivot", "socks", "tunnel", "proxychains", "reverse shell"),
+        usage_guidance="Choose the minimum stable tunnel that enables the next step, and record cleanup details.",
         recommended_tracks=("track3", "track4"),
     ),
     "privilege-path-analysis": SkillBehavior(
@@ -64,14 +89,34 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Enumerate privilege paths, reusable credentials, and long-lived access opportunities.",
         recommended_tracks=("track3", "track4"),
     ),
+    "persistence-operations": SkillBehavior(
+        trigger_keywords=("persistence", "callback", "beacon", "frp", "stowaway", "listener"),
+        usage_guidance="Preserve only the access that is necessary for the next phase, and keep cleanup explicit.",
+        recommended_tracks=("track3", "track4"),
+    ),
+    "linux-privilege-escalation": SkillBehavior(
+        trigger_keywords=("linpeas", "pspy", "sudo -l", "capability", "linux privesc", "cron"),
+        usage_guidance="Run a ranked Linux privesc workflow instead of broad repetitive local checks.",
+        recommended_tracks=("track3", "track4"),
+    ),
     "directory-identity-enumeration": SkillBehavior(
         trigger_keywords=("domain", "ad", "ldap", "kerberos", "dc", "smb"),
         usage_guidance="Map identity infrastructure, core hosts, trust edges, and the shortest path to privileged access.",
         recommended_tracks=("track4",),
     ),
+    "domain-operations": SkillBehavior(
+        trigger_keywords=("impacket", "bloodhound", "kerbrute", "netexec", "mimikatz", "winrm", "adcs"),
+        usage_guidance="Validate credentials carefully, then collect only the domain graph edges or secrets needed for the next move.",
+        recommended_tracks=("track4",),
+    ),
     "evidence-capture": SkillBehavior(
         trigger_keywords=("flag", "submit", "retry", "recovery"),
         usage_guidance="Capture the minimal evidence set, submit valuable artifacts immediately, and use feedback to branch cleanly.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
+    "resource-aware-execution": SkillBehavior(
+        trigger_keywords=("memory", "resource", "threads", "rate", "concurrency", "scan budget"),
+        usage_guidance="Constrain heavy tools explicitly and kill stale jobs that stop producing signal.",
         recommended_tracks=("track1", "track2", "track3", "track4"),
     ),
 }

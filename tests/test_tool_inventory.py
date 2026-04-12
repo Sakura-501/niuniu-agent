@@ -11,6 +11,7 @@ def test_default_tool_inventory_contains_core_tools() -> None:
     assert "curl" in names
     assert "jq" in names
     assert "rg" in names
+    assert "rustscan" in names
     assert "gobuster" in names
     assert "proxychains4" in names
     assert "socat" in names
@@ -18,5 +19,14 @@ def test_default_tool_inventory_contains_core_tools() -> None:
     assert "masscan" in names
     assert "nmap" in names
     assert "openssl" in names
+    assert "fscan" in names
+    assert "cloudfox" in names
+    assert "frpc" in names
+    assert "frps" in names
+    assert "stowaway_admin" in names
+    assert "stowaway_agent" in names
     assert "impacket-secretsdump" in names
     assert "bloodhound-python" in names
+    assert "linpeas" in names
+    assert "pspy" in names
+    assert "msfconsole" in names
