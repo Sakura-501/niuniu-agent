@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -21,6 +22,7 @@ class ModelProviderRouter:
     def __init__(self, settings: AgentSettings, state_store: Any) -> None:
         self.settings = settings
         self.state_store = state_store
+        self._sleep = asyncio.sleep
 
     def current_selection(self) -> dict[str, str | None]:
         provider_id = self.state_store.get_runtime_option("selected_model_provider_id")
@@ -116,23 +118,38 @@ class ModelProviderRouter:
             client = AsyncOpenAI(api_key=provider.api_key, base_url=provider.base_url)
             request_kwargs = dict(kwargs)
             request_kwargs["model"] = model_name
-            try:
-                result = await client.chat.completions.create(**request_kwargs)
-                if stream_requested:
-                    return TrackedCompletionStream(
-                        stream=result,
-                        router=self,
-                        provider_id=provider.provider_id,
-                    )
-                self.state_store.record_model_provider_success(provider.provider_id)
-                self.state_store.set_runtime_option("last_model_provider_id", provider.provider_id)
-                return result
-            except Exception as exc:  # noqa: BLE001
-                self.state_store.record_model_provider_failure(provider.provider_id, str(exc))
-                errors.append(f"{provider.provider_id}: {exc}")
+            provider_error: Exception | None = None
+            delay = self.settings.model_rate_limit_retry_base_delay_seconds
+            for attempt in range(1, self.settings.model_rate_limit_retry_attempts + 1):
+                try:
+                    result = await client.chat.completions.create(**request_kwargs)
+                    if stream_requested:
+                        return TrackedCompletionStream(
+                            stream=result,
+                            router=self,
+                            provider_id=provider.provider_id,
+                        )
+                    self.state_store.record_model_provider_success(provider.provider_id)
+                    self.state_store.set_runtime_option("last_model_provider_id", provider.provider_id)
+                    return result
+                except Exception as exc:  # noqa: BLE001
+                    provider_error = exc
+                    if self._is_rate_limit_error(exc) and attempt < self.settings.model_rate_limit_retry_attempts:
+                        await self._sleep(delay)
+                        delay *= 2
+                        continue
+                    break
+            if provider_error is not None:
+                self.state_store.record_model_provider_failure(provider.provider_id, str(provider_error))
+                errors.append(f"{provider.provider_id}: {provider_error}")
                 if not self.settings.model_failover_enabled:
-                    raise
+                    raise provider_error
         raise RuntimeError("all model providers failed: " + " | ".join(errors))
+
+    @staticmethod
+    def _is_rate_limit_error(exc: Exception) -> bool:
+        text = str(exc).lower()
+        return "rate_limit_exceeded" in text or "429" in text or "too many requests" in text
 
 
 class RoutedAsyncOpenAI:

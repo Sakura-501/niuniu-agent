@@ -44,6 +44,8 @@ class AgentSettings(BaseSettings):
     fallback_model_provider_id: str = "fallback"
     fallback_model_provider_name: str = "备用供应商"
     model_failover_enabled: bool = True
+    model_rate_limit_retry_attempts: int = 3
+    model_rate_limit_retry_base_delay_seconds: float = 1.0
     callback_public_ip: str | None = None
     callback_username: str | None = None
     callback_password: str | None = None
