@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from urllib.parse import urlparse
@@ -11,6 +12,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AgentMode(str, Enum):
     DEBUG = "debug"
     COMPETITION = "competition"
+
+
+@dataclass(frozen=True, slots=True)
+class ModelProviderConfig:
+    provider_id: str
+    display_name: str
+    model: str
+    base_url: str
+    api_key: str
+    priority: int
 
 
 class AgentSettings(BaseSettings):
@@ -25,6 +36,14 @@ class AgentSettings(BaseSettings):
     model: str
     model_base_url: str
     model_api_key: str
+    model_provider_id: str = "official"
+    model_provider_name: str = "官方提供"
+    fallback_model: str | None = None
+    fallback_model_base_url: str | None = None
+    fallback_model_api_key: str | None = None
+    fallback_model_provider_id: str = "fallback"
+    fallback_model_provider_name: str = "备用供应商"
+    model_failover_enabled: bool = True
     contest_host: str
     contest_token: str
     poll_interval_seconds: int | None = None
@@ -46,6 +65,31 @@ class AgentSettings(BaseSettings):
         if not urlparse(host).scheme:
             host = f"http://{host}"
         return f"{host}/mcp"
+
+    @property
+    def model_providers(self) -> tuple[ModelProviderConfig, ...]:
+        providers = [
+            ModelProviderConfig(
+                provider_id=self.model_provider_id,
+                display_name=self.model_provider_name,
+                model=self.model,
+                base_url=self.model_base_url.rstrip("/"),
+                api_key=self.model_api_key,
+                priority=0,
+            )
+        ]
+        if self.fallback_model and self.fallback_model_base_url and self.fallback_model_api_key:
+            providers.append(
+                ModelProviderConfig(
+                    provider_id=self.fallback_model_provider_id,
+                    display_name=self.fallback_model_provider_name,
+                    model=self.fallback_model,
+                    base_url=self.fallback_model_base_url.rstrip("/"),
+                    api_key=self.fallback_model_api_key,
+                    priority=1,
+                )
+            )
+        return tuple(providers)
 
     @model_validator(mode="after")
     def apply_mode_defaults(self) -> "AgentSettings":

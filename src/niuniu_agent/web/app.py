@@ -15,6 +15,11 @@ class DebugMessageRequest(BaseModel):
     message: str
 
 
+class ModelRoutingRequest(BaseModel):
+    provider_id: str
+    model_override: str | None = None
+
+
 def create_app(service: object | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -61,6 +66,16 @@ def create_app(service: object | None = None) -> FastAPI:
               <div id="agent-list" class="card-list"></div>
             </section>
           </div>
+          <section class="panel">
+            <h3>Model Routing</h3>
+            <div id="model-routing-summary" class="card-list"></div>
+            <div class="button-row" style="margin-top:12px;">
+              <select id="provider-select"></select>
+              <input id="provider-model" placeholder="模型名，可留空使用供应商默认模型" style="flex:1; min-width:240px; border-radius:14px; border:1px solid var(--line); padding:11px 14px; font:inherit; background:#fff;" />
+              <button id="apply-provider">Apply</button>
+              <button id="reset-provider" class="secondary">Reset Auto</button>
+            </div>
+          </section>
           <section class="panel">
             <h3>Challenges</h3>
             <div id="challenge-list" class="card-list"></div>
@@ -157,6 +172,24 @@ def create_app(service: object | None = None) -> FastAPI:
             <strong>${name}</strong>
             <div class="muted mono">${JSON.stringify(state, null, 2)}</div>
           `);
+          const routing = data.model_routing || {};
+          renderCardList('model-routing-summary', routing.providers || [], (provider) => `
+            <strong>${provider.display_name} (${provider.provider_id})</strong>
+            <div class="muted">base_url=${provider.base_url}</div>
+            <div class="muted">default_model=${provider.model} · effective_model=${provider.effective_model}</div>
+            <div class="muted">selected=${provider.selected} · failures=${(provider.state && provider.state.consecutive_failures) || 0} · successes=${(provider.state && provider.state.total_successes) || 0}</div>
+            <div class="mono">${provider.state && provider.state.last_error ? provider.state.last_error : 'no provider errors'}</div>
+          `);
+          const providerSelect = document.getElementById('provider-select');
+          providerSelect.innerHTML = '';
+          for (const provider of routing.providers || []) {
+            const option = document.createElement('option');
+            option.value = provider.provider_id;
+            option.textContent = `${provider.display_name} (${provider.provider_id})`;
+            option.selected = provider.provider_id === routing.selected_provider_id;
+            providerSelect.appendChild(option);
+          }
+          document.getElementById('provider-model').value = routing.selected_model || '';
           renderAgentTree(data.agent_tree || []);
           renderCardList('challenge-list', data.contest.challenges || [], (challenge) => `
             <strong><a href="/challenges/${encodeURIComponent(challenge.code)}">${challenge.code}</a> · ${challenge.title}</strong>
@@ -192,6 +225,21 @@ def create_app(service: object | None = None) -> FastAPI:
         document.getElementById('start-competition').onclick = async () => { await api('/api/competition/start', {method: 'POST'}); await loadOverview(); };
         document.getElementById('stop-competition').onclick = async () => { await api('/api/competition/stop', {method: 'POST'}); await loadOverview(); };
         document.getElementById('restart-competition').onclick = async () => { await api('/api/competition/restart', {method: 'POST'}); await loadOverview(); };
+        document.getElementById('apply-provider').onclick = async () => {
+          await api('/api/model-routing/select', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              provider_id: document.getElementById('provider-select').value,
+              model_override: document.getElementById('provider-model').value || null,
+            }),
+          });
+          await loadOverview();
+        };
+        document.getElementById('reset-provider').onclick = async () => {
+          await api('/api/model-routing/reset', {method: 'POST'});
+          await loadOverview();
+        };
         loadOverview();
         setInterval(loadOverview, 5000);
         """
@@ -428,6 +476,18 @@ def create_app(service: object | None = None) -> FastAPI:
     @app.post("/api/competition/restart")
     async def api_restart_competition(request: Request) -> JSONResponse:
         return JSONResponse(await current_service(request).restart_competition())
+
+    @app.get("/api/model-routing")
+    async def api_get_model_routing(request: Request) -> JSONResponse:
+        return JSONResponse(await current_service(request).get_model_routing())
+
+    @app.post("/api/model-routing/select")
+    async def api_select_model_routing(payload: ModelRoutingRequest, request: Request) -> JSONResponse:
+        return JSONResponse(await current_service(request).select_model_routing(payload.provider_id, payload.model_override))
+
+    @app.post("/api/model-routing/reset")
+    async def api_reset_model_routing(request: Request) -> JSONResponse:
+        return JSONResponse(await current_service(request).reset_model_routing())
 
     @app.post("/api/debug/sessions")
     async def api_create_debug_session(request: Request) -> JSONResponse:

@@ -3,8 +3,6 @@ from __future__ import annotations
 import asyncio
 from uuid import uuid4
 
-from openai import AsyncOpenAI
-
 from niuniu_agent.agent_stack.agent import AsyncPentestAgent
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
@@ -38,10 +36,6 @@ def build_worker_agent_id(challenge_code: str) -> str:
 
 
 async def run_competition_loop(context: RuntimeContext) -> None:
-    client = AsyncOpenAI(
-        api_key=context.settings.model_api_key,
-        base_url=context.settings.model_base_url,
-    )
     histories: dict[str, list[dict[str, object]]] = {}
     findings_bus = ChallengeFindingsBus()
     coordinator = CompetitionCoordinator(max_parallel_challenges=3)
@@ -253,8 +247,16 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         "instance_status": target.instance_status,
                         "competition_run_id": competition_run_id,
                         "manager_agent_id": manager.agent_id,
+                        "model_routing": (
+                            worker_context.provider_router.describe()
+                            if worker_context.provider_router is not None
+                            else None
+                        ),
                     },
                 )
+                client = worker_context.provider_router.build_client() if worker_context.provider_router is not None else None
+                if client is None:
+                    raise RuntimeError("model provider router unavailable")
 
                 agent = AsyncPentestAgent(
                     client=client,

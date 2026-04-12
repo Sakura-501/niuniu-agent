@@ -41,13 +41,7 @@ class DummyEventLogger:
 
 
 @pytest.mark.anyio
-async def test_competition_loop_survives_refresh_rate_limit(monkeypatch) -> None:
-    class FakeAsyncOpenAI:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    monkeypatch.setattr("niuniu_agent.runtime.competition_loop.AsyncOpenAI", FakeAsyncOpenAI)
-
+async def test_competition_loop_survives_refresh_rate_limit() -> None:
     context = RuntimeContext(
         settings=AgentSettings(
             model="test-model",

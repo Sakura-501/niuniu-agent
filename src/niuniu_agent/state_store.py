@@ -103,6 +103,29 @@ class StateStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS runtime_options (
+                    option_key TEXT PRIMARY KEY,
+                    option_value TEXT NOT NULL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS model_provider_state (
+                    provider_id TEXT PRIMARY KEY,
+                    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+                    total_failures INTEGER NOT NULL DEFAULT 0,
+                    total_successes INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    last_failure_at REAL,
+                    last_success_at REAL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
             self._migrate_schema(connection)
 
     def _migrate_schema(self, connection: sqlite3.Connection) -> None:
@@ -503,6 +526,133 @@ class StateStore:
                 (challenge_code,),
             ).fetchall()
         return {row[0]: row[1] for row in rows}
+
+    def set_runtime_option(self, option_key: str, option_value: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO runtime_options (option_key, option_value)
+                VALUES (?, ?)
+                ON CONFLICT(option_key) DO UPDATE SET
+                    option_value = excluded.option_value,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (option_key, option_value),
+            )
+
+    def delete_runtime_option(self, option_key: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                DELETE FROM runtime_options
+                WHERE option_key = ?
+                """,
+                (option_key,),
+            )
+
+    def get_runtime_option(self, option_key: str) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT option_value
+                FROM runtime_options
+                WHERE option_key = ?
+                """,
+                (option_key,),
+            ).fetchone()
+        return row[0] if row else None
+
+    def record_model_provider_failure(self, provider_id: str, error: str, *, now: float | None = None) -> None:
+        failure_time = time.time() if now is None else now
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO model_provider_state (
+                    provider_id, consecutive_failures, total_failures, total_successes,
+                    last_error, last_failure_at, last_success_at
+                )
+                VALUES (?, 1, 1, 0, ?, ?, NULL)
+                ON CONFLICT(provider_id) DO UPDATE SET
+                    consecutive_failures = consecutive_failures + 1,
+                    total_failures = total_failures + 1,
+                    last_error = excluded.last_error,
+                    last_failure_at = excluded.last_failure_at,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (provider_id, error[:2000], failure_time),
+            )
+
+    def record_model_provider_success(self, provider_id: str, *, now: float | None = None) -> None:
+        success_time = time.time() if now is None else now
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO model_provider_state (
+                    provider_id, consecutive_failures, total_failures, total_successes,
+                    last_error, last_failure_at, last_success_at
+                )
+                VALUES (?, 0, 0, 1, NULL, NULL, ?)
+                ON CONFLICT(provider_id) DO UPDATE SET
+                    consecutive_failures = 0,
+                    total_successes = total_successes + 1,
+                    last_error = NULL,
+                    last_success_at = excluded.last_success_at,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (provider_id, success_time),
+            )
+
+    def get_model_provider_state(self, provider_id: str) -> dict[str, object]:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT consecutive_failures, total_failures, total_successes, last_error, last_failure_at, last_success_at
+                FROM model_provider_state
+                WHERE provider_id = ?
+                """,
+                (provider_id,),
+            ).fetchone()
+        if row is None:
+            return {
+                "provider_id": provider_id,
+                "consecutive_failures": 0,
+                "total_failures": 0,
+                "total_successes": 0,
+                "last_error": None,
+                "last_failure_at": None,
+                "last_success_at": None,
+            }
+        return {
+            "provider_id": provider_id,
+            "consecutive_failures": int(row[0] or 0),
+            "total_failures": int(row[1] or 0),
+            "total_successes": int(row[2] or 0),
+            "last_error": row[3],
+            "last_failure_at": row[4],
+            "last_success_at": row[5],
+        }
+
+    def list_model_provider_states(self) -> list[dict[str, object]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT provider_id, consecutive_failures, total_failures, total_successes, last_error, last_failure_at, last_success_at
+                FROM model_provider_state
+                ORDER BY provider_id ASC
+                """
+            ).fetchall()
+        return [
+            {
+                "provider_id": row[0],
+                "consecutive_failures": int(row[1] or 0),
+                "total_failures": int(row[2] or 0),
+                "total_successes": int(row[3] or 0),
+                "last_error": row[4],
+                "last_failure_at": row[5],
+                "last_success_at": row[6],
+            }
+            for row in rows
+        ]
 
     def upsert_agent_status(
         self,

@@ -8,6 +8,7 @@ import typer
 
 from niuniu_agent.config import AgentMode, AgentSettings
 from niuniu_agent.control_plane import ChallengeStore, ContestGateway
+from niuniu_agent.model_routing import ModelProviderRouter
 from niuniu_agent.runtime.competition_loop import run_competition_loop
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.debug_repl import run_debug_repl
@@ -68,6 +69,7 @@ async def _run(settings: AgentSettings) -> None:
         {"missing_tools": missing_tools, "tool_count": len(inventory["tools"])},
     )
     skill_registry = SkillRegistry()
+    provider_router = ModelProviderRouter(settings, state_store)
     if settings.mode is AgentMode.DEBUG:
         contest_gateway = ContestGateway.from_settings(settings)
         await contest_gateway.connect()
@@ -81,6 +83,7 @@ async def _run(settings: AgentSettings) -> None:
                 event_logger=event_logger,
                 local_toolbox=local_toolbox,
                 skill_registry=skill_registry,
+                provider_router=provider_router,
             )
             event_logger.log("agent.started", {"mode": settings.mode.value, "architecture": "openai-agents"})
             await run_debug_repl(context)
@@ -112,6 +115,7 @@ async def _run_competition_supervisor(
     state_store = state_store or StateStore(settings.runtime_dir / "state.db")
     local_toolbox = local_toolbox or LocalToolbox(settings.runtime_dir)
     skill_registry = skill_registry or SkillRegistry()
+    provider_router = ModelProviderRouter(settings, state_store)
     backoff = settings.competition_error_backoff_seconds
     attempt = 0
 
@@ -129,6 +133,7 @@ async def _run_competition_supervisor(
                 event_logger=event_logger,
                 local_toolbox=local_toolbox,
                 skill_registry=skill_registry,
+                provider_router=provider_router,
             )
             event_logger.log(
                 "agent.started",

@@ -163,6 +163,23 @@ def test_state_store_can_clear_runtime_memory(tmp_path) -> None:
     assert store.get_challenge_runtime_state("challenge-1")["attempt_count"] == 0
 
 
+def test_state_store_persists_model_provider_selection_and_health(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.set_runtime_option("selected_model_provider_id", "rightcodes")
+    store.set_runtime_option("selected_model_override", "gpt-5.4-xhigh")
+    store.record_model_provider_failure("official", "timeout", now=1000.0)
+    store.record_model_provider_success("rightcodes", now=1010.0)
+
+    assert store.get_runtime_option("selected_model_provider_id") == "rightcodes"
+    assert store.get_runtime_option("selected_model_override") == "gpt-5.4-xhigh"
+    official_state = store.get_model_provider_state("official")
+    rightcodes_state = store.get_model_provider_state("rightcodes")
+    assert official_state["consecutive_failures"] == 1
+    assert official_state["last_error"] == "timeout"
+    assert rightcodes_state["total_successes"] == 1
+
+
 def test_state_store_tracks_agent_runtime_status_and_events(tmp_path) -> None:
     store = StateStore(tmp_path / "state.db")
 

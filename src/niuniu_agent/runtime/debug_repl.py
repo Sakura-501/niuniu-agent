@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import sys
 
-from openai import AsyncOpenAI
-
 from niuniu_agent.agent_stack.agent import AsyncPentestAgent
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
@@ -41,10 +39,6 @@ def _is_summary_request(text: str) -> bool:
 
 
 async def run_debug_repl(context: RuntimeContext) -> None:
-    client = AsyncOpenAI(
-        api_key=context.settings.model_api_key,
-        base_url=context.settings.model_base_url,
-    )
     history: list[dict[str, object]] = []
 
     print("已进入重构后的 debug 交互模式。输入 exit 或 quit 退出。")
@@ -77,9 +71,12 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             else None
         )
         available_skills = turn_context.skill_registry.describe_available() if turn_context.skill_registry else None
+        client = turn_context.provider_router.build_client() if turn_context.provider_router is not None else None
+        if client is None:
+            raise RuntimeError("model provider router unavailable")
         agent = AsyncPentestAgent(
             client=client,
-            model_name=context.settings.model,
+            model_name=turn_context.settings.model,
             system_prompt="\n\n".join(
                 [
                     build_entry_prompt(
@@ -148,7 +145,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
 
             final_output = await stream_formatted_answer(
                 client=client,
-                model_name=context.settings.model,
+                model_name=turn_context.settings.model,
                 user_input=user_input,
                 raw_output=raw_output,
                 tool_events=result.tool_events,

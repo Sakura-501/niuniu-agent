@@ -387,6 +387,7 @@ http://<host>:8081
 当前页面包括：
 
 - dashboard：比赛总览、process 状态、agent 状态、最近执行流
+- model routing：当前供应商、自动故障切换状态、手动切换供应商/模型
 - debug：在线对话调试 agent，流式显示模型和工具事件
 - challenge detail：单题 history / notes / agent events
 - agent detail：单个 manager / worker / debug agent 的状态与事件
@@ -398,10 +399,21 @@ http://<host>:8081
 - `NIUNIU_AGENT_MODEL`
 - `NIUNIU_AGENT_MODEL_BASE_URL`
 - `NIUNIU_AGENT_MODEL_API_KEY`
+- `NIUNIU_AGENT_MODEL_PROVIDER_ID`
+- `NIUNIU_AGENT_MODEL_PROVIDER_NAME`
 - `NIUNIU_AGENT_CONTEST_HOST`
 - `NIUNIU_AGENT_CONTEST_TOKEN`
 - `NIUNIU_AGENT_WEB_HOST`
 - `NIUNIU_AGENT_WEB_PORT`
+
+可选的备用供应商：
+
+- `NIUNIU_AGENT_FALLBACK_MODEL_PROVIDER_ID`
+- `NIUNIU_AGENT_FALLBACK_MODEL_PROVIDER_NAME`
+- `NIUNIU_AGENT_FALLBACK_MODEL`
+- `NIUNIU_AGENT_FALLBACK_MODEL_BASE_URL`
+- `NIUNIU_AGENT_FALLBACK_MODEL_API_KEY`
+- `NIUNIU_AGENT_MODEL_FAILOVER_ENABLED`
 
 当前主赛场：
 

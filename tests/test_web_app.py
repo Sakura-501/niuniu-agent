@@ -9,6 +9,14 @@ class FakeWebService:
     async def overview(self) -> dict[str, object]:
         return {
             "process": {"competition": {"running": False, "run_id": "run1"}, "ui": {"running": True}},
+            "model_routing": {
+                "selected_provider_id": "official",
+                "selected_model": "ep-jsc7o0kw",
+                "providers": [
+                    {"provider_id": "official", "display_name": "官方提供", "base_url": "http://10.0.0.24/70_f8g1qfuu/v1", "model": "ep-jsc7o0kw"},
+                    {"provider_id": "rightcodes", "display_name": "rightcodes供应商", "base_url": "http://10.0.0.24/70_tsdb3cwf/codex/v1", "model": "gpt-5.4-xhigh"},
+                ],
+            },
             "contest": {
                 "current_level": 1,
                 "total_challenges": 2,
@@ -87,6 +95,15 @@ class FakeWebService:
     async def restart_competition(self) -> dict[str, object]:
         return {"ok": True}
 
+    async def get_model_routing(self) -> dict[str, object]:
+        return (await self.overview())["model_routing"]
+
+    async def select_model_routing(self, provider_id: str, model_override: str | None) -> dict[str, object]:
+        return {"ok": True, "selected_provider_id": provider_id, "selected_model": model_override or provider_id}
+
+    async def reset_model_routing(self) -> dict[str, object]:
+        return {"ok": True, "selected_provider_id": "official", "selected_model": "ep-jsc7o0kw"}
+
 
 def test_web_dashboard_renders() -> None:
     client = TestClient(create_app(service=FakeWebService()))
@@ -161,3 +178,20 @@ def test_web_start_competition_returns_seeded_agent_status() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["agents_seeded"][0]["agent_id"] == "manager:competition:run1"
+
+
+def test_web_model_routing_endpoints() -> None:
+    client = TestClient(create_app(service=FakeWebService()))
+
+    get_response = client.get("/api/model-routing")
+    select_response = client.post(
+        "/api/model-routing/select",
+        json={"provider_id": "rightcodes", "model_override": "gpt-5.4-xhigh"},
+    )
+    reset_response = client.post("/api/model-routing/reset")
+
+    assert get_response.status_code == 200
+    assert get_response.json()["selected_provider_id"] == "official"
+    assert select_response.status_code == 200
+    assert select_response.json()["selected_provider_id"] == "rightcodes"
+    assert reset_response.status_code == 200

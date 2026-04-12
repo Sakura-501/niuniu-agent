@@ -13,8 +13,6 @@ import time
 from typing import AsyncIterator
 from uuid import uuid4
 
-from openai import AsyncOpenAI
-
 from niuniu_agent.agent_stack.agent import AsyncPentestAgent
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
@@ -25,6 +23,7 @@ from niuniu_agent.agent_stack.prompts import (
 from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.control_plane import ChallengeStore, ContestGateway
+from niuniu_agent.model_routing import ModelProviderRouter
 from niuniu_agent.runtime.answer_formatter import should_format_debug_answer, stream_formatted_answer
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.skills import SkillRegistry
@@ -260,10 +259,9 @@ class DebugSessionManager:
             else None
         )
         available_skills = turn_context.skill_registry.describe_available() if turn_context.skill_registry else None
-        client = AsyncOpenAI(
-            api_key=turn_context.settings.model_api_key,
-            base_url=turn_context.settings.model_base_url,
-        )
+        client = turn_context.provider_router.build_client() if turn_context.provider_router is not None else None
+        if client is None:
+            raise RuntimeError("model provider router unavailable")
         agent = AsyncPentestAgent(
             client=client,
             model_name=turn_context.settings.model,
@@ -428,6 +426,7 @@ class AgentWebService:
         state_store = StateStore(self.settings.runtime_dir / "state.db")
         local_toolbox = LocalToolbox(self.settings.runtime_dir)
         skill_registry = SkillRegistry()
+        provider_router = ModelProviderRouter(self.settings, state_store)
         self.contest_gateway = ContestGateway.from_settings(self.settings)
         await self.contest_gateway.connect()
         challenge_store = ChallengeStore(contest_client=self.contest_gateway, state_store=state_store)
@@ -439,6 +438,7 @@ class AgentWebService:
             event_logger=event_logger,
             local_toolbox=local_toolbox,
             skill_registry=skill_registry,
+            provider_router=provider_router,
         )
         self.controller = CompetitionProcessController(
             repo_root=self.repo_root,
@@ -463,6 +463,7 @@ class AgentWebService:
         return {
             "listening_port": self.context.settings.web_port,
             "process": process_status,
+            "model_routing": self.context.provider_router.describe() if self.context.provider_router is not None else {},
             "contest_capabilities": [
                 "list_challenges",
                 "start_challenge",
@@ -479,6 +480,18 @@ class AgentWebService:
             "agent_tree": build_agent_tree(stored_agents, process_status, max_parallel_workers=3),
             "recent_agent_events": self.context.state_store.list_agent_events(limit=80),
         }
+
+    async def get_model_routing(self) -> dict[str, object]:
+        assert self.context is not None and self.context.provider_router is not None
+        return self.context.provider_router.describe()
+
+    async def select_model_routing(self, provider_id: str, model_override: str | None) -> dict[str, object]:
+        assert self.context is not None and self.context.provider_router is not None
+        return self.context.provider_router.set_selection(provider_id, model_override)
+
+    async def reset_model_routing(self) -> dict[str, object]:
+        assert self.context is not None and self.context.provider_router is not None
+        return self.context.provider_router.clear_selection()
 
     async def challenge_detail(self, code: str) -> dict[str, object]:
         assert self.context is not None
