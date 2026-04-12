@@ -18,6 +18,7 @@ Usage: scripts/remote_control.sh <command>
 Commands:
   help                 Show this help message
   update               Pull latest code and reinstall editable package
+  clear-memory         Stop local processes and clear runtime memory/session data
   debug                Start interactive debug mode without updating
   debug-update         Update, then start interactive debug mode
   competition-start    Start competition mode in background without updating
@@ -292,6 +293,23 @@ restart_competition() {
   start_competition
 }
 
+clear_memory() {
+  ensure_runtime_dir
+  stop_competition || true
+  stop_ui || true
+  load_env
+  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
+    env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" \
+      uv run niuniu-agent clear-memory --runtime-dir "${REPO_ROOT}/runtime" --yes
+  else
+    ensure_venv
+    install_project
+    env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" \
+      "${VENV_DIR}/bin/niuniu-agent" clear-memory --runtime-dir "${REPO_ROOT}/runtime" --yes
+  fi
+  echo "clear-memory completed"
+}
+
 tail_logs() {
   ensure_runtime_dir
   touch "${LOG_FILE}"
@@ -308,6 +326,9 @@ main() {
       ;;
     update)
       update_repo
+      ;;
+    clear-memory)
+      clear_memory
       ;;
     debug)
       run_debug

@@ -968,18 +968,8 @@ def build_agent_tree(
 
     detached = [worker for worker in workers if str(worker["agent_id"]) not in assigned]
     if detached:
-        grouped.append(
-            {
-                "manager": {
-                    "agent_id": "manager:detached",
-                    "role": "manager",
-                    "status": "detached",
-                    "summary": "workers without a matching competition run",
-                    "metadata": {"synthetic": True},
-                },
-                "workers": detached,
-            }
-        )
+        for group in _build_archived_manager_groups(detached):
+            grouped.append(group)
     return grouped
 
 
@@ -999,6 +989,48 @@ def _infer_competition_run_id(stored_agents: list[dict[str, object]]) -> str | N
         return str(run_id)
     agent_id = str(manager_rows[0].get("agent_id") or "")
     return agent_id.split(":")[-1] if ":" in agent_id else None
+
+
+def _build_archived_manager_groups(detached_workers: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped_workers: dict[str, list[dict[str, object]]] = {}
+    manager_meta: dict[str, dict[str, object]] = {}
+
+    for worker in detached_workers:
+        metadata = dict(worker.get("metadata") or {})
+        manager_id = str(metadata.get("manager_agent_id") or "").strip()
+        if not manager_id:
+            run_id = str(metadata.get("competition_run_id") or "").strip()
+            manager_id = f"manager:competition:{run_id}" if run_id else "manager:detached"
+        grouped_workers.setdefault(manager_id, []).append(worker)
+        manager_meta.setdefault(
+            manager_id,
+            {
+                "run_id": metadata.get("competition_run_id"),
+                "synthetic": True,
+            },
+        )
+
+    groups: list[dict[str, object]] = []
+    for manager_id in sorted(grouped_workers):
+        workers = grouped_workers[manager_id]
+        if manager_id == "manager:detached":
+            manager = {
+                "agent_id": manager_id,
+                "role": "manager",
+                "status": "detached",
+                "summary": "workers without a matching competition run",
+                "metadata": {"synthetic": True},
+            }
+        else:
+            manager = {
+                "agent_id": manager_id,
+                "role": "manager",
+                "status": "archived",
+                "summary": "historical workers from a previous competition run",
+                "metadata": manager_meta[manager_id],
+            }
+        groups.append({"manager": manager, "workers": workers})
+    return groups
 
 
 def build_challenge_scheduler_view(
