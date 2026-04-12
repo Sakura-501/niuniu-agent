@@ -8,6 +8,7 @@ import pytest
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.runtime.competition_loop import (
     recover_stalled_workers,
+    stop_challenge_instance_before_worker_exit,
     retire_completed_workers,
     run_competition_loop,
 )
@@ -45,6 +46,15 @@ class DummyEventLogger:
 
     def log(self, event, payload=None):
         self.events.append((event, payload or {}))
+
+
+class DummyContestGateway:
+    def __init__(self) -> None:
+        self.stopped: list[str] = []
+
+    async def stop_challenge(self, code: str):
+        self.stopped.append(code)
+        return {"ok": True}
 
 
 @pytest.mark.anyio
@@ -175,6 +185,7 @@ async def test_retire_completed_workers_cancels_running_worker_on_completed_chal
         def is_effectively_completed(challenge):
             return True
 
+    gateway = DummyContestGateway()
     context = RuntimeContext(
         settings=AgentSettings(
             model="test-model",
@@ -183,7 +194,7 @@ async def test_retire_completed_workers_cancels_running_worker_on_completed_chal
             contest_host="https://challenge.zc.tencent.com",
             contest_token="token",
         ),
-        contest_gateway=object(),
+        contest_gateway=gateway,
         challenge_store=ChallengeStoreStub(),
         state_store=state_store,
         event_logger=DummyEventLogger(),
@@ -202,7 +213,7 @@ async def test_retire_completed_workers_cancels_running_worker_on_completed_chal
                     level=0,
                     flag_count=1,
                     flag_got_count=1,
-                    instance_status="stopped",
+                    instance_status="running",
                 )
             ]
         ),
@@ -212,4 +223,39 @@ async def test_retire_completed_workers_cancels_running_worker_on_completed_chal
 
     assert retired == [{"agent_id": "worker:c1:run1", "challenge_code": "c1"}]
     assert cancelled == ["c1"]
+    assert gateway.stopped == ["c1"]
     assert state_store.get_agent_status("worker:c1:run1")["status"] == "completed"
+
+
+@pytest.mark.anyio
+async def test_stop_challenge_instance_before_worker_exit_attempts_stop_when_state_unknown() -> None:
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    stopped = await stop_challenge_instance_before_worker_exit(
+        contest_gateway=gateway,
+        challenge_code="c1",
+        instance_status=None,
+        event_logger=logger,
+        reason="worker exiting",
+    )
+
+    assert stopped is True
+    assert gateway.stopped == ["c1"]
+
+
+@pytest.mark.anyio
+async def test_stop_challenge_instance_before_worker_exit_skips_known_stopped_instance() -> None:
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    stopped = await stop_challenge_instance_before_worker_exit(
+        contest_gateway=gateway,
+        challenge_code="c1",
+        instance_status="stopped",
+        event_logger=logger,
+        reason="worker exiting",
+    )
+
+    assert stopped is False
+    assert gateway.stopped == []

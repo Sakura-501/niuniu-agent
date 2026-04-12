@@ -36,6 +36,29 @@ def build_worker_agent_id(challenge_code: str) -> str:
     return f"worker:{challenge_code}:{uuid4().hex[:8]}"
 
 
+async def stop_challenge_instance_before_worker_exit(
+    *,
+    contest_gateway: object,
+    challenge_code: str,
+    instance_status: str | None,
+    event_logger: object | None,
+    reason: str,
+) -> bool:
+    if instance_status == "stopped":
+        return False
+    try:
+        await contest_gateway.stop_challenge(challenge_code)
+        return True
+    except Exception as exc:  # pragma: no cover - best-effort cleanup
+        message = str(exc)
+        if event_logger is not None and "未运行" not in message and "not running" not in message.lower():
+            event_logger.log(
+                "competition.worker_exit_stop_failed",
+                {"challenge_code": challenge_code, "reason": reason, "error": message},
+            )
+        return False
+
+
 async def recover_stalled_workers(
     *,
     snapshot: object,
@@ -108,6 +131,13 @@ async def retire_completed_workers(
             continue
         metadata = dict(status.get("metadata") or {})
         metadata["retired_reason"] = "challenge already completed"
+        await stop_challenge_instance_before_worker_exit(
+            contest_gateway=context.contest_gateway,
+            challenge_code=challenge_code,
+            instance_status=getattr(challenge, "instance_status", None),
+            event_logger=context.event_logger,
+            reason="completed challenge retirement",
+        )
         context.state_store.record_challenge_success(challenge_code)
         context.state_store.upsert_agent_status(
             agent_id=str(status["agent_id"]),
@@ -164,6 +194,13 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 if agent_state is not None and agent_state.get("status") in {"pause_requested", "delete_requested"}:
                     command = str(agent_state["status"])
                     worker_context.state_store.clear_active_challenge(challenge_code)
+                    await stop_challenge_instance_before_worker_exit(
+                        contest_gateway=worker_context.contest_gateway,
+                        challenge_code=challenge_code,
+                        instance_status=None,
+                        event_logger=worker_context.event_logger,
+                        reason=f"{command} before worker exit",
+                    )
                     worker_context.state_store.append_agent_event(
                         agent_id=worker_agent_id,
                         challenge_code=challenge_code,
@@ -186,6 +223,13 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 snapshot = await worker_context.challenge_store.refresh()
                 target = next((item for item in snapshot.challenges if item.code == challenge_code), None)
                 if target is None or target.completed:
+                    await stop_challenge_instance_before_worker_exit(
+                        contest_gateway=worker_context.contest_gateway,
+                        challenge_code=challenge_code,
+                        instance_status=getattr(target, "instance_status", None) if target is not None else None,
+                        event_logger=worker_context.event_logger,
+                        reason="completed challenge before worker exit",
+                    )
                     worker_context.state_store.record_challenge_success(challenge_code)
                     worker_agent_id = worker_context.agent_id or worker_agent_id
                     worker_context.state_store.append_agent_event(
@@ -214,6 +258,13 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 runtime_state = worker_context.state_store.get_challenge_runtime_state(target.code)
                 notes = worker_context.state_store.get_challenge_notes(target.code)
                 if notes.get("operator_pause") == "true":
+                    await stop_challenge_instance_before_worker_exit(
+                        contest_gateway=worker_context.contest_gateway,
+                        challenge_code=challenge_code,
+                        instance_status=target.instance_status,
+                        event_logger=worker_context.event_logger,
+                        reason="operator pause before worker exit",
+                    )
                     worker_context.state_store.append_agent_event(
                         agent_id=worker_agent_id,
                         challenge_code=challenge_code,
@@ -263,14 +314,13 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         defer_seconds=context.settings.competition_defer_seconds,
                         reason=reason,
                     )
-                    if target.instance_status == "running":
-                        try:
-                            await worker_context.contest_gateway.stop_challenge(target.code)
-                        except Exception as stop_exc:  # pragma: no cover - best-effort cleanup
-                            worker_context.event_logger.log(
-                                "competition.defer_stop_failed",
-                                {"challenge_code": target.code, "error": str(stop_exc)},
-                            )
+                    await stop_challenge_instance_before_worker_exit(
+                        contest_gateway=worker_context.contest_gateway,
+                        challenge_code=target.code,
+                        instance_status=target.instance_status,
+                        event_logger=worker_context.event_logger,
+                        reason="deferred challenge before worker exit",
+                    )
                     worker_context.state_store.append_agent_event(
                         agent_id=worker_context.agent_id or worker_agent_id,
                         challenge_code=target.code,
