@@ -137,3 +137,67 @@ def test_remote_control_prefers_uv_sync_and_uv_run() -> None:
     assert "uv sync" in script
     assert "uv run niuniu-agent run --mode competition" in script
     assert "uv run niuniu-agent run --mode debug" in script
+
+
+def test_remote_control_competition_start_persists_run_id_file_and_stop_removes_it() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        scripts_dir = root / "scripts"
+        scripts_dir.mkdir(parents=True)
+        fake_bin = root / "fake-bin"
+        fake_bin.mkdir(parents=True)
+
+        (root / ".env").write_text("NIUNIU_AGENT_MODE=competition\n", encoding="utf-8")
+        (scripts_dir / "remote_control.sh").write_text(
+            SCRIPT_PATH.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        fake_uv = fake_bin / "uv"
+        fake_uv.write_text(
+            "#!/usr/bin/env bash\n"
+            "if [ \"$1\" = \"run\" ]; then\n"
+            "  shift\n"
+            "  sleep 60\n"
+            "else\n"
+            "  exit 0\n"
+            "fi\n",
+            encoding="utf-8",
+        )
+        fake_uv.chmod(0o755)
+
+        start = subprocess.run(
+            ["bash", str(scripts_dir / "remote_control.sh"), "competition-start"],
+            cwd=root,
+            env={
+                "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+                "REMOTE_CONTROL_USE_UV": "1",
+                "HOME": str(root),
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        run_id_file = root / "runtime" / "competition.run_id"
+        pid_file = root / "runtime" / "competition.pid"
+
+        assert start.returncode == 0
+        assert run_id_file.exists()
+        assert run_id_file.read_text(encoding="utf-8").strip()
+        assert pid_file.exists()
+
+        stop = subprocess.run(
+            ["bash", str(scripts_dir / "remote_control.sh"), "competition-stop"],
+            cwd=root,
+            env={
+                "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+                "REMOTE_CONTROL_USE_UV": "1",
+                "HOME": str(root),
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert stop.returncode == 0
+        assert not run_id_file.exists()

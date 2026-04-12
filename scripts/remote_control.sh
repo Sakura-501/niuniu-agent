@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VENV_DIR="${REPO_ROOT}/.venv"
 PID_FILE="${REPO_ROOT}/runtime/competition.pid"
 LOG_FILE="${REPO_ROOT}/runtime/competition.log"
+RUN_ID_FILE="${REPO_ROOT}/runtime/competition.run_id"
 UI_PID_FILE="${REPO_ROOT}/runtime/ui.pid"
 UI_LOG_FILE="${REPO_ROOT}/runtime/ui.log"
 USE_UV="${REMOTE_CONTROL_USE_UV:-1}"
@@ -161,18 +162,26 @@ start_competition() {
   fi
 
   load_env
-  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
-    nohup env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" uv run niuniu-agent run --mode competition >>"${LOG_FILE}" 2>&1 &
+  local run_id
+  if command -v python3 >/dev/null 2>&1; then
+    run_id="$(python3 -c 'from uuid import uuid4; print(uuid4().hex[:8])')"
   else
-    nohup "${VENV_DIR}/bin/niuniu-agent" run --mode competition >>"${LOG_FILE}" 2>&1 &
+    run_id="$(date +%s)"
+  fi
+  if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
+    nohup env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" NIUNIU_AGENT_COMPETITION_RUN_ID="${run_id}" uv run niuniu-agent run --mode competition >>"${LOG_FILE}" 2>&1 &
+  else
+    nohup env NIUNIU_AGENT_RUNTIME_DIR="${REPO_ROOT}/runtime" NIUNIU_AGENT_COMPETITION_RUN_ID="${run_id}" "${VENV_DIR}/bin/niuniu-agent" run --mode competition >>"${LOG_FILE}" 2>&1 &
   fi
   echo $! >"${PID_FILE}"
+  echo "${run_id}" >"${RUN_ID_FILE}"
   echo "competition mode started (pid=$!)"
 }
 
 stop_competition() {
   if ! competition_running; then
     rm -f "${PID_FILE}"
+    rm -f "${RUN_ID_FILE}"
     echo "competition mode is not running"
     return 0
   fi
@@ -181,6 +190,7 @@ stop_competition() {
   pid="$(competition_pid)"
   kill "${pid}"
   rm -f "${PID_FILE}"
+  rm -f "${RUN_ID_FILE}"
   echo "competition mode stopped (pid=${pid})"
 }
 

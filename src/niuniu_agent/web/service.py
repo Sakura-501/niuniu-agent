@@ -911,8 +911,9 @@ def build_agent_overview_rows(
     rows = list(stored_agents)
     by_id = {str(item["agent_id"]): item for item in rows}
     competition_state = dict(process_status.get("competition") or {})
+    effective_run_id = competition_state.get("run_id") or _infer_competition_run_id(rows)
     if competition_state.get("running"):
-        manager_agent_id = f"manager:competition:{competition_state.get('run_id') or 'current'}"
+        manager_agent_id = f"manager:competition:{effective_run_id or 'current'}"
         if manager_agent_id not in by_id:
             rows.insert(
                 0,
@@ -922,7 +923,7 @@ def build_agent_overview_rows(
                     "challenge_code": None,
                     "status": "starting",
                     "summary": "competition process is running but manager status has not been persisted yet",
-                    "metadata": {"synthetic": True, "run_id": competition_state.get("run_id")},
+                    "metadata": {"synthetic": True, "run_id": effective_run_id},
                     "last_error": None,
                     "updated_at": None,
                 },
@@ -961,6 +962,7 @@ def build_agent_tree(
         process_status,
         max_parallel_workers=max_parallel_workers,
     )
+    effective_run_id = (process_status.get("competition") or {}).get("run_id") or _infer_competition_run_id(rows)
     managers = [item for item in rows if item.get("role") == "manager"]
     workers = [item for item in rows if item.get("role") == "challenge_worker"]
     grouped: list[dict[str, object]] = []
@@ -979,7 +981,7 @@ def build_agent_tree(
             if (
                 (worker.get("metadata") or {}).get("manager_agent_id") == manager_id
                 or (worker.get("metadata") or {}).get("competition_run_id") == manager_run_id
-                or (str(worker["agent_id"]).startswith("worker-slot:") and process_status.get("competition", {}).get("run_id") == manager_run_id)
+                or (str(worker["agent_id"]).startswith("worker-slot:") and effective_run_id == manager_run_id)
             )
         ]
         assigned.update(str(item["agent_id"]) for item in children)
@@ -1000,6 +1002,24 @@ def build_agent_tree(
             }
         )
     return grouped
+
+
+def _infer_competition_run_id(stored_agents: list[dict[str, object]]) -> str | None:
+    manager_rows = [
+        item
+        for item in stored_agents
+        if item.get("role") == "manager"
+        and str(item.get("agent_id") or "").startswith("manager:competition:")
+    ]
+    if not manager_rows:
+        return None
+    manager_rows.sort(key=lambda item: ((item.get("updated_at") or ""), str(item.get("agent_id") or "")), reverse=True)
+    metadata = dict(manager_rows[0].get("metadata") or {})
+    run_id = metadata.get("run_id")
+    if run_id is not None:
+        return str(run_id)
+    agent_id = str(manager_rows[0].get("agent_id") or "")
+    return agent_id.split(":")[-1] if ":" in agent_id else None
 
 
 def build_challenge_scheduler_view(

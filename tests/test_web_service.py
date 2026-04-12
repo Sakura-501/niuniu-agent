@@ -76,6 +76,28 @@ def test_build_agent_tree_groups_workers_under_manager_run() -> None:
     assert tree[0]["workers"][0]["agent_id"] == "worker:c1:abc"
 
 
+def test_build_agent_tree_does_not_add_synthetic_manager_when_real_manager_exists_without_process_run_id() -> None:
+    tree = build_agent_tree(
+        stored_agents=[
+            {
+                "agent_id": "manager:competition:run1",
+                "role": "manager",
+                "challenge_code": None,
+                "status": "running",
+                "summary": "manager",
+                "metadata": {"run_id": "run1"},
+                "last_error": None,
+                "updated_at": "now",
+            },
+        ],
+        process_status={"competition": {"running": True, "run_id": None}},
+        max_parallel_workers=3,
+    )
+
+    manager_ids = [group["manager"]["agent_id"] for group in tree]
+    assert manager_ids == ["manager:competition:run1"]
+
+
 def test_competition_process_controller_prefers_uv_launch_command() -> None:
     controller = CompetitionProcessController(
         repo_root=Path("/tmp/repo"),
