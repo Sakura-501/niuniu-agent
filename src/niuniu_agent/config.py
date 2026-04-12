@@ -58,6 +58,14 @@ class AgentSettings(BaseSettings):
     competition_worker_max_seconds_per_challenge: int = 3600
     competition_worker_stall_seconds: int = 180
     competition_defer_seconds: int = 60
+    model_context_window_tokens: int = 204800
+    context_compaction_threshold_ratio: float = 0.8
+    estimated_chars_per_token: int = 4
+    context_compaction_keep_tail_messages: int = 8
+    context_compaction_keep_recent_tool_results: int = 3
+    context_compaction_tool_result_preview_chars: int = 240
+    context_compaction_summary_input_chars: int = 80000
+    context_compaction_summary_max_tokens: int = 2000
     competition_run_id: str | None = None
     web_host: str = "0.0.0.0"
     web_port: int = 8081
@@ -106,6 +114,14 @@ class AgentSettings(BaseSettings):
             "password": self.callback_password,
             "usage": self.callback_usage,
         }
+
+    @property
+    def context_compaction_threshold_chars(self) -> int:
+        return int(
+            self.model_context_window_tokens
+            * self.context_compaction_threshold_ratio
+            * self.estimated_chars_per_token
+        )
 
     @model_validator(mode="after")
     def apply_mode_defaults(self) -> "AgentSettings":

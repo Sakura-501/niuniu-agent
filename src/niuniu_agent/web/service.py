@@ -304,6 +304,15 @@ class DebugSessionManager:
                 ]
             ),
             tool_bus=ToolBus(turn_context),
+            workdir=turn_context.settings.runtime_dir,
+            context_window_tokens=turn_context.settings.model_context_window_tokens,
+            context_compaction_threshold_ratio=turn_context.settings.context_compaction_threshold_ratio,
+            estimated_chars_per_token=turn_context.settings.estimated_chars_per_token,
+            context_compaction_keep_tail_messages=turn_context.settings.context_compaction_keep_tail_messages,
+            context_compaction_keep_recent_tool_results=turn_context.settings.context_compaction_keep_recent_tool_results,
+            context_compaction_tool_result_preview_chars=turn_context.settings.context_compaction_tool_result_preview_chars,
+            context_compaction_summary_input_chars=turn_context.settings.context_compaction_summary_input_chars,
+            context_compaction_summary_max_tokens=turn_context.settings.context_compaction_summary_max_tokens,
         )
         queue: asyncio.Queue[str | None] = asyncio.Queue()
         buffered_text_chunks: list[str] = []

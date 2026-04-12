@@ -38,6 +38,14 @@ class AsyncPentestAgent:
         tool_bus: Any,
         workdir: Path | str | None = None,
         temperature: float = 0.2,
+        context_window_tokens: int = 204800,
+        context_compaction_threshold_ratio: float = 0.8,
+        estimated_chars_per_token: int = 4,
+        context_compaction_keep_tail_messages: int = 8,
+        context_compaction_keep_recent_tool_results: int = 3,
+        context_compaction_tool_result_preview_chars: int = 240,
+        context_compaction_summary_input_chars: int = 80000,
+        context_compaction_summary_max_tokens: int = 2000,
     ) -> None:
         self.client = client
         self.model_name = model_name
@@ -45,6 +53,14 @@ class AsyncPentestAgent:
         self.tool_bus = tool_bus
         self.workdir = Path(workdir or Path.cwd()).resolve()
         self.temperature = temperature
+        self.context_window_tokens = context_window_tokens
+        self.context_compaction_threshold_ratio = context_compaction_threshold_ratio
+        self.estimated_chars_per_token = estimated_chars_per_token
+        self.context_compaction_keep_tail_messages = context_compaction_keep_tail_messages
+        self.context_compaction_keep_recent_tool_results = context_compaction_keep_recent_tool_results
+        self.context_compaction_tool_result_preview_chars = context_compaction_tool_result_preview_chars
+        self.context_compaction_summary_input_chars = context_compaction_summary_input_chars
+        self.context_compaction_summary_max_tokens = context_compaction_summary_max_tokens
 
     async def execute(self, instruction: str, history: list[dict[str, Any]] | None = None) -> AgentResult:
         return await self._execute_loop(instruction, history, on_text_delta=None)
@@ -79,6 +95,7 @@ class AsyncPentestAgent:
         last_text = ""
 
         while True:
+            transcript = await self._maybe_compact_transcript(transcript)
             content, tool_calls = await self._complete_once(transcript, on_text_delta=on_text_delta)
             last_text = content or last_text
             transcript.append(assistant_message(content, tool_calls))
@@ -143,6 +160,88 @@ class AsyncPentestAgent:
 
         tool_calls = [tool_buffers[index] for index in sorted(tool_buffers.keys())]
         return "".join(content_parts), tool_calls
+
+    async def _maybe_compact_transcript(self, transcript: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if self._estimate_context_chars(transcript) <= self._context_threshold_chars():
+            return transcript
+        compacted = self._micro_compact_tool_results(transcript)
+        if self._estimate_context_chars(compacted) <= self._context_threshold_chars():
+            return compacted
+        if len(compacted) <= self.context_compaction_keep_tail_messages:
+            return compacted
+        summary_source = compacted[:-self.context_compaction_keep_tail_messages]
+        recent_tail = compacted[-self.context_compaction_keep_tail_messages :]
+        summary = await self._summarize_history(summary_source)
+        return [
+            {
+                "role": "user",
+                "content": (
+                    "This conversation was replaced by automatic context compaction.\n\n"
+                    f"{summary}"
+                ),
+            },
+            *recent_tail,
+        ]
+
+    def _micro_compact_tool_results(self, transcript: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        tool_indexes = [index for index, message in enumerate(transcript) if message.get("role") == "tool"]
+        if len(tool_indexes) <= self.context_compaction_keep_recent_tool_results:
+            return transcript
+        compacted = [dict(message) for message in transcript]
+        for index in tool_indexes[:-self.context_compaction_keep_recent_tool_results]:
+            content = compacted[index].get("content")
+            if not isinstance(content, str):
+                continue
+            if len(content) <= self.context_compaction_tool_result_preview_chars:
+                continue
+            compacted[index]["content"] = (
+                "[Older tool result compacted. Refer to persisted challenge history/memory or rerun the tool if needed.]"
+            )
+        return compacted
+
+    async def _summarize_history(self, transcript: list[dict[str, Any]]) -> str:
+        serialized = json.dumps(transcript, ensure_ascii=False, default=str)
+        prompt = (
+            "Summarize this pentest-agent conversation so work can continue after automatic context compaction.\n"
+            "Preserve:\n"
+            "1. Current objective and active challenge\n"
+            "2. Important findings, failed paths, and decisions\n"
+            "3. Tools already used and what they proved\n"
+            "4. Files, endpoints, credentials, flags, or hosts worth revisiting\n"
+            "5. Remaining next steps\n\n"
+            f"{serialized[: self.context_compaction_summary_input_chars]}"
+        )
+        response = await self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You summarize pentest agent context compactly so work can continue without losing critical facts."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=self.context_compaction_summary_max_tokens,
+        )
+        message = response.choices[0].message
+        return stringify_content(getattr(message, "content", "")) or "(summary unavailable)"
+
+    def _context_threshold_chars(self) -> int:
+        return int(
+            self.context_window_tokens
+            * self.context_compaction_threshold_ratio
+            * self.estimated_chars_per_token
+        )
+
+    def _estimate_context_chars(self, transcript: list[dict[str, Any]]) -> int:
+        payload = {
+            "system": self.system_prompt,
+            "messages": transcript,
+            "tools": self.tool_bus.tool_schemas(),
+        }
+        return len(json.dumps(payload, ensure_ascii=False, default=str))
 
 
 def assistant_message(content: str, tool_calls: list[Any]) -> dict[str, Any]:

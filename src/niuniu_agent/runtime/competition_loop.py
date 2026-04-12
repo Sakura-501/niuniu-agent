@@ -381,6 +381,15 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         ]
                     ),
                     tool_bus=ToolBus(worker_context),
+                    workdir=worker_context.settings.runtime_dir,
+                    context_window_tokens=worker_context.settings.model_context_window_tokens,
+                    context_compaction_threshold_ratio=worker_context.settings.context_compaction_threshold_ratio,
+                    estimated_chars_per_token=worker_context.settings.estimated_chars_per_token,
+                    context_compaction_keep_tail_messages=worker_context.settings.context_compaction_keep_tail_messages,
+                    context_compaction_keep_recent_tool_results=worker_context.settings.context_compaction_keep_recent_tool_results,
+                    context_compaction_tool_result_preview_chars=worker_context.settings.context_compaction_tool_result_preview_chars,
+                    context_compaction_summary_input_chars=worker_context.settings.context_compaction_summary_input_chars,
+                    context_compaction_summary_max_tokens=worker_context.settings.context_compaction_summary_max_tokens,
                 )
                 prompt = worker_context.challenge_store.build_autonomous_prompt(snapshot, target)
                 result = await agent.execute(prompt, histories.get(target.code))
