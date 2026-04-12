@@ -214,6 +214,11 @@ def install() -> int:
             extract_nested_archives(temp_dir)
 
             if tool.archive_only:
+                for path in temp_dir.rglob("*"):
+                    if path.is_file():
+                        destination = cache_dir / path.name
+                        destination.unlink(missing_ok=True)
+                        shutil.copy2(path, destination)
                 installed.append(f"{name}:archived")
                 continue
 
