@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 from niuniu_agent.web.service import (
     CompetitionProcessController,
@@ -131,6 +132,25 @@ def test_competition_process_controller_prefers_uv_launch_command() -> None:
     command = controller._build_competition_command(prefer_uv=True)
 
     assert command == ["uv", "run", "niuniu-agent", "run", "--mode", "competition"]
+
+
+def test_competition_process_controller_ignores_stale_pid_for_unrelated_process(tmp_path) -> None:
+    controller = CompetitionProcessController(
+        repo_root=Path("/tmp/repo"),
+        runtime_dir=tmp_path / "runtime",
+        web_port=8081,
+    )
+    sleeper = subprocess.Popen(["sleep", "30"])
+    try:
+        controller.competition_pid_file.write_text(str(sleeper.pid), encoding="utf-8")
+        controller.competition_run_id_file.write_text("run-stale", encoding="utf-8")
+
+        status = controller.status()
+
+        assert status["competition"]["running"] is False
+    finally:
+        sleeper.terminate()
+        sleeper.wait(timeout=5)
 
 
 def test_build_challenge_scheduler_view_marks_dispatchable_and_paused_and_running() -> None:

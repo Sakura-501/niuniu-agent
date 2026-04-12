@@ -48,7 +48,7 @@ class CompetitionProcessController:
         pid = self._read_pid(self.competition_pid_file)
         return {
             "competition": {
-                "running": self._pid_running(pid),
+                "running": self._pid_running(pid, expected_substrings=("niuniu-agent", "competition")),
                 "pid": pid,
                 "log_path": str(self.competition_log_file),
                 "runtime_dir": str(self.runtime_dir),
@@ -64,7 +64,7 @@ class CompetitionProcessController:
 
     async def start_competition(self) -> dict[str, object]:
         pid = self._read_pid(self.competition_pid_file)
-        if self._pid_running(pid):
+        if self._pid_running(pid, expected_substrings=("niuniu-agent", "competition")):
             return {"ok": True, "already_running": True, "pid": pid, "run_id": self._read_run_id()}
         run_id = uuid4().hex[:8]
         self.competition_log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +94,7 @@ class CompetitionProcessController:
 
     async def stop_competition(self) -> dict[str, object]:
         pid = self._read_pid(self.competition_pid_file)
-        if not self._pid_running(pid):
+        if not self._pid_running(pid, expected_substrings=("niuniu-agent", "competition")):
             self.competition_pid_file.unlink(missing_ok=True)
             self.competition_run_id_file.unlink(missing_ok=True)
             return {"ok": True, "already_stopped": True}
@@ -124,13 +124,28 @@ class CompetitionProcessController:
         return value or None
 
     @staticmethod
-    def _pid_running(pid: int | None) -> bool:
+    def _pid_running(pid: int | None, expected_substrings: tuple[str, ...] = ()) -> bool:
         if pid is None:
             return False
         try:
             os.kill(pid, 0)
         except OSError:
             return False
+        if expected_substrings:
+            try:
+                result = subprocess.run(
+                    ["ps", "-p", str(pid), "-o", "command="],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                command = result.stdout.strip()
+            except Exception:  # pragma: no cover - best effort runtime validation
+                return False
+            if not command:
+                return False
+            if any(fragment not in command for fragment in expected_substrings):
+                return False
         return True
 
 

@@ -149,7 +149,17 @@ async def _run_competition_supervisor(
                 {"attempt": attempt, "backoff_seconds": backoff},
             )
         except asyncio.CancelledError:
-            raise
+            current_task = asyncio.current_task()
+            if current_task is not None and current_task.cancelling():
+                raise
+            event_logger.log(
+                "competition.supervisor_error",
+                {
+                    "attempt": attempt,
+                    "error": "competition runner raised internal CancelledError",
+                    "backoff_seconds": backoff,
+                },
+            )
         except Exception as exc:  # pragma: no cover - runtime recovery path
             event_logger.log(
                 "competition.supervisor_error",

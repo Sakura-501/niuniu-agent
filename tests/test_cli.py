@@ -86,7 +86,8 @@ async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> N
         attempts += 1
         if attempts == 1:
             raise RuntimeError("boom")
-        raise asyncio.CancelledError()
+        asyncio.current_task().cancel()
+        await asyncio.sleep(0)
 
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
@@ -109,5 +110,44 @@ async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> N
 
     assert gateway.connect_calls == 2
     assert gateway.cleanup_calls == 2
+    assert sleeps == [10]
+    assert any(event == "competition.supervisor_error" for event, _ in logger.events)
+
+
+@pytest.mark.anyio
+async def test_competition_supervisor_recovers_from_internal_cancelled_error(tmp_path) -> None:
+    gateway = DummyGateway()
+    logger = DummyLogger()
+    attempts = 0
+    sleeps = []
+
+    async def runner(context) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise asyncio.CancelledError()
+        asyncio.current_task().cancel()
+        await asyncio.sleep(0)
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    with pytest.raises(asyncio.CancelledError):
+        await _run_competition_supervisor(
+            settings_kwargs={
+                "model": "test-model",
+                "model_base_url": "https://example.invalid/v1",
+                "model_api_key": "key",
+                "contest_host": "https://challenge.zc.tencent.com",
+                "contest_token": "token",
+                "runtime_dir": tmp_path / "runtime",
+            },
+            event_logger=logger,
+            make_gateway=lambda settings: gateway,
+            competition_runner=runner,
+            sleep_fn=fake_sleep,
+        )
+
+    assert attempts == 2
     assert sleeps == [10]
     assert any(event == "competition.supervisor_error" for event, _ in logger.events)

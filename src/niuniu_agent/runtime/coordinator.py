@@ -46,7 +46,8 @@ class CompetitionCoordinator:
         for task in tasks:
             task.cancel()
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.gather(*tasks, return_exceptions=True)
 
     def _consume_task_result(self, challenge_code: str, task: asyncio.Task) -> None:
         with contextlib.suppress(asyncio.CancelledError):
