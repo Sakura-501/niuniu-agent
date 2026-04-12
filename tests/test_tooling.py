@@ -1,3 +1,5 @@
+import asyncio
+
 from niuniu_agent.tooling import LocalToolbox
 
 
@@ -104,3 +106,37 @@ async def test_run_python_snippet_prefers_uv_python(monkeypatch, tmp_path) -> No
 
     assert result["exit_code"] == 0
     assert seen["command"].startswith("uv run python ")
+
+
+@pytest.mark.anyio
+async def test_run_shell_command_kills_process_when_cancelled(monkeypatch, tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+    seen = {}
+
+    class DummyProcess:
+        returncode = None
+
+        def __init__(self) -> None:
+            self.killed = False
+
+        async def communicate(self):
+            await asyncio.Event().wait()
+
+        def kill(self):
+            self.killed = True
+
+    process = DummyProcess()
+
+    async def fake_subprocess(command, **kwargs):
+        seen["command"] = command
+        return process
+
+    monkeypatch.setattr("niuniu_agent.tooling.asyncio.create_subprocess_shell", fake_subprocess)
+
+    task = asyncio.create_task(toolbox.run_shell_command("sleep 60"))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert process.killed is True

@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import time
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -803,6 +804,33 @@ class StateStore:
             for row in rows
         ]
 
+    def get_agent_last_activity(self, agent_id: str) -> float | None:
+        with self._connect() as connection:
+            status_row = connection.execute(
+                """
+                SELECT updated_at
+                FROM agent_status
+                WHERE agent_id = ?
+                """,
+                (agent_id,),
+            ).fetchone()
+            event_row = connection.execute(
+                """
+                SELECT created_at
+                FROM agent_events
+                WHERE agent_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (agent_id,),
+            ).fetchone()
+        timestamps = [
+            self._parse_db_timestamp(status_row[0]) if status_row and status_row[0] else None,
+            self._parse_db_timestamp(event_row[0]) if event_row and event_row[0] else None,
+        ]
+        values = [value for value in timestamps if value is not None]
+        return max(values) if values else None
+
     def delete_agent(self, agent_id: str) -> None:
         with self._connect() as connection:
             connection.execute(
@@ -876,3 +904,12 @@ class StateStore:
         except json.JSONDecodeError:
             return {}
         return data if isinstance(data, dict) else {}
+
+    @staticmethod
+    def _parse_db_timestamp(raw: str | None) -> float | None:
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(raw.replace(" ", "T")).replace(tzinfo=UTC).timestamp()
+        except ValueError:
+            return None

@@ -52,6 +52,7 @@ class AgentSettings(BaseSettings):
     competition_error_backoff_seconds: int = 10
     competition_max_error_backoff_seconds: int = 120
     competition_worker_max_seconds_per_challenge: int = 3600
+    competition_worker_stall_seconds: int = 180
     competition_defer_seconds: int = 60
     competition_run_id: str | None = None
     web_host: str = "0.0.0.0"

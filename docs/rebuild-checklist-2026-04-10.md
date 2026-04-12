@@ -68,6 +68,7 @@
 - [x] 已支持双供应商模型配置、自动故障切换，以及 Web UI 手动切换当前供应商/模型
 - [x] `competition` 内部 worker/MCP 产生的非外部 `CancelledError` 不会再直接打死 supervisor 主进程
 - [x] process status 已增加 PID 命令校验，脏 PID/复用 PID 不会再被误判成仍在运行
+- [x] 已增加 stalled worker watchdog，running 但长期无活动的 worker 会自动取消并重排
 - [x] 单个 worker 在单题连续运行超过 1 小时且仍有未开始 challenge 时，会保存状态/记忆、关闭实例并临时降级让位
 - [x] challenge 关键过程与结果已持久化到本地 memory 表，manager / worker / Web UI 都可回看
 - [x] 已增加 `niuniu-agent clear-memory --yes`，可清理本地 runtime 记忆和 debug session 数据，避免 demo 污染正式比赛

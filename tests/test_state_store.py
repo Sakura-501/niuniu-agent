@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, UTC
 
 from niuniu_agent.state_store import StateStore
 
@@ -178,6 +179,31 @@ def test_state_store_persists_model_provider_selection_and_health(tmp_path) -> N
     assert official_state["consecutive_failures"] == 1
     assert official_state["last_error"] == "timeout"
     assert rightcodes_state["total_successes"] == 1
+
+
+def test_state_store_tracks_latest_agent_activity_timestamp(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.upsert_agent_status(
+        agent_id="worker:c1:run1",
+        role="challenge_worker",
+        challenge_code="c1",
+        status="running",
+        summary="working",
+        metadata={},
+    )
+    store.append_agent_event(
+        agent_id="worker:c1:run1",
+        challenge_code="c1",
+        event_type="tool_start",
+        payload="http_request",
+    )
+
+    activity = store.get_agent_last_activity("worker:c1:run1")
+
+    assert activity is not None
+    now = datetime.now(UTC).timestamp()
+    assert abs(now - activity) < 10
 
 
 def test_state_store_tracks_agent_runtime_status_and_events(tmp_path) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from uuid import uuid4
 
 from niuniu_agent.agent_stack.agent import AsyncPentestAgent
@@ -33,6 +34,56 @@ def build_manager_agent_id(run_id: str) -> str:
 
 def build_worker_agent_id(challenge_code: str) -> str:
     return f"worker:{challenge_code}:{uuid4().hex[:8]}"
+
+
+async def recover_stalled_workers(
+    *,
+    snapshot: object,
+    context: RuntimeContext,
+    coordinator: CompetitionCoordinator,
+    stall_seconds: int,
+    now: float | None = None,
+) -> list[dict[str, object]]:
+    current = time.time() if now is None else now
+    recovered: list[dict[str, object]] = []
+    for status in context.state_store.list_agent_statuses(role="challenge_worker"):
+        if status.get("status") != "running":
+            continue
+        challenge_code = str(status.get("challenge_code") or "")
+        if not challenge_code or not coordinator.is_running(challenge_code):
+            continue
+        activity = context.state_store.get_agent_last_activity(str(status["agent_id"]))
+        if activity is None:
+            continue
+        stale_for = current - activity
+        if stale_for < stall_seconds:
+            continue
+        metadata = dict(status.get("metadata") or {})
+        metadata["recovery_reason"] = f"stalled for {int(stale_for)}s without worker activity"
+        context.state_store.upsert_agent_status(
+            agent_id=str(status["agent_id"]),
+            role="challenge_worker",
+            challenge_code=challenge_code,
+            status="waiting_recovery",
+            summary="stalled worker cancelled; waiting for reschedule",
+            metadata=metadata,
+            last_error=str(status.get("last_error") or ""),
+        )
+        context.state_store.append_agent_event(
+            agent_id=str(status["agent_id"]),
+            challenge_code=challenge_code,
+            event_type="worker_stalled",
+            payload=metadata["recovery_reason"],
+        )
+        await coordinator.cancel_worker(challenge_code)
+        recovered.append(
+            {
+                "agent_id": str(status["agent_id"]),
+                "challenge_code": challenge_code,
+                "stale_for_seconds": int(stale_for),
+            }
+        )
+    return recovered
 
 
 async def run_competition_loop(context: RuntimeContext) -> None:
@@ -331,6 +382,15 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             worker_context.state_store.clear_active_challenge(challenge_code)
+            existing_status = worker_context.state_store.get_agent_status(worker_context.agent_id or worker_agent_id)
+            if existing_status is not None and existing_status.get("status") == "waiting_recovery":
+                worker_context.state_store.append_agent_event(
+                    agent_id=worker_context.agent_id or worker_agent_id,
+                    challenge_code=challenge_code,
+                    event_type="worker_cancelled_for_recovery",
+                    payload="worker cancelled after stall detection",
+                )
+                raise
             worker_context.state_store.upsert_agent_status(
                 agent_id=worker_context.agent_id or worker_agent_id,
                 role="challenge_worker",
@@ -423,6 +483,17 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 )
                 context.event_logger.log("competition.recovery", recovery_summary)
                 recovery_ran = True
+            recovered_workers = await recover_stalled_workers(
+                snapshot=snapshot,
+                context=context,
+                coordinator=coordinator,
+                stall_seconds=context.settings.competition_worker_stall_seconds,
+            )
+            if recovered_workers:
+                context.event_logger.log(
+                    "competition.stalled_workers_recovered",
+                    {"recovered_workers": recovered_workers},
+                )
             manager.heartbeat(snapshot, coordinator)
             manager.reconcile(coordinator)
             candidates, _paused = partition_dispatchable_challenges(snapshot, context.state_store)

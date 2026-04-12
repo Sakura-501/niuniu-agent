@@ -49,6 +49,16 @@ class CompetitionCoordinator:
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.gather(*tasks, return_exceptions=True)
 
+    async def cancel_worker(self, challenge_code: str) -> None:
+        task = self.worker_tasks.get(challenge_code)
+        if task is None or task.done():
+            self.worker_tasks.pop(challenge_code, None)
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        self.worker_tasks.pop(challenge_code, None)
+
     def _consume_task_result(self, challenge_code: str, task: asyncio.Task) -> None:
         with contextlib.suppress(asyncio.CancelledError):
             exc = task.exception()

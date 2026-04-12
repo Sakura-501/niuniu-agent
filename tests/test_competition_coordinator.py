@@ -22,3 +22,25 @@ async def test_competition_coordinator_respects_parallel_limit() -> None:
 
     blocker.set()
     await coordinator.stop_all()
+
+
+@pytest.mark.anyio
+async def test_competition_coordinator_can_cancel_one_worker() -> None:
+    coordinator = CompetitionCoordinator(max_parallel_challenges=3)
+    cancelled = []
+    blocker = asyncio.Event()
+
+    async def worker(code: str) -> None:
+        try:
+            await blocker.wait()
+        except asyncio.CancelledError:
+            cancelled.append(code)
+            raise
+
+    await coordinator.schedule(["c1"], worker)
+    await asyncio.sleep(0)
+    await coordinator.cancel_worker("c1")
+    await asyncio.sleep(0)
+
+    assert cancelled == ["c1"]
+    assert coordinator.is_running("c1") is False

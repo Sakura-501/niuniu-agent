@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 import shlex
@@ -170,6 +171,11 @@ class LocalToolbox:
             process.kill()
             await process.communicate()
             return {"exit_code": -1, "stdout": "", "stderr": "command timed out"}
+        except asyncio.CancelledError:
+            process.kill()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(process.communicate(), timeout=1)
+            raise
 
         return {
             "exit_code": process.returncode,
