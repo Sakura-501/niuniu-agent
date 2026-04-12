@@ -109,6 +109,31 @@ async def recover_stalled_workers(
     return recovered
 
 
+async def close_completed_challenge_instances(
+    *,
+    snapshot: object,
+    context: RuntimeContext,
+) -> list[str]:
+    closed: list[str] = []
+    for challenge in getattr(snapshot, "challenges", []):
+        if not context.challenge_store.is_effectively_completed(challenge):
+            continue
+        if getattr(challenge, "instance_status", None) != "running":
+            continue
+        try:
+            await context.contest_gateway.stop_challenge(challenge.code)
+        except Exception as exc:  # pragma: no cover - best-effort cleanup
+            context.event_logger.log(
+                "competition.completed_instance_close_failed",
+                {"challenge_code": challenge.code, "error": str(exc)},
+            )
+            continue
+        context.state_store.record_challenge_success(challenge.code)
+        context.state_store.add_history_event(challenge.code, "instance_stopped", "completed challenge instance closed")
+        closed.append(challenge.code)
+    return closed
+
+
 async def retire_completed_workers(
     *,
     snapshot: object,
@@ -608,6 +633,15 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 )
                 context.event_logger.log("competition.recovery", recovery_summary)
                 recovery_ran = True
+            closed_instances = await close_completed_challenge_instances(
+                snapshot=snapshot,
+                context=context,
+            )
+            if closed_instances:
+                context.event_logger.log(
+                    "competition.completed_instances_closed",
+                    {"challenge_codes": closed_instances},
+                )
             recovered_workers = await recover_stalled_workers(
                 snapshot=snapshot,
                 context=context,

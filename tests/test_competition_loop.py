@@ -7,6 +7,7 @@ import pytest
 
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.runtime.competition_loop import (
+    close_completed_challenge_instances,
     recover_stalled_workers,
     stop_challenge_instance_before_worker_exit,
     retire_completed_workers,
@@ -265,6 +266,58 @@ async def test_retire_completed_workers_cancels_running_worker_on_completed_chal
     assert cancelled == ["c1"]
     assert gateway.stopped == ["c1"]
     assert state_store.get_agent_status("worker:c1:run1")["status"] == "completed"
+
+
+@pytest.mark.anyio
+async def test_close_completed_challenge_instances_closes_running_instance_even_without_worker(tmp_path) -> None:
+    state_store = StateStore(tmp_path / "state.db")
+    state_store.record_submitted_flag("c1", "flag{demo}")
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    class ChallengeStoreStub:
+        def __init__(self, store):
+            self.store = store
+
+        def is_effectively_completed(self, challenge):
+            return True
+
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="test-model",
+            model_base_url="https://example.invalid/v1",
+            model_api_key="key",
+            contest_host="https://challenge.zc.tencent.com",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=ChallengeStoreStub(state_store),
+        state_store=state_store,
+        event_logger=logger,
+        local_toolbox=object(),
+        skill_registry=None,
+    )
+
+    closed = await close_completed_challenge_instances(
+        snapshot=SimpleNamespace(
+            challenges=[
+                ChallengeSnapshot(
+                    code="c1",
+                    title="done",
+                    description="demo",
+                    difficulty="easy",
+                    level=0,
+                    flag_count=1,
+                    flag_got_count=1,
+                    instance_status="running",
+                )
+            ]
+        ),
+        context=context,
+    )
+
+    assert closed == ["c1"]
+    assert gateway.stopped == ["c1"]
 
 
 @pytest.mark.anyio
