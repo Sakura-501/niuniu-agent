@@ -46,17 +46,22 @@ PIP_PACKAGES=(
   impacket
   bloodhound-python
   netexec
+  certipy-ad
+  smbmap
+  responder
 )
 
 PORTABLE_TOOLS=(
   rustscan
   cloudfox
+  chisel
   frp
   stowaway
   fscan
   linpeas
   pspy
   mimikatz
+  winpeas
 )
 
 promote_user_binaries() {
@@ -164,6 +169,15 @@ install_plan() {
   if ! python3 -m pip install --user --break-system-packages "${PIP_PACKAGES[@]}"; then
     echo "pip install failed: ${PIP_PACKAGES[*]}" >&2
     failures+=("pip:${PIP_PACKAGES[*]}")
+  fi
+  if [[ ! -d "${HOME}/.local/enum4linux-ng" ]]; then
+    if ! git clone --depth=1 https://github.com/cddmp/enum4linux-ng "${HOME}/.local/enum4linux-ng"; then
+      echo "git clone failed: enum4linux-ng" >&2
+      failures+=("git:enum4linux-ng")
+    fi
+  fi
+  if [[ -f "${HOME}/.local/enum4linux-ng/enum4linux-ng.py" ]]; then
+    sudo ln -sf "${HOME}/.local/enum4linux-ng/enum4linux-ng.py" /usr/local/bin/enum4linux-ng
   fi
   if ! NIUNIU_AGENT_GITHUB_ASSET_PROXY="${NIUNIU_AGENT_GITHUB_ASSET_PROXY:-https://gh-proxy.org}" \
       python3 scripts/fetch_portable_tools.py install "${PORTABLE_TOOLS[@]}"; then

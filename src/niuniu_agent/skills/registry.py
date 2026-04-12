@@ -155,6 +155,34 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         trigger_keywords=("mimikatz", "sekurlsa", "windows creds"),
         usage_guidance="Load this skill when you need to stage or reason about a Windows-only mimikatz workflow.",
     ),
+    "tool-sqlmap-whatweb-nikto": SkillBehavior(
+        trigger_keywords=("sqlmap", "whatweb", "nikto"),
+        usage_guidance="Load this skill when you need concrete fingerprinting and SQLi triage steps for internal web targets.",
+    ),
+    "tool-socat-proxychains": SkillBehavior(
+        trigger_keywords=("socat", "proxychains", "relay", "socks"),
+        usage_guidance="Load this skill when you need lightweight relays or proxied follow-on tooling.",
+    ),
+    "tool-kerbrute-smb-enum": SkillBehavior(
+        trigger_keywords=("kerbrute", "smbmap", "enum4linux", "responder"),
+        usage_guidance="Load this skill when you need concrete SMB and identity enumeration steps.",
+    ),
+    "tool-feroxbuster-masscan": SkillBehavior(
+        trigger_keywords=("feroxbuster", "masscan"),
+        usage_guidance="Load this skill when you need heavier recursive content or high-rate range discovery.",
+    ),
+    "tool-certipy-adcs": SkillBehavior(
+        trigger_keywords=("certipy", "adcs", "esc"),
+        usage_guidance="Load this skill when AD CS or certificate abuse becomes relevant.",
+    ),
+    "tool-chisel": SkillBehavior(
+        trigger_keywords=("chisel",),
+        usage_guidance="Load this skill when you need a lightweight tunnel or SOCKS pivot path.",
+    ),
+    "tool-winpeas-windows-assets": SkillBehavior(
+        trigger_keywords=("winpeas", "windows asset", "windows privesc"),
+        usage_guidance="Load this skill when a Windows foothold needs staged privilege-escalation assets.",
+    ),
 }
 
 

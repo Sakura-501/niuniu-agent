@@ -52,6 +52,7 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("httpx", "cve", ("track2",), "go install github.com/projectdiscovery/httpx/cmd/httpx@latest"),
         ("openssl", "crypto", ("all",), "sudo apt-get install -y openssl"),
         ("cloudfox", "cloud", ("track2",), "brew install cloudfox or go install github.com/BishopFox/cloudfox@latest"),
+        ("chisel", "pivot", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install chisel"),
         ("frpc", "pivot", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install frp"),
         ("frps", "pivot", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install frp"),
         ("stowaway_admin", "pivot", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install stowaway"),
@@ -62,7 +63,11 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("socat", "service", ("track2", "track3"), "sudo apt-get install -y socat"),
         ("proxychains4", "pivot", ("track3", "track4"), "sudo apt-get install -y proxychains4"),
         ("smbclient", "domain", ("track4",), "sudo apt-get install -y smbclient"),
+        ("smbmap", "domain", ("track4",), "python3 -m pip install --user smbmap"),
         ("ldapsearch", "domain", ("track4",), "sudo apt-get install -y ldap-utils"),
+        ("certipy-ad", "domain", ("track4",), "python3 -m pip install --user certipy-ad"),
+        ("enum4linux-ng", "domain", ("track4",), "git clone https://github.com/cddmp/enum4linux-ng and use enum4linux-ng.py"),
+        ("responder", "domain", ("track4",), "python3 -m pip install --user responder"),
         ("hydra", "domain", ("track3", "track4"), "sudo apt-get install -y hydra"),
         ("john", "domain", ("track3", "track4"), "sudo apt-get install -y john"),
         ("hashcat", "domain", ("track3", "track4"), "sudo apt-get install -y hashcat"),
@@ -74,6 +79,7 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("netexec", "domain", ("track4",), "python3 -m pip install --user netexec"),
         ("linpeas", "privesc", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install linpeas"),
         ("pspy", "privesc", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install pspy"),
+        ("winpeasx64", "privesc", ("track4",), "python3 scripts/fetch_portable_tools.py install winpeas"),
         ("msfconsole", "framework", ("track2", "track3", "track4"), "brew install metasploit or install metasploit-framework from official packages"),
     ]
     return [

@@ -50,6 +50,15 @@ TOOLS: dict[str, PortableTool] = {
         },
         binaries=("cloudfox",),
     ),
+    "chisel": PortableTool(
+        name="chisel",
+        repo="jpillora/chisel",
+        assets={
+            "darwin_arm64": ("darwin_arm64.gz",),
+            "linux_amd64": ("linux_amd64.gz",),
+        },
+        binaries=("chisel",),
+    ),
     "frp": PortableTool(
         name="frp",
         repo="fatedier/frp",
@@ -99,6 +108,15 @@ TOOLS: dict[str, PortableTool] = {
         repo="gentilkiwi/mimikatz",
         assets={
             "windows_x64_backup": ("mimikatz_trunk.zip",),
+        },
+        binaries=(),
+        archive_only=True,
+    ),
+    "winpeas": PortableTool(
+        name="winpeas",
+        repo="peass-ng/PEASS-ng",
+        assets={
+            "windows_x64_backup": ("winPEASx64.exe", "winPEASx64_ofs.exe", "winPEASany.exe"),
         },
         binaries=(),
         archive_only=True,
@@ -239,6 +257,8 @@ def install() -> int:
             for binary in tool.binaries:
                 if tool.name == "frp":
                     source = next((path for path in temp_dir.rglob(binary) if path.is_file()), None)
+                elif tool.name == "chisel":
+                    source = next((path for path in extracted if path.name == asset_names[0]), None)
                 elif tool.name == "fscan":
                     source = next((path for path in extracted if path.name == asset_names[0]), None)
                 elif tool.name == "linpeas":
