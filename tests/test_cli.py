@@ -74,6 +74,10 @@ class DummyLogger:
         self.events.append((event, payload or {}))
 
 
+class StopSupervisor(Exception):
+    pass
+
+
 @pytest.mark.anyio
 async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> None:
     gateway = DummyGateway()
@@ -91,8 +95,10 @@ async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> N
 
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
+        if len(sleeps) >= 2:
+            raise StopSupervisor()
 
-    with pytest.raises(asyncio.CancelledError):
+    with pytest.raises(StopSupervisor):
         await _run_competition_supervisor(
             settings_kwargs={
                 "model": "test-model",
@@ -110,7 +116,7 @@ async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> N
 
     assert gateway.connect_calls == 2
     assert gateway.cleanup_calls == 2
-    assert sleeps == [10]
+    assert sleeps == [10, 20]
     assert any(event == "competition.supervisor_error" for event, _ in logger.events)
 
 
@@ -131,8 +137,10 @@ async def test_competition_supervisor_recovers_from_internal_cancelled_error(tmp
 
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
+        if len(sleeps) >= 2:
+            raise StopSupervisor()
 
-    with pytest.raises(asyncio.CancelledError):
+    with pytest.raises(StopSupervisor):
         await _run_competition_supervisor(
             settings_kwargs={
                 "model": "test-model",
@@ -149,5 +157,5 @@ async def test_competition_supervisor_recovers_from_internal_cancelled_error(tmp
         )
 
     assert attempts == 2
-    assert sleeps == [10]
+    assert sleeps == [10, 20]
     assert any(event == "competition.supervisor_error" for event, _ in logger.events)

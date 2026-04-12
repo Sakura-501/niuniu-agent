@@ -561,13 +561,10 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 snapshot = await context.challenge_store.refresh()
                 refresh_backoff = 1
             except asyncio.CancelledError:
-                task = asyncio.current_task()
-                if task is not None and task.cancelling():
-                    raise
                 context.event_logger.log(
                     "competition.refresh_error",
                     {
-                        "error": "internal CancelledError during challenge refresh",
+                        "error": "challenge refresh raised CancelledError; retrying",
                         "backoff_seconds": refresh_backoff,
                     },
                 )
@@ -576,9 +573,9 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     role="manager",
                     challenge_code=None,
                     status="degraded",
-                    summary="challenge refresh internally cancelled; retrying",
+                    summary="challenge refresh cancelled; retrying",
                     metadata={"backoff_seconds": refresh_backoff, "run_id": competition_run_id},
-                    last_error="internal CancelledError during challenge refresh",
+                    last_error="challenge refresh raised CancelledError",
                 )
                 await asyncio.sleep(refresh_backoff)
                 refresh_backoff = min(refresh_backoff * 2, context.settings.competition_max_error_backoff_seconds)
