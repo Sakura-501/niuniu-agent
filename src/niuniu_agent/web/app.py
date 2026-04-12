@@ -77,6 +77,10 @@ def create_app(service: object | None = None) -> FastAPI:
             </div>
           </section>
           <section class="panel">
+            <h3>Callback Resources</h3>
+            <div id="operator-resources" class="card-list"></div>
+          </section>
+          <section class="panel">
             <h3>Challenges</h3>
             <div id="challenge-list" class="card-list"></div>
           </section>
@@ -179,6 +183,14 @@ def create_app(service: object | None = None) -> FastAPI:
             <div class="muted">default_model=${provider.model} · effective_model=${provider.effective_model}</div>
             <div class="muted">selected=${provider.selected} · failures=${(provider.state && provider.state.consecutive_failures) || 0} · successes=${(provider.state && provider.state.total_successes) || 0}</div>
             <div class="mono">${provider.state && provider.state.last_error ? provider.state.last_error : 'no provider errors'}</div>
+          `);
+          const resources = data.operator_resources || {};
+          renderCardList('operator-resources', Object.entries(resources), ([name, resource]) => `
+            <strong>${name}</strong>
+            <div class="muted">host=${resource.host || ''}</div>
+            <div class="muted">username=${resource.username || ''}</div>
+            <div class="mono">password=${resource.password || ''}</div>
+            <div class="muted">${resource.usage || ''}</div>
           `);
           const providerSelect = document.getElementById('provider-select');
           const providerModelInput = document.getElementById('provider-model');

@@ -44,6 +44,10 @@ class AgentSettings(BaseSettings):
     fallback_model_provider_id: str = "fallback"
     fallback_model_provider_name: str = "备用供应商"
     model_failover_enabled: bool = True
+    callback_public_ip: str | None = None
+    callback_username: str | None = None
+    callback_password: str | None = None
+    callback_usage: str = "Use this public callback server for reverse shells, pivoting, and persistence when a target must call back."
     contest_host: str
     contest_token: str
     poll_interval_seconds: int | None = None
@@ -91,6 +95,17 @@ class AgentSettings(BaseSettings):
                 )
             )
         return tuple(providers)
+
+    @property
+    def callback_resource(self) -> dict[str, str] | None:
+        if not (self.callback_public_ip and self.callback_username and self.callback_password):
+            return None
+        return {
+            "host": self.callback_public_ip,
+            "username": self.callback_username,
+            "password": self.callback_password,
+            "usage": self.callback_usage,
+        }
 
     @model_validator(mode="after")
     def apply_mode_defaults(self) -> "AgentSettings":

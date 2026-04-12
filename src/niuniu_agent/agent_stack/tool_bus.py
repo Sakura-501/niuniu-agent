@@ -304,6 +304,11 @@ class ToolBus:
         return {
             "notes": self.context.notes,
             "snapshot": self.context.challenge_store.export_json(self.context.challenge_store.latest),
+            "operator_resources": {
+                "callback_server": self.context.settings.callback_resource,
+            }
+            if self.context.settings.callback_resource
+            else {},
         }
 
     def _record_agent_event(self, event_type: str, payload: dict[str, Any]) -> None:

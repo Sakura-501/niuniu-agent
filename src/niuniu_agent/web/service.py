@@ -293,6 +293,11 @@ class DebugSessionManager:
                         notes=notes,
                         summary_request=False,
                         track=track,
+                        operator_resources={
+                            "callback_server": turn_context.settings.callback_resource,
+                        }
+                        if turn_context.settings.callback_resource
+                        else None,
                     ),
                     build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                     build_trigger_prompt(FLAG_SUBMIT_PROMPT),
@@ -479,6 +484,11 @@ class AgentWebService:
             "listening_port": self.context.settings.web_port,
             "process": process_status,
             "model_routing": self.context.provider_router.describe() if self.context.provider_router is not None else {},
+            "operator_resources": {
+                "callback_server": self.context.settings.callback_resource,
+            }
+            if self.context.settings.callback_resource
+            else {},
             "contest_capabilities": [
                 "list_challenges",
                 "start_challenge",

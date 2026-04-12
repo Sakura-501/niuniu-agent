@@ -17,6 +17,14 @@ class FakeWebService:
                     {"provider_id": "rightcodes", "display_name": "rightcodes供应商", "base_url": "http://10.0.0.24/70_tsdb3cwf/codex/v1", "model": "gpt-5.4-xhigh"},
                 ],
             },
+            "operator_resources": {
+                "callback_server": {
+                    "host": "129.211.15.16",
+                    "username": "root",
+                    "password": "123QWE@qwe",
+                    "usage": "Use for reverse shells, pivoting, and persistence.",
+                }
+            },
             "contest": {
                 "current_level": 1,
                 "total_challenges": 2,
@@ -114,6 +122,7 @@ def test_web_dashboard_renders() -> None:
     assert "Agent Console" in response.text
     assert "8081" in response.text
     assert "defaultModel" in response.text
+    assert "Callback Resources" in response.text
 
 
 def test_web_overview_endpoint_returns_json() -> None:

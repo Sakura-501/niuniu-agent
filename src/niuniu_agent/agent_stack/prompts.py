@@ -93,6 +93,7 @@ def build_entry_prompt(
     notes: dict | None = None,
     summary_request: bool = False,
     track: str | None = None,
+    operator_resources: dict | None = None,
 ) -> str:
     snapshot_text = ""
     if snapshot is not None:
@@ -126,6 +127,7 @@ def build_entry_prompt(
         f"- {skill.name}: {skill.description} | guidance: {skill.usage_guidance}" for skill in skills
     )
     available_skills_text = f"Available skills catalog:\n{available_skills}" if available_skills else ""
+    operator_resources_text = f"Operator resources:\n{operator_resources}" if operator_resources else ""
     mode_text = (
         "Mode: competition. Keep running forever and recover from errors. "
         "Use the load_skill tool when a task needs specialized instructions before acting."
@@ -162,6 +164,7 @@ def build_entry_prompt(
             notes_text,
             track_text,
             available_skills_text,
+            operator_resources_text,
             snapshot_text.strip(),
             active_text.strip(),
             f"Selected skills:\n{skill_text}" if skill_text else "",

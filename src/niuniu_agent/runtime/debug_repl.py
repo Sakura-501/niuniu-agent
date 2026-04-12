@@ -90,6 +90,11 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                         notes=notes,
                         summary_request=_is_summary_request(user_input),
                         track=track,
+                        operator_resources={
+                            "callback_server": turn_context.settings.callback_resource,
+                        }
+                        if turn_context.settings.callback_resource
+                        else None,
                     ),
                     build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                     build_trigger_prompt(FLAG_SUBMIT_PROMPT),

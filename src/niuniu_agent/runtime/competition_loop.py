@@ -324,6 +324,11 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                                 runtime_state=runtime_state,
                                 notes=notes,
                                 track=infer_track(target.description),
+                                operator_resources={
+                                    "callback_server": worker_context.settings.callback_resource,
+                                }
+                                if worker_context.settings.callback_resource
+                                else None,
                             ),
                             build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                             build_trigger_prompt(PRE_EXPLOIT_PROMPT),

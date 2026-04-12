@@ -49,3 +49,23 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "at most 3 challenge instances" in prompt
     assert "stop that challenge instance immediately" in prompt
     assert "more than 5 minutes" in prompt
+
+
+def test_entry_prompt_includes_callback_resource_when_available() -> None:
+    prompt = build_entry_prompt(
+        "competition",
+        None,
+        None,
+        [],
+        operator_resources={
+            "callback_server": {
+                "host": "129.211.15.16",
+                "username": "root",
+                "password": "123QWE@qwe",
+                "usage": "Use for reverse shells, pivoting, and persistence.",
+            }
+        },
+    )
+
+    assert "callback_server" in prompt
+    assert "129.211.15.16" in prompt
