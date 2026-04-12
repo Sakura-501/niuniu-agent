@@ -119,6 +119,42 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Constrain heavy tools explicitly and kill stale jobs that stop producing signal.",
         recommended_tracks=("track1", "track2", "track3", "track4"),
     ),
+    "tool-rustscan-nmap": SkillBehavior(
+        trigger_keywords=("rustscan", "nmap", "masscan", "portscan"),
+        usage_guidance="Load this skill when you need concrete rustscan/nmap operator steps instead of generic recon guidance.",
+    ),
+    "tool-ffuf-gobuster": SkillBehavior(
+        trigger_keywords=("ffuf", "gobuster", "feroxbuster", "dirsearch"),
+        usage_guidance="Load this skill when you need concrete content-discovery tactics and safe filters.",
+    ),
+    "tool-nuclei-fscan": SkillBehavior(
+        trigger_keywords=("nuclei", "fscan", "template scan", "cve scan"),
+        usage_guidance="Load this skill when you need concrete nuclei/fscan usage patterns and scoped CVE validation.",
+    ),
+    "tool-cloudfox": SkillBehavior(
+        trigger_keywords=("cloudfox", "cloud enum", "iam enum"),
+        usage_guidance="Load this skill when cloudfox is the likely next tool and you need practical cloud enumeration steps.",
+    ),
+    "tool-frp-stowaway": SkillBehavior(
+        trigger_keywords=("frp", "stowaway", "pivot tool", "reverse tunnel"),
+        usage_guidance="Load this skill when you need concrete tunnel or multi-hop pivot usage.",
+    ),
+    "tool-impacket-netexec-bloodhound": SkillBehavior(
+        trigger_keywords=("impacket", "netexec", "bloodhound", "kerbrute"),
+        usage_guidance="Load this skill when you need a concrete AD tool workflow.",
+    ),
+    "tool-linpeas-pspy": SkillBehavior(
+        trigger_keywords=("linpeas", "pspy", "linux privesc tool"),
+        usage_guidance="Load this skill when you need concrete Linux local escalation tooling steps.",
+    ),
+    "tool-metasploit": SkillBehavior(
+        trigger_keywords=("metasploit", "msfconsole", "meterpreter"),
+        usage_guidance="Load this skill when Metasploit becomes the most practical exploit or handler path.",
+    ),
+    "tool-mimikatz-windows": SkillBehavior(
+        trigger_keywords=("mimikatz", "sekurlsa", "windows creds"),
+        usage_guidance="Load this skill when you need to stage or reason about a Windows-only mimikatz workflow.",
+    ),
 }
 
 
