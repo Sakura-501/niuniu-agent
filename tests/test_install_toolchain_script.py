@@ -24,3 +24,10 @@ def test_install_toolchain_script_prints_expected_commands() -> None:
     assert "gobuster" in result.stdout
     assert "proxychains4" in result.stdout
     assert "socat" in result.stdout
+    assert "rustscan" in result.stdout
+    assert "cloudfox" in result.stdout
+    assert "fscan" in result.stdout
+    assert "stowaway" in result.stdout
+    assert "linpeas" in result.stdout
+    assert "pspy" in result.stdout
+    assert "metasploit-framework" in result.stdout

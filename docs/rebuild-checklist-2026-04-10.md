@@ -201,6 +201,10 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：端口发现、服务识别、基础探测。  
 安装：`sudo apt-get install -y nmap`
 
+- [x] `rustscan`
+作用：高速端口发现，适合作为 `nmap` 前置探测器。  
+安装：优先官方 release 二进制或 `cargo install rustscan`
+
 - [x] `masscan`
 作用：高速端口探测、内网大范围资产发现。  
 安装：`sudo apt-get install -y masscan`
@@ -218,6 +222,14 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 - [x] `nuclei`
 作用：CVE 模板验证、资产批量快速检测。  
 安装：按官方二进制或 `go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest`
+
+- [x] `fscan`
+作用：常见服务、漏洞和内网资产的快速综合扫描。  
+安装：官方 release 二进制，当前通过 `scripts/fetch_portable_tools.py` 获取
+
+- [x] `cloudfox`
+作用：云环境资产、身份和权限快速态势感知。  
+安装：官方 release 二进制，当前通过 `scripts/fetch_portable_tools.py` 获取
 
 - [x] `httpx`
 作用：存活探测、标题/状态码/服务信息批量收集。  
@@ -247,6 +259,14 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：多跳代理转发、内网横向阶段链路复用。  
 安装：`sudo apt-get install -y proxychains4`
 
+- [x] `frp` (`frpc` / `frps`)
+作用：反向代理、端口暴露、回连与稳定隧道。  
+安装：官方 release 二进制，当前通过 `scripts/fetch_portable_tools.py` 获取
+
+- [x] `stowaway`
+作用：多级隧道和横向网络转发。  
+安装：官方 release 二进制，当前通过 `scripts/fetch_portable_tools.py` 获取
+
 ### D. 内网 / 域渗透 / 横向基础工具
 
 - [x] `smbclient`
@@ -269,6 +289,10 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：域关系收集、权限路径图分析。  
 安装：`python3 -m pip install --user bloodhound-python`
 
+- [x] `mimikatz` 备份资产
+作用：Windows 环境凭据提取和认证材料利用。  
+安装：Windows-only 资产，当前通过 `scripts/fetch_portable_tools.py` 备份官方 release 包供后续投放
+
 - [x] `kerbrute`
 作用：Kerberos 用户枚举与口令验证。  
 安装：`go install github.com/ropnop/kerbrute@latest`
@@ -284,6 +308,20 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 - [x] `hashcat`
 作用：GPU/CPU 密码哈希破解。  
 安装：`sudo apt-get install -y hashcat`
+
+### F. 权限提升 / 后渗透工具
+
+- [x] `linpeas`
+作用：Linux 权限提升线索收集。  
+安装：官方 release 二进制，当前通过 `scripts/fetch_portable_tools.py` 获取
+
+- [x] `pspy`
+作用：无 root 的 Linux 进程/计划任务观察。  
+安装：官方 release 二进制，当前通过 `scripts/fetch_portable_tools.py` 获取
+
+- [x] `metasploit-framework`
+作用：多协议 payload、session 管理和 exploit 框架。  
+安装：调试机当前通过 `snap install metasploit-framework --classic` 完成
 
 ### E. 工具接入实现要求
 
@@ -372,6 +410,51 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 关键词触发：`flag`、`submit`、`recovery`、`retry`  
 典型使用时机：任意赛区，发现候选 flag 后。  
 输出期望：提交结果、是否得分、是否继续尝试。
+
+### 11. `port-scan-operations`
+
+作用：在 `rustscan / nmap / masscan` 之间做有边界的端口与服务探测。  
+输出期望：端口表、服务指纹、进一步验证建议。
+
+### 12. `web-content-discovery`
+
+作用：在 `ffuf / gobuster / feroxbuster` 之间做路径、文件、vhost 和隐藏内容发现。  
+输出期望：高价值路径、过滤条件、递归建议。
+
+### 13. `cve-template-scanning`
+
+作用：基于 `nuclei / fscan / httpx / whatweb` 做已知漏洞模板验证。  
+输出期望：可疑模板命中、人工复核点、下一步利用线索。
+
+### 14. `cloud-security-enumeration`
+
+作用：面向云身份、对象存储、元数据和 AI 基础设施的攻击面枚举。  
+输出期望：云资产边界、身份线索、可验证风险面。
+
+### 15. `tunnel-and-pivot-operations`
+
+作用：使用 `frp / stowaway / socat / proxychains4` 规划回连、转发和横向代理。  
+输出期望：最小可行隧道方案、监听与清理步骤。
+
+### 16. `persistence-operations`
+
+作用：在确有必要时保持低噪声持久化与回连能力。  
+输出期望：保留通道、清理方式、继续利用条件。
+
+### 17. `domain-operations`
+
+作用：围绕 `impacket / netexec / bloodhound / kerbrute / mimikatz` 的域渗透流程。  
+输出期望：域关系图、最短权限路径、可复用凭据。
+
+### 18. `linux-privilege-escalation`
+
+作用：围绕 `linpeas / pspy / sudo / capability` 的 Linux 提权流程。  
+输出期望：高确定性提权路径、证据、清理方案。
+
+### 19. `resource-aware-execution`
+
+作用：限制重型扫描和批量工具的 CPU / 内存 / 并发开销，防止机器卡死。  
+输出期望：合理的并发、限速、超时和回收策略。
 
 ## Skills 使用教程
 
@@ -503,3 +586,4 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 - [x] 调试机实测 `feroxbuster` 已可用
 - [x] 调试机实测 `gobuster / socat / proxychains4` 已安装并可调用
 - [x] 调试机实测工具清单中的四赛道基础工具已全部存在
+- [x] 调试机实测 `rustscan / cloudfox / frpc / frps / stowaway / fscan / linpeas / pspy / msfconsole` 已安装并可调用

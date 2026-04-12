@@ -48,6 +48,17 @@ PIP_PACKAGES=(
   netexec
 )
 
+PORTABLE_TOOLS=(
+  rustscan
+  cloudfox
+  frp
+  stowaway
+  fscan
+  linpeas
+  pspy
+  mimikatz
+)
+
 promote_user_binaries() {
   local source_dir
   for source_dir in "${HOME}/go/bin" "${HOME}/.local/bin" "${HOME}/.cargo/bin"; do
@@ -112,6 +123,8 @@ print_plan() {
   echo "APT: sudo apt-get update && sudo apt-get install -y ${APT_PACKAGES[*]}"
   echo "GO : $(printf 'go install %s && ' "${GO_PACKAGES[@]}")true"
   echo "PIP: python3 -m pip install --user ${PIP_PACKAGES[*]}"
+  echo "PORTABLE: NIUNIU_AGENT_GITHUB_ASSET_PROXY=https://gh-proxy.org python3 scripts/fetch_portable_tools.py install ${PORTABLE_TOOLS[*]}"
+  echo "EXTRA: sudo snap install metasploit-framework --classic && sudo snap connect metasploit-framework:network-control :network-control"
 }
 
 install_plan() {
@@ -151,6 +164,20 @@ install_plan() {
   if ! python3 -m pip install --user --break-system-packages "${PIP_PACKAGES[@]}"; then
     echo "pip install failed: ${PIP_PACKAGES[*]}" >&2
     failures+=("pip:${PIP_PACKAGES[*]}")
+  fi
+  if ! NIUNIU_AGENT_GITHUB_ASSET_PROXY="${NIUNIU_AGENT_GITHUB_ASSET_PROXY:-https://gh-proxy.org}" \
+      python3 scripts/fetch_portable_tools.py install "${PORTABLE_TOOLS[@]}"; then
+    echo "portable install failed: ${PORTABLE_TOOLS[*]}" >&2
+    failures+=("portable:${PORTABLE_TOOLS[*]}")
+  fi
+  if command -v snap >/dev/null 2>&1; then
+    if ! snap list metasploit-framework >/dev/null 2>&1; then
+      if ! snap install metasploit-framework --classic; then
+        echo "snap install failed: metasploit-framework" >&2
+        failures+=("snap:metasploit-framework")
+      fi
+    fi
+    snap connect metasploit-framework:network-control :network-control >/dev/null 2>&1 || true
   fi
   promote_user_binaries
   if [[ "${#failures[@]}" -gt 0 ]]; then
