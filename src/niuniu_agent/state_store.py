@@ -204,6 +204,72 @@ class StateStore:
             ).fetchall()
         return [row[0] for row in rows]
 
+    def latest_submitted_flag_at(self, challenge_code: str) -> float | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT created_at
+                FROM submitted_flags
+                WHERE challenge_code = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (challenge_code,),
+            ).fetchone()
+        return self._parse_db_timestamp(row[0]) if row and row[0] else None
+
+    def clear_submitted_flags(self, challenge_code: str) -> int:
+        with self._connect() as connection:
+            count_row = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM submitted_flags
+                WHERE challenge_code = ?
+                """,
+                (challenge_code,),
+            ).fetchone()
+            connection.execute(
+                """
+                DELETE FROM submitted_flags
+                WHERE challenge_code = ?
+                """,
+                (challenge_code,),
+            )
+        return int(count_row[0] if count_row else 0)
+
+    def latest_submitted_flag_at(self, challenge_code: str) -> float | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT created_at
+                FROM submitted_flags
+                WHERE challenge_code = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (challenge_code,),
+            ).fetchone()
+        return self._parse_db_timestamp(row[0]) if row and row[0] else None
+
+    def clear_submitted_flags(self, challenge_code: str) -> int:
+        with self._connect() as connection:
+            count_row = connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM submitted_flags
+                WHERE challenge_code = ?
+                """,
+                (challenge_code,),
+            ).fetchone()
+            connection.execute(
+                """
+                DELETE FROM submitted_flags
+                WHERE challenge_code = ?
+                """,
+                (challenge_code,),
+            )
+        return int(count_row[0] if count_row else 0)
+
     def mark_active_challenge(self, challenge_code: str) -> None:
         now = time.time()
         with self._connect() as connection:

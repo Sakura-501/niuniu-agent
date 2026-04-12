@@ -60,6 +60,7 @@ class AgentSettings(BaseSettings):
     competition_worker_max_seconds_per_challenge: int = 3600
     competition_worker_stall_seconds: int = 180
     competition_defer_seconds: int = 60
+    official_completion_grace_seconds: int = 30
     model_context_window_tokens: int = 204800
     context_compaction_threshold_ratio: float = 0.8
     estimated_chars_per_token: int = 4

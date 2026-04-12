@@ -133,3 +133,69 @@ async def test_challenge_store_treats_local_successful_flags_as_effective_comple
     assert store.next_candidate(snapshot) is None
     assert exported_challenge["completed"] is True
     assert exported["solved_challenges"] == 2
+
+
+@pytest.mark.anyio
+async def test_challenge_store_clears_stale_local_completion_after_official_reset() -> None:
+    class ResetStateStore(DummyStateStore):
+        def __init__(self) -> None:
+            super().__init__()
+            self.flags = {"c2": ["flag{old}"]}
+            self.latest_at = {"c2": 0.0}
+            self.cleared = []
+
+        def list_submitted_flags(self, challenge_code: str) -> list[str]:
+            return list(self.flags.get(challenge_code, []))
+
+        def latest_submitted_flag_at(self, challenge_code: str):
+            return self.latest_at.get(challenge_code)
+
+        def clear_submitted_flags(self, challenge_code: str) -> int:
+            count = len(self.flags.get(challenge_code, []))
+            self.flags[challenge_code] = []
+            self.cleared.append(challenge_code)
+            return count
+
+        def add_history_event(self, challenge_code: str, event_type: str, payload: str) -> None:
+            self.history.append({"event_type": event_type, "payload": payload, "created_at": "now"})
+
+    class ResetContestClient(DummyContestClient):
+        async def list_challenges(self):
+            return {
+                "current_level": 2,
+                "total_challenges": 2,
+                "solved_challenges": 0,
+                "challenges": [
+                    {
+                        "title": "done",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "finished one",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "stopped",
+                        "entrypoint": None,
+                    },
+                    {
+                        "title": "todo",
+                        "code": "c2",
+                        "difficulty": "medium",
+                        "description": "open target",
+                        "level": 2,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "stopped",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    },
+                ],
+            }
+
+    state = ResetStateStore()
+    store = ChallengeStore(ResetContestClient(), state, official_completion_grace_seconds=30)
+
+    snapshot = await store.refresh()
+
+    assert state.cleared == ["c2"]
+    assert store.next_candidate(snapshot).code == "c1"
+    assert any(item["event_type"] == "official_reset_detected" for item in state.history)

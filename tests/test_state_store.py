@@ -14,6 +14,19 @@ def test_state_store_records_submitted_flag(tmp_path) -> None:
     assert store.list_submitted_flags("challenge-1") == ["flag{demo}"]
 
 
+def test_state_store_can_clear_submitted_flags_and_read_latest_timestamp(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.record_submitted_flag("challenge-1", "flag{demo}")
+
+    latest = store.latest_submitted_flag_at("challenge-1")
+    cleared = store.clear_submitted_flags("challenge-1")
+
+    assert latest is not None
+    assert cleared == 1
+    assert store.list_submitted_flags("challenge-1") == []
+
+
 def test_state_store_tracks_runtime_failure_state(tmp_path) -> None:
     store = StateStore(tmp_path / "state.db")
 

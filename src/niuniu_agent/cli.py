@@ -74,7 +74,11 @@ async def _run(settings: AgentSettings) -> None:
         contest_gateway = ContestGateway.from_settings(settings)
         await contest_gateway.connect()
         try:
-            challenge_store = ChallengeStore(contest_client=contest_gateway, state_store=state_store)
+            challenge_store = ChallengeStore(
+                contest_client=contest_gateway,
+                state_store=state_store,
+                official_completion_grace_seconds=settings.official_completion_grace_seconds,
+            )
             context = RuntimeContext(
                 settings=settings,
                 contest_gateway=contest_gateway,
@@ -124,7 +128,11 @@ async def _run_competition_supervisor(
         attempt += 1
         try:
             await contest_gateway.connect()
-            challenge_store = ChallengeStore(contest_client=contest_gateway, state_store=state_store)
+            challenge_store = ChallengeStore(
+                contest_client=contest_gateway,
+                state_store=state_store,
+                official_completion_grace_seconds=settings.official_completion_grace_seconds,
+            )
             context = RuntimeContext(
                 settings=settings,
                 contest_gateway=contest_gateway,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict
 from typing import Any
 
@@ -8,14 +9,16 @@ from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
 
 
 class ChallengeStore:
-    def __init__(self, contest_client: Any, state_store: Any) -> None:
+    def __init__(self, contest_client: Any, state_store: Any, *, official_completion_grace_seconds: int = 30) -> None:
         self.contest_client = contest_client
         self.state_store = state_store
+        self.official_completion_grace_seconds = official_completion_grace_seconds
         self._latest_snapshot: ContestSnapshot | None = None
 
     async def refresh(self) -> ContestSnapshot:
         payload = await self.contest_client.list_challenges()
         self._latest_snapshot = self.parse_payload(payload)
+        self._reconcile_official_resets(self._latest_snapshot)
         return self._latest_snapshot
 
     @property
@@ -142,3 +145,51 @@ class ChallengeStore:
         official = int(snapshot.solved_challenges or 0)
         local = sum(1 for challenge in snapshot.challenges if self.is_effectively_completed(challenge))
         return max(official, local)
+
+    def _reconcile_official_resets(self, snapshot: ContestSnapshot, now: float | None = None) -> None:
+        current = time.time() if now is None else now
+        for challenge in snapshot.challenges:
+            if challenge.completed:
+                continue
+            local_flags = self.state_store.list_submitted_flags(challenge.code)
+            if not local_flags:
+                continue
+            if not hasattr(self.state_store, "latest_submitted_flag_at") or not hasattr(self.state_store, "clear_submitted_flags"):
+                continue
+            latest_local_flag_at = self.state_store.latest_submitted_flag_at(challenge.code)
+            if latest_local_flag_at is None:
+                continue
+            if current - latest_local_flag_at < self.official_completion_grace_seconds:
+                continue
+            cleared = self.state_store.clear_submitted_flags(challenge.code)
+            if cleared <= 0:
+                continue
+            self.state_store.add_history_event(
+                challenge.code,
+                "official_reset_detected",
+                f"cleared {cleared} local submitted flag(s) because official snapshot shows unsolved state",
+            )
+
+    def _reconcile_official_resets(self, snapshot: ContestSnapshot, now: float | None = None) -> None:
+        current = time.time() if now is None else now
+        for challenge in snapshot.challenges:
+            if challenge.completed:
+                continue
+            local_flags = self.state_store.list_submitted_flags(challenge.code)
+            if not local_flags:
+                continue
+            if not hasattr(self.state_store, "latest_submitted_flag_at") or not hasattr(self.state_store, "clear_submitted_flags"):
+                continue
+            latest_local_flag_at = self.state_store.latest_submitted_flag_at(challenge.code)
+            if latest_local_flag_at is None:
+                continue
+            if current - latest_local_flag_at < self.official_completion_grace_seconds:
+                continue
+            cleared = self.state_store.clear_submitted_flags(challenge.code)
+            if cleared <= 0:
+                continue
+            self.state_store.add_history_event(
+                challenge.code,
+                "official_reset_detected",
+                f"cleared {cleared} local submitted flag(s) because official snapshot shows unsolved state",
+            )

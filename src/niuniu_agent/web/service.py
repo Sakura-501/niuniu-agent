@@ -458,7 +458,11 @@ class AgentWebService:
         provider_router = ModelProviderRouter(self.settings, state_store)
         self.contest_gateway = ContestGateway.from_settings(self.settings)
         await self.contest_gateway.connect()
-        challenge_store = ChallengeStore(contest_client=self.contest_gateway, state_store=state_store)
+        challenge_store = ChallengeStore(
+            contest_client=self.contest_gateway,
+            state_store=state_store,
+            official_completion_grace_seconds=self.settings.official_completion_grace_seconds,
+        )
         self.context = RuntimeContext(
             settings=self.settings,
             contest_gateway=self.contest_gateway,
