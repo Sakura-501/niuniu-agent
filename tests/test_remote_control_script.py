@@ -31,6 +31,7 @@ def test_remote_control_script_help_lists_commands() -> None:
     assert "ui-stop" in result.stdout
     assert "ui-status" in result.stdout
     assert "clear-memory" in result.stdout
+    assert "reset-runtime" in result.stdout
 
 
 def test_remote_control_script_rejects_unknown_command() -> None:
@@ -242,4 +243,49 @@ def test_remote_control_clear_memory_uses_cli_entrypoint() -> None:
 
         assert result.returncode == 0
         assert "clear-memory completed" in result.stdout
+        assert "run niuniu-agent clear-memory --runtime-dir" in log_file.read_text(encoding="utf-8")
+        assert "run uvicorn" not in log_file.read_text(encoding="utf-8")
+
+
+def test_remote_control_reset_runtime_stops_ui_and_competition_before_clearing() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        scripts_dir = root / "scripts"
+        scripts_dir.mkdir(parents=True)
+        fake_bin = root / "fake-bin"
+        fake_bin.mkdir(parents=True)
+        log_file = root / "uv.log"
+
+        (root / ".env").write_text("NIUNIU_AGENT_MODE=competition\n", encoding="utf-8")
+        (scripts_dir / "remote_control.sh").write_text(
+            SCRIPT_PATH.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (root / "runtime").mkdir(parents=True)
+        (root / "runtime" / "competition.pid").write_text("999999", encoding="utf-8")
+        (root / "runtime" / "ui.pid").write_text("999998", encoding="utf-8")
+        fake_uv = fake_bin / "uv"
+        fake_uv.write_text(
+            "#!/usr/bin/env bash\n"
+            f"printf '%s\\n' \"$*\" >> {str(log_file)!r}\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        fake_uv.chmod(0o755)
+
+        result = subprocess.run(
+            ["bash", str(scripts_dir / "remote_control.sh"), "reset-runtime"],
+            cwd=root,
+            env={
+                "PATH": f"{fake_bin}:/usr/bin:/bin:/usr/sbin:/sbin",
+                "REMOTE_CONTROL_USE_UV": "1",
+                "HOME": str(root),
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+        assert "reset-runtime completed" in result.stdout
         assert "run niuniu-agent clear-memory --runtime-dir" in log_file.read_text(encoding="utf-8")
