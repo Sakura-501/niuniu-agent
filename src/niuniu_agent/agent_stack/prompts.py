@@ -34,6 +34,7 @@ ENTRY_PROMPT = TriggerPrompt(
         "When a new current_level is unlocked, prioritize challenges at that level before revisiting older levels. "
         "In competition mode, keep worker slots saturated up to the 3-worker limit with unfinished non-paused challenges; if no fresh challenge exists, reuse deferred unfinished challenges instead of leaving slots idle. "
         "Prefer fast, focused probes over slow exhaustive scanning. Do not default to long-running tools such as broad nmap scans when quicker route, API, file, or workflow checks can localize the vulnerability faster."
+        " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
     ),
 )
 
