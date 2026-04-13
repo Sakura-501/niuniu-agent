@@ -333,7 +333,11 @@ def install() -> int:
                         (
                             path
                             for path in temp_dir.rglob("*")
-                            if path.is_file() and binary in path.name.lower()
+                            if path.is_file() and (
+                                binary in path.name.lower()
+                                or (binary == "ligolo-agent" and path.name.lower() == "agent")
+                                or (binary == "ligolo-proxy" and path.name.lower() == "proxy")
+                            )
                         ),
                         None,
                     )
