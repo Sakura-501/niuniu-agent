@@ -50,26 +50,33 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
     SeedMemory(
         challenge_code="BpOxyTLXpdveWilhjRCFjZtMGjgr",
         memory_type="operator_strategy",
+        persistent=True,
         content=(
             "Dify/Next.js portal: leaked loopback APIs 127.0.0.1:5001 via data-api-prefix and data-public-api-prefix. "
             "Direct /console/api access from the public frontend fails, so the exploit path is likely a same-origin bridge. "
-            "Prioritize install/init/signin/bootstrap flows, Next.js route handlers, RSC/server actions, and React2Shell / CVE-2025-55182-style chains before generic CVE spraying."
+            "Prioritize install/init/signin/bootstrap flows, Next.js route handlers, RSC/server actions, and React2Shell / CVE-2025-55182-style chains before generic CVE spraying. "
+            "Official Dify guidance around CVE-2025-55182 says self-hosted users needed the 1.10.1-fix.1 web image, so the likely vulnerable area is the App Router / React Server Components path rather than direct REST exposure. "
+            "Treat createServerReference/callServer markers and same-origin action routes as the primary exploit surface."
         ),
     ),
     SeedMemory(
         challenge_code="3ZdueytTkJeRy2wiYmJiqwrzP2XiNqs",
         memory_type="operator_strategy",
+        persistent=True,
         content=(
             "Gradio target: work from /config first. Map api_name, fn_index, queue behavior, and state transitions; then replay /run/<api_name> with controlled session_hash values. "
-            "Prioritize GHSA-rhm9-gp5p-5248 style file-path injection and hidden backend functions over local environment setup or package installation."
+            "Prioritize GHSA-rhm9-gp5p-5248 style file-path injection and hidden backend functions over local environment setup or package installation. "
+            "Per the official Gradio advisory, affected 5.0.0-5.4.0 builds can read arbitrary files if a File or UploadButton path is accepted without the expected FileData metadata wrapper, so inspect /config for file-capable components and test direct gradio_api/run/predict calls against those functions."
         ),
     ),
     SeedMemory(
         challenge_code="3ZsOMt8EHQa9bvynN7WTlSJZDOGzL8t",
         memory_type="operator_strategy",
+        persistent=True,
         content=(
             "Likely GeoServer/GeoTools path per hint CVE-2024-36401. "
             "If the service becomes reachable again, validate OGC filter-expression RCE and geospatial query endpoints first. "
+            "The official GeoServer advisory ties CVE-2024-36401 to property name expression evaluation in OGC requests, so prioritize WFS/WMS/OWS endpoints, GetFeature/GetPropertyValue requests, and filter expressions before generic web recon. "
             "Avoid broad web fuzzing until the GeoServer signature is confirmed and the filter/feature query path is exercised."
         ),
     ),
