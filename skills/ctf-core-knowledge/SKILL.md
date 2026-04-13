@@ -55,6 +55,17 @@ Use this skill when the challenge is less about one specific tool and more about
 - Redis / DB / internal panels exposed without proper auth
 - Port-to-service mismatch
 - Foothold to lateral movement through reachable internal services
+- Telnet brute-force false positives caused by protocol negotiation
+
+### Telnet Credential Verification Shortcut
+
+If a telnet service reports a likely password spray hit, verify it with the bundled helper before trusting the result:
+
+```bash
+uv run python scripts/exploit_helpers/telnet_verify.py --host TARGET --port 23 --username USER --password PASS
+```
+
+This helper performs basic telnet IAC negotiation and checks whether the service actually accepts the credentials, which avoids hydra-style false positives.
 
 ### Cloud / AI / Infra Patterns
 

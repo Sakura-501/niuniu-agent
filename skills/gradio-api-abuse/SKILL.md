@@ -36,6 +36,19 @@ Use this skill when the target is a Gradio app and the shortest path is through 
 3. If file components exist, try controlled `FileData.path` style mutations and compare server responses for allowlist failures versus successful reads.
 4. If workflow functions mutate state, sequence calls in the same `session_hash` and inspect whether one backend function unlocks another.
 
+## Helper Script
+
+Use the bundled mapper first:
+
+```bash
+uv run python scripts/exploit_helpers/gradio_map.py --base-url http://TARGET:PORT
+```
+
+It will:
+- fetch `/config`
+- enumerate `fn_index`, `api_name`, `backend_fn`, inputs, outputs, and queue behavior
+- produce a JSON function map that you can replay manually through `/run/<api_name>`
+
 ## Common Mistakes
 
 - Guessing `fn_index` values without reading `/config`.

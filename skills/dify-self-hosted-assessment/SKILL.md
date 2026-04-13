@@ -38,6 +38,19 @@ Use this skill when Dify is externally exposed through a public frontend but the
 3. For old builds, prioritize SSRF and remote file fetch. For mid/newer builds, prioritize auth/control-plane paths and workflow or code-node abuse.
 4. If you gain authenticated control, immediately test app/workflow modification, dataset connectors, remote file imports, and any code-capable execution node.
 
+## Helper Script
+
+Use the bundled helper before ad-hoc probing:
+
+```bash
+uv run python scripts/exploit_helpers/dify_probe.py --base-url http://TARGET:PORT
+```
+
+It will:
+- extract leaked `data-*` API prefixes
+- collect reachable Next.js chunks
+- highlight chunks containing `createServerReference`, `callServer`, and middleware-related markers
+
 ## Common Mistakes
 
 - Repeatedly probing `127.0.0.1:5001` directly when only the frontend can reach it.
