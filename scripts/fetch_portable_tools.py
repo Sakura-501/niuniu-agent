@@ -54,8 +54,8 @@ TOOLS: dict[str, PortableTool] = {
         name="chisel",
         repo="jpillora/chisel",
         assets={
-            "darwin_arm64": ("darwin_arm64.gz",),
-            "linux_amd64": ("linux_amd64.gz",),
+            "darwin_arm64": ("chisel_", "darwin_arm64.gz"),
+            "linux_amd64": ("chisel_", "linux_amd64.gz"),
         },
         binaries=("chisel",),
     ),
@@ -63,8 +63,8 @@ TOOLS: dict[str, PortableTool] = {
         name="ligolo-ng",
         repo="nicocha30/ligolo-ng",
         assets={
-            "darwin_arm64": ("darwin_arm64.tar.gz",),
-            "linux_amd64": ("linux_amd64.tar.gz",),
+            "darwin_arm64": ("ligolo-ng_proxy_", "darwin_arm64.tar.gz", "ligolo-ng_agent_", "darwin_arm64.tar.gz"),
+            "linux_amd64": ("ligolo-ng_proxy_", "linux_amd64.tar.gz", "ligolo-ng_agent_", "linux_amd64.tar.gz"),
         },
         binaries=("ligolo-proxy", "ligolo-agent"),
     ),
@@ -221,14 +221,30 @@ def install() -> int:
         temp_dir = Path(tempfile.mkdtemp(prefix=f"{name}-", dir=cache_dir))
         try:
             extracted: list[Path] = []
-            for asset_name in asset_names:
-                url = assets.get(asset_name)
-                if url is None:
+            index = 0
+            while index < len(asset_names):
+                asset_name = asset_names[index]
+                matched_name = next(
+                    (
+                        candidate
+                        for candidate in assets
+                        if candidate == asset_name or candidate.endswith(asset_name) or asset_name in candidate
+                    ),
+                    None,
+                )
+                if matched_name is None and index + 1 < len(asset_names):
+                    pair = (asset_names[index], asset_names[index + 1])
                     matched_name = next(
-                        (candidate for candidate in assets if candidate == asset_name or candidate.endswith(asset_name) or asset_name in candidate),
+                        (
+                            candidate
+                            for candidate in assets
+                            if pair[0] in candidate and pair[1] in candidate
+                        ),
                         None,
                     )
-                    url = assets.get(matched_name) if matched_name is not None else None
+                    if matched_name is not None:
+                        index += 1
+                url = assets.get(matched_name) if matched_name is not None else None
                 if url is None:
                     raise RuntimeError(f"{name}: missing asset {asset_name} for {target}")
                 archive_path = temp_dir / asset_name
@@ -238,6 +254,7 @@ def install() -> int:
                     archive_path.unlink(missing_ok=True)
                 else:
                     extracted.append(archive_path)
+                index += 1
             extract_nested_archives(temp_dir)
 
             if tool.archive_only:
@@ -285,7 +302,7 @@ def install() -> int:
                 if tool.name == "frp":
                     source = next((path for path in temp_dir.rglob(binary) if path.is_file()), None)
                 elif tool.name == "chisel":
-                    source = next((path for path in extracted if path.name == asset_names[0]), None)
+                    source = next((path for path in temp_dir.rglob("chisel") if path.is_file()), None)
                 elif tool.name == "fscan":
                     source = next((path for path in extracted if path.name == asset_names[0]), None)
                 elif tool.name == "linpeas":
@@ -296,6 +313,15 @@ def install() -> int:
                     source = next((path for path in temp_dir.rglob("rustscan") if path.is_file()), None)
                 elif tool.name == "pspy":
                     source = next((path for path in extracted if path.name == asset_names[0]), None)
+                elif tool.name == "ligolo-ng":
+                    source = next(
+                        (
+                            path
+                            for path in temp_dir.rglob("*")
+                            if path.is_file() and binary in path.name.lower()
+                        ),
+                        None,
+                    )
                 else:
                     source = next((path for path in temp_dir.rglob(binary) if path.is_file()), None)
                 if source is None:
