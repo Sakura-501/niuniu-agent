@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
+
+from niuniu_agent.skills.tracks import infer_track
 
 
 def extract_runtime_notes(output: str, tool_events: list[dict[str, Any]] | None = None) -> dict[str, str]:
@@ -52,6 +55,33 @@ def should_view_hint(
     if notes.get("hint_viewed") == "true":
         return False
     return True
+
+
+def persist_critical_challenge_notes(
+    *,
+    state_store: Any,
+    challenge: Any,
+    notes: dict[str, str],
+) -> None:
+    if not _should_persist_critical_memory(challenge):
+        return
+    for key in ("provisional_findings", "target_unreachable", "foothold", "credential_hint", "last_summary"):
+        value = str(notes.get(key) or "").strip()
+        if not value:
+            continue
+        state_store.add_challenge_memory(
+            challenge.code,
+            f"persistent_{key}",
+            value,
+            source="runtime",
+            persistent=True,
+        )
+
+
+def _should_persist_critical_memory(challenge: Any) -> bool:
+    if int(getattr(challenge, "level", 0) or 0) >= 2:
+        return True
+    return infer_track(str(getattr(challenge, "description", ""))) in {"track3", "track4"}
 
 
 def recover_competition_state(

@@ -1,4 +1,4 @@
-from niuniu_agent.runtime.recovery import extract_runtime_notes, should_view_hint
+from niuniu_agent.runtime.recovery import extract_runtime_notes, persist_critical_challenge_notes, should_view_hint
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.registry import SkillRegistry
 
@@ -58,3 +58,26 @@ def test_should_view_hint_immediately_when_not_yet_viewed() -> None:
     assert should_view_hint(0, False, {"provisional_findings": "have a lead"}, seconds_since_progress=None, seconds_since_attempt=999) is True
     assert should_view_hint(5, True, {}, seconds_since_progress=None, seconds_since_attempt=999) is False
     assert should_view_hint(5, False, {"hint_viewed": "true"}, seconds_since_progress=None, seconds_since_attempt=999) is False
+
+
+def test_persist_critical_challenge_notes_promotes_track34_notes_to_persistent_memory(tmp_path) -> None:
+    from types import SimpleNamespace
+
+    from niuniu_agent.state_store import StateStore
+
+    store = StateStore(tmp_path / "state.db")
+    challenge = SimpleNamespace(code="c1", level=2, description="internal pivot target")
+
+    persist_critical_challenge_notes(
+        state_store=store,
+        challenge=challenge,
+        notes={
+            "provisional_findings": "use proxy.php first",
+            "target_unreachable": "timed out twice",
+        },
+    )
+
+    memories = store.list_challenge_memories("c1", limit=10)
+
+    assert any(item["memory_type"] == "persistent_provisional_findings" and item["persistent"] is True for item in memories)
+    assert any(item["memory_type"] == "persistent_target_unreachable" and item["persistent"] is True for item in memories)

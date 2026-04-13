@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from types import SimpleNamespace
 from uuid import uuid4
 
 from niuniu_agent.agent_stack.agent import AsyncPentestAgent
@@ -25,7 +26,12 @@ from niuniu_agent.runtime.manager import (
     has_unstarted_dispatchable_challenges,
     partition_dispatchable_challenges,
 )
-from niuniu_agent.runtime.recovery import extract_runtime_notes, recover_competition_state, should_view_hint
+from niuniu_agent.runtime.recovery import (
+    extract_runtime_notes,
+    persist_critical_challenge_notes,
+    recover_competition_state,
+    should_view_hint,
+)
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
 
@@ -610,6 +616,11 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         value,
                         source=worker_context.agent_id or worker_agent_id,
                     )
+                persist_critical_challenge_notes(
+                    state_store=worker_context.state_store,
+                    challenge=target,
+                    notes=worker_context.state_store.get_challenge_notes(target.code),
+                )
                 await findings_bus.post(target.code, source=f"worker:{target.code}", content=(result.output or "")[:1000])
                 worker_context.event_logger.log(
                     "competition.turn_completed",
@@ -665,6 +676,17 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 "error",
                 str(exc),
                 source=worker_context.agent_id or worker_agent_id,
+            )
+            challenge_obj = SimpleNamespace(code=challenge_code, level=0, description="")
+            if context.challenge_store.latest is not None:
+                challenge_obj = next(
+                    (item for item in context.challenge_store.latest.challenges if item.code == challenge_code),
+                    challenge_obj,
+                )
+            persist_critical_challenge_notes(
+                state_store=worker_context.state_store,
+                challenge=challenge_obj,
+                notes=worker_context.state_store.get_challenge_notes(challenge_code),
             )
             worker_context.state_store.upsert_agent_status(
                 agent_id=worker_context.agent_id or worker_agent_id,
