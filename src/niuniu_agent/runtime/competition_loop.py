@@ -200,6 +200,37 @@ async def close_completed_challenge_instances(
     return closed
 
 
+async def close_orphaned_challenge_instances(
+    *,
+    snapshot: object,
+    context: RuntimeContext,
+    coordinator: CompetitionCoordinator,
+) -> list[str]:
+    closed: list[str] = []
+    for challenge in getattr(snapshot, "challenges", []):
+        if getattr(challenge, "instance_status", None) != "running":
+            continue
+        if context.challenge_store.is_effectively_completed(challenge):
+            continue
+        if coordinator.is_running(challenge.code):
+            continue
+        try:
+            await context.contest_gateway.stop_challenge(challenge.code)
+        except Exception as exc:  # pragma: no cover - best-effort cleanup
+            context.event_logger.log(
+                "competition.orphaned_instance_close_failed",
+                {"challenge_code": challenge.code, "error": str(exc)},
+            )
+            continue
+        context.state_store.add_history_event(
+            challenge.code,
+            "instance_stopped",
+            "orphaned challenge instance closed by manager cleanup",
+        )
+        closed.append(challenge.code)
+    return closed
+
+
 async def retire_completed_workers(
     *,
     snapshot: object,
@@ -717,6 +748,16 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 context.event_logger.log(
                     "competition.completed_instances_closed",
                     {"challenge_codes": closed_instances},
+                )
+            orphaned_instances = await close_orphaned_challenge_instances(
+                snapshot=snapshot,
+                context=context,
+                coordinator=coordinator,
+            )
+            if orphaned_instances:
+                context.event_logger.log(
+                    "competition.orphaned_instances_closed",
+                    {"challenge_codes": orphaned_instances},
                 )
             recovered_workers = await recover_stalled_workers(
                 snapshot=snapshot,
