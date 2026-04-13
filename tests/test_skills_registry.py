@@ -49,12 +49,14 @@ def test_skill_registry_selects_local_exp_catalog_from_text() -> None:
 def test_skill_registry_selects_track3_lateral_helpers_from_text() -> None:
     registry = SkillRegistry()
 
-    selected = registry.select("php lfi pearcmd redis mariadb ligolo sshuttle pivot", track="track3")
+    selected = registry.select("php lfi pearcmd redis mariadb ligolo sshuttle pivot proxy.php sess_ csrf", track="track3")
     names = {skill.name for skill in selected}
 
     assert "pearcmd-php-shell-drop" in names
     assert "redis-mariadb-lateral-movement" in names
     assert "tool-ligolo-sshuttle" in names
+    assert "php-session-hijack-helper" in names
+    assert "proxy-php-ssrf-lfi-helper" in names
 
 
 def test_skill_registry_loads_skill_body_from_disk() -> None:

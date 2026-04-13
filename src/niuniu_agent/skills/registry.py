@@ -49,6 +49,16 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Use this when internal Redis or database services become visible from a foothold and you need a focused next-step workflow.",
         recommended_tracks=("track3", "track4"),
     ),
+    "php-session-hijack-helper": SkillBehavior(
+        trigger_keywords=("php session", "sess_", "csrf", "admin session", "/tmp/sess"),
+        usage_guidance="Use this when PHP session files are readable and you need to recover admin or CSRF state quickly.",
+        recommended_tracks=("track3", "track4"),
+    ),
+    "proxy-php-ssrf-lfi-helper": SkillBehavior(
+        trigger_keywords=("proxy.php", "ssrf", "file://", "lfi", "internal http"),
+        usage_guidance="Use this when a proxy.php-style fetch primitive needs fast SSRF/LFI target generation.",
+        recommended_tracks=("track3", "track4"),
+    ),
     "known-vulnerability-mapping": SkillBehavior(
         trigger_keywords=("cve", "version", "apache", "nginx", "spring", "grafana", "fastapi"),
         usage_guidance="Normalize product and version clues, then rank likely known-vulnerability paths by fit.",
