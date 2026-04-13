@@ -53,9 +53,9 @@ def test_extract_runtime_notes_captures_foothold_and_summary() -> None:
     assert "last_summary" in notes
 
 
-def test_should_view_hint_only_after_repeated_failures() -> None:
-    assert should_view_hint(2, False, {}, seconds_since_progress=999) is False
-    assert should_view_hint(3, False, {}, seconds_since_progress=120) is False
-    assert should_view_hint(3, False, {}, seconds_since_progress=301) is True
-    assert should_view_hint(5, True, {}, seconds_since_progress=999) is False
-    assert should_view_hint(5, False, {"hint_viewed": "true"}, seconds_since_progress=999) is False
+def test_should_view_hint_after_five_minutes_without_meaningful_findings() -> None:
+    assert should_view_hint(0, False, {}, seconds_since_progress=None, seconds_since_attempt=120) is False
+    assert should_view_hint(0, False, {}, seconds_since_progress=None, seconds_since_attempt=301) is True
+    assert should_view_hint(0, False, {"provisional_findings": "have a lead"}, seconds_since_progress=None, seconds_since_attempt=999) is False
+    assert should_view_hint(5, True, {}, seconds_since_progress=None, seconds_since_attempt=999) is False
+    assert should_view_hint(5, False, {"hint_viewed": "true"}, seconds_since_progress=None, seconds_since_attempt=999) is False

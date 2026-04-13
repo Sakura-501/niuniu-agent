@@ -213,6 +213,37 @@ def has_unstarted_dispatchable_challenges(
     return False
 
 
+def has_alternative_unfinished_challenges(
+    snapshot: ContestSnapshot | Any,
+    state_store: Any,
+    *,
+    current_code: str,
+    now: float | None = None,
+) -> bool:
+    current = time.time() if now is None else now
+    current_level = getattr(snapshot, "current_level", None)
+    for challenge in snapshot.challenges:
+        if challenge.code == current_code:
+            continue
+        local_flags = state_store.list_submitted_flags(challenge.code)
+        effective_completed = bool(challenge.completed) or (
+            getattr(challenge, "flag_count", 0) > 0 and len(local_flags) >= getattr(challenge, "flag_count", 0)
+        ) or (getattr(challenge, "flag_count", 0) == 0 and bool(local_flags))
+        if effective_completed:
+            continue
+        if _challenge_is_locked(challenge, current_level):
+            continue
+        notes = state_store.get_challenge_notes(challenge.code)
+        if notes.get("operator_pause") == "true":
+            continue
+        runtime_state = state_store.get_challenge_runtime_state(challenge.code)
+        defer_until = runtime_state.get("defer_until")
+        if defer_until not in (None, "") and float(defer_until) > current:
+            continue
+        return True
+    return False
+
+
 def _challenge_dispatch_priority(
     *,
     challenge: ChallengeSnapshot | Any,

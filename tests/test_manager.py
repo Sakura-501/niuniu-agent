@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from niuniu_agent.runtime.manager import (
     CompetitionManagerAgent,
+    has_alternative_unfinished_challenges,
     has_unstarted_dispatchable_challenges,
     partition_dispatchable_challenges,
 )
@@ -234,6 +235,30 @@ def test_has_unstarted_dispatchable_challenges_detects_fresh_targets() -> None:
             runtime_map={
                 "c1": {"attempt_count": 2},
                 "c2": {"attempt_count": 0},
+            },
+        ),
+        current_code="c1",
+    )
+
+    assert result is True
+
+
+def test_has_alternative_unfinished_challenges_detects_previously_attempted_targets() -> None:
+    snapshot = SimpleNamespace(
+        current_level=1,
+        challenges=[
+            SimpleNamespace(code="c1", completed=False, flag_count=1, level=1),
+            SimpleNamespace(code="c2", completed=False, flag_count=1, level=1),
+        ]
+    )
+
+    result = has_alternative_unfinished_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "c1": {"attempt_count": 2},
+                "c2": {"attempt_count": 4},
             },
         ),
         current_code="c1",

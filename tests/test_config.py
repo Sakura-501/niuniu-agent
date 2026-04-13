@@ -28,6 +28,7 @@ def test_settings_load_competition_defaults(monkeypatch) -> None:
 
     assert settings.mode is AgentMode.COMPETITION
     assert settings.poll_interval_seconds == 30
+    assert settings.competition_worker_max_seconds_per_challenge == 1800
 
 
 def test_settings_builds_primary_and_fallback_model_providers(monkeypatch) -> None:

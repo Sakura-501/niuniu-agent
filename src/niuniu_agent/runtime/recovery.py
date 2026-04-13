@@ -44,14 +44,17 @@ def should_view_hint(
     challenge_hint_viewed: bool,
     notes: dict[str, str] | None = None,
     seconds_since_progress: float | None = None,
+    seconds_since_attempt: float | None = None,
 ) -> bool:
     notes = notes or {}
     if challenge_hint_viewed:
         return False
     if notes.get("hint_viewed") == "true":
         return False
-    if failure_count < 3:
+    if any(notes.get(key) for key in ("foothold", "credential_hint", "provisional_findings", "last_flag")):
         return False
+    if seconds_since_attempt is not None and seconds_since_attempt >= 300:
+        return True
     if seconds_since_progress is None:
         return False
     return seconds_since_progress >= 300

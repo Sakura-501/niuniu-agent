@@ -21,6 +21,7 @@ from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
 from niuniu_agent.runtime.manager import (
     CompetitionManagerAgent,
+    has_alternative_unfinished_challenges,
     has_unstarted_dispatchable_challenges,
     partition_dispatchable_challenges,
 )
@@ -421,7 +422,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 if (
                     seconds_in_attempt is not None
                     and seconds_in_attempt >= context.settings.competition_worker_max_seconds_per_challenge
-                    and has_unstarted_dispatchable_challenges(
+                    and has_alternative_unfinished_challenges(
                         snapshot,
                         worker_context.state_store,
                         current_code=target.code,
@@ -479,6 +480,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     target.hint_viewed,
                     notes,
                     seconds_since_progress=seconds_since_progress,
+                    seconds_since_attempt=seconds_in_attempt,
                 ):
                     hint_payload = await worker_context.contest_gateway.view_hint(target.code)
                     worker_context.state_store.add_history_event(target.code, "hint_viewed", str(hint_payload))
