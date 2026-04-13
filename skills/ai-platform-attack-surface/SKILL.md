@@ -22,6 +22,19 @@ Use this skill when the target is an AI application platform rather than a plain
 3. Map high-value flows: install/init, login, dataset ingestion, remote file fetch, plugin/tool execution, workflow run, and app publishing.
 4. Prefer server-side bridges and trusted workflow actions over direct brute force against hidden backend ports.
 
+## Concrete CVE Leads
+
+- `Next.js CVE-2025-29927`: if the target is self-hosted Next.js and auth depends on Middleware, test protected same-origin routes with crafted `x-middleware-subrequest` values and compare redirect/auth behavior against the baseline request.
+- `Next.js CVE-2025-48068`: if the target is clearly a dev server, treat source and route metadata exposure as a clue source rather than a direct production exploit path.
+- `AI workflow platforms such as n8n / Flowise / Langflow`: prefer expression-evaluation, tool-execution, and workflow-node paths when the UI exposes pipelines, prompt graphs, or tool orchestration.
+
+## Exploit Playbook
+
+1. Identify whether the frontend is public-only and the control plane is loopback/internal.
+2. Check whether same-origin routes, server actions, or image/file helpers can still reach that internal control plane.
+3. If the app is workflow-driven, look for user-controlled expressions, file fetchers, remote URL imports, code nodes, and plugin/tool execution.
+4. Only after the platform mechanics are mapped should you try version-matched CVE paths.
+
 ## Common Mistakes
 
 - Treating the UI like a normal CMS and missing the separate control plane.

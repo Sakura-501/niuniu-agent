@@ -84,6 +84,11 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Work from /config and backend function mapping, then exercise stateful Gradio API paths directly instead of broad fuzzing.",
         recommended_tracks=("track2",),
     ),
+    "nextjs-middleware-bypass": SkillBehavior(
+        trigger_keywords=("next.js", "nextjs", "middleware", "x-middleware-subrequest", "server action", "createServerReference"),
+        usage_guidance="Use concrete Next.js middleware bypass checks before assuming the auth boundary is solid.",
+        recommended_tracks=("track2",),
+    ),
     "cloud-security-enumeration": SkillBehavior(
         trigger_keywords=("cloudfox", "cloudsword", "bucket", "metadata", "iam", "aksk", "object storage"),
         usage_guidance="Map cloud identities, metadata, storage, and public management surfaces before exploitation.",

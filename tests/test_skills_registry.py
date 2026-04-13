@@ -17,12 +17,13 @@ def test_skill_registry_selects_generic_capabilities() -> None:
 def test_skill_registry_selects_ai_platform_skills_from_text() -> None:
     registry = SkillRegistry()
 
-    selected = registry.select("self-hosted dify portal with /config gradio fn_index and 127.0.0.1:5001 backend", track="track2")
+    selected = registry.select("self-hosted dify portal with /config gradio fn_index and 127.0.0.1:5001 backend using next.js middleware", track="track2")
     names = {skill.name for skill in selected}
 
     assert "ai-platform-attack-surface" in names
     assert "dify-self-hosted-assessment" in names
     assert "gradio-api-abuse" in names
+    assert "nextjs-middleware-bypass" in names
 
 
 def test_skill_registry_loads_skill_body_from_disk() -> None:

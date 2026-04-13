@@ -22,6 +22,22 @@ Use this skill when Dify is externally exposed through a public frontend but the
 3. Look for same-origin bridges: route handlers, server actions, middleware decisions, upload helpers, remote file fetchers, and image/file proxies.
 4. Treat install/init/signin/bootstrap as the shortest paths to backend influence before trying unrelated CVEs.
 
+## Concrete CVE And Advisory Paths
+
+- `CVE-2025-3466`:
+  Versions `1.1.0` to `1.1.2` with the code execution node enabled. Treat this as an authenticated code-node escape/RCE path. If you can create or modify workflows/apps, inspect whether a code node can override globals or escape sandbox assumptions, then pivot to reading secrets, SSRF, or shell execution.
+- `CVE-2024-11822`:
+  Older `0.9.1` builds exposed an SSRF path. If the deployment looks old and still references remote file ingestion or backend fetch helpers, test URL-based import/fetch features against loopback and internal HTTP targets.
+- `GHSA-6pw4-jqhv-3626`:
+  Unauthorized access and modification of APP orchestration. If app/workflow IDs are guessable or exposed through the frontend, test direct object access and unauthorized orchestration edits before attempting deeper exploit chains.
+
+## Exploit Playbook
+
+1. Confirm Dify-specific frontend evidence: `data-api-prefix`, `data-public-api-prefix`, `/install`, `/init`, `/signin`, marketplace or app explorer routes.
+2. Diff same-origin requests versus direct backend paths. If direct `/console/api` fails but the UI still works, the exploit path is probably a frontend bridge.
+3. For old builds, prioritize SSRF and remote file fetch. For mid/newer builds, prioritize auth/control-plane paths and workflow or code-node abuse.
+4. If you gain authenticated control, immediately test app/workflow modification, dataset connectors, remote file imports, and any code-capable execution node.
+
 ## Common Mistakes
 
 - Repeatedly probing `127.0.0.1:5001` directly when only the frontend can reach it.
