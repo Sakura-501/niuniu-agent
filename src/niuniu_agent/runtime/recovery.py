@@ -64,6 +64,7 @@ def recover_competition_state(
     competition_run_id: str,
 ) -> dict[str, object]:
     normalized_completed: list[str] = []
+    reset_stale_active_challenges: list[str] = []
     removed_stale_agents: list[str] = []
 
     for challenge in snapshot.challenges:
@@ -76,6 +77,17 @@ def recover_competition_state(
             if runtime_state.get("active") or runtime_state.get("failure_count", 0):
                 state_store.record_challenge_success(challenge.code)
                 normalized_completed.append(challenge.code)
+            continue
+        runtime_state = state_store.get_challenge_runtime_state(challenge.code)
+        if runtime_state.get("active"):
+            state_store.clear_active_challenge(challenge.code)
+            if hasattr(state_store, "add_history_event"):
+                state_store.add_history_event(
+                    challenge.code,
+                    "stale_attempt_reset",
+                    "cleared stale active challenge attempt during competition recovery",
+                )
+            reset_stale_active_challenges.append(challenge.code)
 
     for agent in state_store.list_agent_statuses():
         role = agent.get("role")
@@ -94,5 +106,6 @@ def recover_competition_state(
 
     return {
         "normalized_completed_challenges": normalized_completed,
+        "reset_stale_active_challenges": reset_stale_active_challenges,
         "removed_stale_agents": removed_stale_agents,
     }
