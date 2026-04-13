@@ -58,6 +58,34 @@ async def test_tool_bus_exposes_history_and_note_tools(tmp_path) -> None:
 
 
 @pytest.mark.anyio
+async def test_tool_bus_reuses_cached_tool_schema_list(tmp_path) -> None:
+    gateway = DummyContestGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    first = bus.tool_schemas()
+    second = bus.tool_schemas()
+
+    assert first is second
+
+
+@pytest.mark.anyio
 async def test_tool_bus_exposes_challenge_memory_tools(tmp_path) -> None:
     gateway = DummyContestGateway()
     state_store = StateStore(tmp_path / "state.db")

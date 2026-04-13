@@ -45,10 +45,7 @@ class ToolBus:
             "run_python_snippet": self.run_python_snippet,
             "get_local_runtime_state": self.get_local_runtime_state,
         }
-
-    @property
-    def tools(self) -> list[RuntimeTool]:
-        return [
+        self._tools = [
             RuntimeTool("get_challenge_overview", "Refresh and summarize contest challenges.", {"type": "object", "properties": {}}),
             RuntimeTool("get_challenge_snapshot", "Return the latest contest snapshot as JSON.", {"type": "object", "properties": {}}),
             RuntimeTool("check_tool_inventory", "Return local tool availability and install hints.", {"type": "object", "properties": {}}),
@@ -143,9 +140,14 @@ class ToolBus:
             ),
             RuntimeTool("get_local_runtime_state", "Return local notes and state summary.", {"type": "object", "properties": {}}),
         ]
+        self._tool_schemas_cache = [tool.openai_schema() for tool in self._tools]
+
+    @property
+    def tools(self) -> list[RuntimeTool]:
+        return self._tools
 
     def tool_schemas(self) -> list[dict[str, Any]]:
-        return [tool.openai_schema() for tool in self.tools]
+        return self._tool_schemas_cache
 
     async def dispatch(self, name: str, arguments: dict[str, Any]) -> str:
         handler = self._handlers.get(name)

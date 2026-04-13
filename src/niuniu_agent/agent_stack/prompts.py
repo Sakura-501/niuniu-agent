@@ -153,7 +153,11 @@ def build_entry_prompt(
     operator_resources: dict | None = None,
 ) -> str:
     available_skills_text = f"Available skills catalog:\n{available_skills}" if available_skills else ""
-    operator_resources_text = f"Operator resources:\n{operator_resources}" if operator_resources else ""
+    operator_resources_text = (
+        "Operator resources:\n" + json.dumps(operator_resources, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        if operator_resources
+        else ""
+    )
     mode_text = (
         "Mode: competition. Keep running forever and recover from errors. "
         "Use the load_skill tool when a task needs specialized instructions before acting."
@@ -258,7 +262,7 @@ def build_runtime_instruction(
         parts.append(user_input)
     parts.append(
         "<system-reminder>\n"
-        + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        + json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         + "\n</system-reminder>"
     )
     return "\n\n".join(parts)

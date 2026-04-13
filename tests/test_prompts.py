@@ -128,3 +128,30 @@ def test_entry_prompt_includes_gradio_operator_hints_when_notes_match() -> None:
     assert "<system-reminder>" in prompt
     assert "Gradio API challenge" in prompt
     assert "session_hash" in prompt
+
+
+def test_build_runtime_instruction_is_stable_for_reordered_dicts() -> None:
+    active = ChallengeSnapshot(
+        code="c3",
+        title="demo",
+        description="api target",
+        difficulty="easy",
+        level=1,
+    )
+
+    prompt_a = build_runtime_instruction(
+        mode="competition",
+        active=active,
+        runtime_state={"b": 2, "a": 1},
+        notes={"y": "two", "x": "one"},
+        operator_resources={"callback_server": {"username": "root", "host": "1.1.1.1"}},
+    )
+    prompt_b = build_runtime_instruction(
+        mode="competition",
+        active=active,
+        runtime_state={"a": 1, "b": 2},
+        notes={"x": "one", "y": "two"},
+        operator_resources={"callback_server": {"host": "1.1.1.1", "username": "root"}},
+    )
+
+    assert prompt_a == prompt_b
