@@ -25,6 +25,28 @@ def compact_challenge_notes(
     return compacted
 
 
+def extract_hint_context(
+    notes: dict[str, str] | None,
+    history: list[dict[str, object]] | None = None,
+) -> dict[str, object] | None:
+    notes = notes or {}
+    history = history or []
+    hint_content = str(notes.get("hint_content") or "").strip()
+    if not hint_content:
+        for item in history:
+            if item.get("event_type") == "hint_viewed":
+                hint_content = str(item.get("payload") or "").strip()
+                if hint_content:
+                    break
+    hint_seen = notes.get("hint_viewed") == "true" or bool(hint_content)
+    if not hint_seen:
+        return None
+    return {
+        "hint_viewed": True,
+        "hint_content": hint_content[:2000],
+    }
+
+
 class ChallengeStore:
     def __init__(self, contest_client: Any, state_store: Any, *, official_completion_grace_seconds: int = 30) -> None:
         self.contest_client = contest_client
@@ -149,6 +171,7 @@ class ChallengeStore:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
         notes = compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
         recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
+        hint_context = extract_hint_context(notes, recent_history)
         return json.dumps(
             {
                 "mode": "competition",
@@ -156,6 +179,7 @@ class ChallengeStore:
                 "active_challenge": asdict(challenge),
                 "recent_history": recent_history,
                 "notes": notes,
+                "hint_context": hint_context,
                 "recent_memories": recent_memories,
                 "instructions": [
                     "Work on the selected challenge autonomously.",

@@ -210,6 +210,24 @@ async def test_challenge_store_autonomous_prompt_omits_recursive_shared_findings
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_always_includes_persisted_hint_context() -> None:
+    state = DummyStateStore()
+    state.notes = {
+        "hint_viewed": "true",
+        "hint_content": "look at the JWT kid parser first",
+    }
+    state.history = [{"event_type": "hint_viewed", "payload": "look at the JWT kid parser first", "created_at": "now"}]
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "hint_context" in prompt
+    assert "JWT kid parser" in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
     store = ChallengeStore(DummyContestClient(), DummyStateStore())
 
