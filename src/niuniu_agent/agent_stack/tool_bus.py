@@ -4,7 +4,9 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
 from niuniu_agent.runtime.context import RuntimeContext
+from niuniu_agent.skills.tracks import infer_track
 
 
 @dataclass(slots=True)
@@ -255,6 +257,7 @@ class ToolBus:
             self.context.state_store.add_challenge_memory(code, "flag_submitted", flag, source="submit_flag")
         snapshot = await self.context.challenge_store.refresh()
         challenge = next((item for item in snapshot.challenges if item.code == code), None)
+        self._persist_flag_path_memory(challenge, code, flag, payload)
         effective_completed = self.context.challenge_store.is_effectively_completed(challenge) if challenge is not None else False
         stopped_instance = False
         if challenge is not None and effective_completed and challenge.instance_status == "running":
@@ -288,6 +291,41 @@ class ToolBus:
                 "无需重复提交",
             )
         )
+
+    def _persist_flag_path_memory(self, challenge: Any, code: str, flag: str, payload: Any) -> None:
+        if challenge is None or not self._should_persist_critical_memory(challenge):
+            return
+        notes = compact_challenge_notes(self.context.state_store.get_challenge_notes(code), include_shared_findings=False, value_limit=800)
+        progress = {}
+        if isinstance(payload, dict):
+            nested = payload.get("payload") if isinstance(payload.get("payload"), dict) else payload
+            progress = {
+                "flag_count": nested.get("flag_count"),
+                "flag_got_count": nested.get("flag_got_count"),
+                "message": nested.get("message"),
+            }
+        summary_parts = [f"flag={flag}"]
+        if progress.get("flag_count") is not None or progress.get("flag_got_count") is not None:
+            summary_parts.append(
+                f"progress={progress.get('flag_got_count')}/{progress.get('flag_count')}"
+            )
+        for key in ("provisional_findings", "last_summary", "foothold", "credential_hint", "target_unreachable"):
+            value = notes.get(key)
+            if value:
+                summary_parts.append(f"{key}={value}")
+        self.context.state_store.add_challenge_memory(
+            code,
+            "persistent_flag_record",
+            "\n".join(summary_parts),
+            source="submit_flag",
+            persistent=True,
+        )
+
+    @staticmethod
+    def _should_persist_critical_memory(challenge: Any) -> bool:
+        if int(getattr(challenge, "level", 0) or 0) >= 2:
+            return True
+        return infer_track(str(getattr(challenge, "description", ""))) in {"track3", "track4"}
 
     async def view_hint(self, code: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.view_hint(code)

@@ -73,6 +73,7 @@ class StateStore:
                     memory_type TEXT NOT NULL,
                     content TEXT NOT NULL,
                     source TEXT NOT NULL DEFAULT 'system',
+                    persistent INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE (challenge_code, memory_type, content, source)
                 )
@@ -153,6 +154,12 @@ class StateStore:
             table="challenge_runtime_state",
             column="defer_until",
             definition="REAL",
+        )
+        self._ensure_column(
+            connection,
+            table="challenge_memories",
+            column="persistent",
+            definition="INTEGER NOT NULL DEFAULT 0",
         )
 
     def _ensure_column(
@@ -558,6 +565,7 @@ class StateStore:
         content: str,
         *,
         source: str = "system",
+        persistent: bool = False,
     ) -> None:
         normalized = content.strip()
         if not normalized:
@@ -565,20 +573,25 @@ class StateStore:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT OR IGNORE INTO challenge_memories (challenge_code, memory_type, content, source)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO challenge_memories (challenge_code, memory_type, content, source, persistent)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(challenge_code, memory_type, content, source) DO UPDATE SET
+                    persistent = CASE
+                        WHEN challenge_memories.persistent = 1 OR excluded.persistent = 1 THEN 1
+                        ELSE 0
+                    END
                 """,
-                (challenge_code, memory_type, normalized[:4000], source),
+                (challenge_code, memory_type, normalized[:4000], source, 1 if persistent else 0),
             )
 
     def list_challenge_memories(self, challenge_code: str, limit: int = 10) -> list[dict[str, object]]:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT memory_type, content, source, created_at
+                SELECT memory_type, content, source, persistent, created_at
                 FROM challenge_memories
                 WHERE challenge_code = ?
-                ORDER BY id DESC
+                ORDER BY persistent DESC, id DESC
                 LIMIT ?
                 """,
                 (challenge_code, limit),
@@ -588,7 +601,8 @@ class StateStore:
                 "memory_type": row[0],
                 "content": row[1],
                 "source": row[2],
-                "created_at": row[3],
+                "persistent": bool(row[3]),
+                "created_at": row[4],
             }
             for row in rows
         ]
@@ -969,7 +983,17 @@ class StateStore:
         with self._connect() as connection:
             for table in tables:
                 count = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-                cleared[table] = int(count[0] if count else 0)
+                total = int(count[0] if count else 0)
+                if table == "challenge_memories":
+                    persistent_count_row = connection.execute(
+                        "SELECT COUNT(*) FROM challenge_memories WHERE persistent = 1"
+                    ).fetchone()
+                    persistent_count = int(persistent_count_row[0] if persistent_count_row else 0)
+                    cleared[table] = total - persistent_count
+                    cleared["challenge_memories_preserved"] = persistent_count
+                    connection.execute("DELETE FROM challenge_memories WHERE persistent = 0")
+                    continue
+                cleared[table] = total
                 connection.execute(f"DELETE FROM {table}")
         return cleared
 

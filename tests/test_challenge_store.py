@@ -282,6 +282,41 @@ async def test_challenge_store_treats_local_successful_flags_as_effective_comple
 
 
 @pytest.mark.anyio
+async def test_challenge_store_does_not_mark_high_track_unknown_flag_count_complete_from_single_local_flag() -> None:
+    class HighTrackStateStore(DummyStateStore):
+        def list_submitted_flags(self, challenge_code: str) -> list[str]:
+            return ["flag{one}"] if challenge_code == "c2" else []
+
+    class HighTrackContestClient(DummyContestClient):
+        async def list_challenges(self):
+            return {
+                "current_level": 3,
+                "total_challenges": 1,
+                "solved_challenges": 0,
+                "challenges": [
+                    {
+                        "title": "multi",
+                        "code": "c2",
+                        "difficulty": "hard",
+                        "description": "pivot internal foothold track3",
+                        "level": 2,
+                        "flag_count": 0,
+                        "flag_got_count": 0,
+                        "instance_status": "running",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+    store = ChallengeStore(HighTrackContestClient(), HighTrackStateStore())
+
+    snapshot = await store.refresh()
+    challenge = snapshot.challenges[0]
+
+    assert store.is_effectively_completed(challenge) is False
+
+
+@pytest.mark.anyio
 async def test_challenge_store_clears_stale_local_completion_after_official_reset() -> None:
     class ResetStateStore(DummyStateStore):
         def __init__(self) -> None:

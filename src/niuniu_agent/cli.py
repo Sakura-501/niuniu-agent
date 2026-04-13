@@ -12,6 +12,7 @@ from niuniu_agent.model_routing import ModelProviderRouter
 from niuniu_agent.runtime.competition_loop import run_competition_loop
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.debug_repl import run_debug_repl
+from niuniu_agent.strategies.challenge_memory_seeds import apply_seed_memories
 from niuniu_agent.skills import SkillRegistry
 from niuniu_agent.state_store import StateStore
 from niuniu_agent.telemetry import EventLogger
@@ -61,6 +62,7 @@ async def _run(settings: AgentSettings) -> None:
     settings.runtime_dir.mkdir(parents=True, exist_ok=True)
     event_logger = EventLogger(settings.runtime_dir / "events.jsonl")
     state_store = StateStore(settings.runtime_dir / "state.db")
+    apply_seed_memories(state_store)
     local_toolbox = LocalToolbox(settings.runtime_dir)
     inventory = await local_toolbox.check_tool_inventory()
     missing_tools = [tool for tool in inventory["tools"] if not tool["available"]]
@@ -117,6 +119,7 @@ async def _run_competition_supervisor(
 ) -> None:
     settings = AgentSettings(**settings_kwargs)
     state_store = state_store or StateStore(settings.runtime_dir / "state.db")
+    apply_seed_memories(state_store)
     local_toolbox = local_toolbox or LocalToolbox(settings.runtime_dir)
     skill_registry = skill_registry or SkillRegistry()
     provider_router = ModelProviderRouter(settings, state_store)

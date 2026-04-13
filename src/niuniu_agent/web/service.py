@@ -32,6 +32,7 @@ from niuniu_agent.skills import SkillRegistry
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
 from niuniu_agent.state_store import StateStore
+from niuniu_agent.strategies.challenge_memory_seeds import apply_seed_memories
 from niuniu_agent.telemetry import EventLogger
 from niuniu_agent.tooling import LocalToolbox
 
@@ -471,6 +472,7 @@ class AgentWebService:
         self.settings = AgentSettings()
         event_logger = EventLogger(self.settings.runtime_dir / "events.jsonl")
         state_store = StateStore(self.settings.runtime_dir / "state.db")
+        apply_seed_memories(state_store)
         local_toolbox = LocalToolbox(self.settings.runtime_dir)
         skill_registry = SkillRegistry()
         provider_router = ModelProviderRouter(self.settings, state_store)

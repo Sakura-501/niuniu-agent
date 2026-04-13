@@ -39,6 +39,7 @@ def test_cli_can_clear_runtime_memory(tmp_path) -> None:
     store.record_submitted_flag("c1", "flag{demo}")
     store.add_history_event("c1", "turn_completed", "summary")
     store.set_challenge_note("c1", "foothold", "user shell")
+    store.add_challenge_memory("c1", "persistent_flag_record", "keep me", source="seed", persistent=True)
     session_db = runtime_dir / "sessions.sqlite3"
     session_db.write_text("demo", encoding="utf-8")
 
@@ -52,6 +53,9 @@ def test_cli_can_clear_runtime_memory(tmp_path) -> None:
     assert store.list_history("c1") == []
     assert store.get_challenge_notes("c1") == {}
     assert session_db.exists() is False
+    memories = store.list_challenge_memories("c1")
+    assert len(memories) == 1
+    assert memories[0]["persistent"] is True
 
 
 class DummyGateway:

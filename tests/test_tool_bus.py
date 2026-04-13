@@ -433,6 +433,61 @@ async def test_tool_bus_submit_flag_uses_local_completion_when_official_snapshot
 
 
 @pytest.mark.anyio
+async def test_tool_bus_submit_flag_persists_high_track_flag_memory_without_marking_complete_when_flag_count_unknown(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        async def submit_flag(self, code: str, flag: str):
+            return {"correct": True, "message": "correct", "payload": {"flag_count": 4, "flag_got_count": 1}}
+
+        async def list_challenges(self):
+            return {
+                "current_level": 3,
+                "challenges": [
+                    {
+                        "title": "multi",
+                        "code": "c1",
+                        "difficulty": "hard",
+                        "description": "pivot internal foothold",
+                        "level": 2,
+                        "flag_count": 0,
+                        "flag_got_count": 0,
+                        "instance_status": "running",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+        async def stop_challenge(self, code: str):
+            raise AssertionError("should not stop high-track instance after one local flag")
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    state_store.set_challenge_note("c1", "provisional_findings", "use proxy.php first")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    result = await bus.submit_flag("c1", "flag{demo}")
+    memories = state_store.list_challenge_memories("c1", limit=10)
+
+    assert result["completed"] is False
+    assert any(item["memory_type"] == "persistent_flag_record" and item["persistent"] is True for item in memories)
+
+
+@pytest.mark.anyio
 async def test_tool_bus_submit_flag_starts_instance_when_needed(tmp_path) -> None:
     class SubmitGateway(DummyContestGateway):
         def __init__(self) -> None:

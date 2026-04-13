@@ -5,6 +5,7 @@ from dataclasses import asdict
 from typing import Any
 
 from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
+from niuniu_agent.skills.tracks import infer_track
 
 
 def compact_challenge_notes(
@@ -118,9 +119,17 @@ class ChallengeStore:
         local_flags = self.state_store.list_submitted_flags(challenge.code)
         if challenge.flag_count > 0 and len(local_flags) >= challenge.flag_count:
             return True
+        if self._uses_multi_flag_policy(challenge):
+            return False
         if challenge.flag_count == 0 and local_flags:
             return True
         return False
+
+    @staticmethod
+    def _uses_multi_flag_policy(challenge: ChallengeSnapshot) -> bool:
+        if getattr(challenge, "level", 0) >= 2:
+            return True
+        return infer_track(getattr(challenge, "description", "")) in {"track3", "track4"}
 
     def render_summary(self, snapshot: ContestSnapshot | None = None) -> str:
         current = snapshot or self._latest_snapshot
