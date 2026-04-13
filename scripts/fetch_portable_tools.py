@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import platform
@@ -184,6 +185,20 @@ def extract_nested_archives(root: Path) -> None:
                 changed = True
 
 
+def maybe_extract_gzip_binary(path: Path) -> Path:
+    try:
+        with path.open("rb") as handle:
+            magic = handle.read(2)
+        if magic != b"\x1f\x8b":
+            return path
+        decompressed = path.with_suffix(path.suffix + ".bin")
+        with gzip.open(path, "rb") as source, decompressed.open("wb") as target:
+            shutil.copyfileobj(source, target)
+        return decompressed
+    except Exception:
+        return path
+
+
 def install() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("print", "install"))
@@ -326,6 +341,7 @@ def install() -> int:
                     source = next((path for path in temp_dir.rglob(binary) if path.is_file()), None)
                 if source is None:
                     raise RuntimeError(f"{name}: failed to locate binary {binary}")
+                source = maybe_extract_gzip_binary(source)
                 destination = BIN_DIR / binary
                 destination.unlink(missing_ok=True)
                 shutil.copy2(source, destination)
