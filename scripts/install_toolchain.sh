@@ -40,6 +40,9 @@ GO_PACKAGES=(
   github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
   github.com/projectdiscovery/httpx/cmd/httpx@latest
   github.com/ropnop/kerbrute@latest
+  github.com/google/osv-scanner/cmd/osv-scanner@latest
+  github.com/anchore/syft/cmd/syft@latest
+  github.com/anchore/grype@latest
 )
 
 PIP_PACKAGES=(
@@ -49,6 +52,7 @@ PIP_PACKAGES=(
   certipy-ad
   smbmap
   responder
+  pip-audit
 )
 
 PORTABLE_TOOLS=(

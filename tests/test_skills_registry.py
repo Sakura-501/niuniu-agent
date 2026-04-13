@@ -26,6 +26,17 @@ def test_skill_registry_selects_ai_platform_skills_from_text() -> None:
     assert "nextjs-middleware-bypass" in names
 
 
+def test_skill_registry_selects_supply_chain_skills_from_text() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select("package.json github actions dependency confusion private registry requirements.txt", track="track2")
+    names = {skill.name for skill in selected}
+
+    assert "supply-chain-poisoning-assessment" in names
+    assert "dependency-confusion-assessment" in names
+    assert "ci-workflow-poisoning" in names
+
+
 def test_skill_registry_loads_skill_body_from_disk() -> None:
     registry = SkillRegistry()
 

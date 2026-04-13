@@ -64,6 +64,21 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Prefer structured request/response diffing, auth flow checks, and minimal payload mutations.",
         recommended_tracks=("track1", "track2"),
     ),
+    "supply-chain-poisoning-assessment": SkillBehavior(
+        trigger_keywords=("supply chain", "dependency confusion", "package poisoning", "requirements.txt", "package.json", "workflow", "registry", "pip", "npm"),
+        usage_guidance="Start from manifests, registry trust, and CI workflow boundaries before looking for runtime sinks.",
+        recommended_tracks=("track2",),
+    ),
+    "dependency-confusion-assessment": SkillBehavior(
+        trigger_keywords=("dependency confusion", "private package", "private registry", "pip index", "npm scope", "package name collision"),
+        usage_guidance="Map resolver precedence, internal names, and install-time execution paths before testing runtime behavior.",
+        recommended_tracks=("track2",),
+    ),
+    "ci-workflow-poisoning": SkillBehavior(
+        trigger_keywords=("github actions", "gitlab ci", "jenkinsfile", "workflow poisoning", "uses:", "artifact", "action pin"),
+        usage_guidance="Treat CI configuration as the primary attack surface and check pins, scripts, and artifact trust first.",
+        recommended_tracks=("track2", "track3"),
+    ),
     "cloud-asset-assessment": SkillBehavior(
         trigger_keywords=("cloud", "bucket", "metadata", "ai", "model", "inference", "llm"),
         usage_guidance="Check metadata, object storage, model-serving APIs, and exposed infrastructure control points.",
