@@ -543,14 +543,10 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         [
                             build_entry_prompt(
                                 "competition",
-                                snapshot,
-                                target,
-                                skill_plan.skills if skill_plan else [],
+                                None,
+                                None,
+                                [],
                                 available_skills=available_skills,
-                                stage=skill_plan.stage if skill_plan else None,
-                                runtime_state=runtime_state,
-                                notes=notes,
-                                track=infer_track(target.description),
                                 operator_resources={
                                     "callback_server": worker_context.settings.callback_resource,
                                 }
@@ -575,7 +571,20 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     context_compaction_summary_input_chars=worker_context.settings.context_compaction_summary_input_chars,
                     context_compaction_summary_max_tokens=worker_context.settings.context_compaction_summary_max_tokens,
                 )
-                prompt = worker_context.challenge_store.build_autonomous_prompt(snapshot, target)
+                prompt = worker_context.challenge_store.build_autonomous_prompt(
+                    snapshot,
+                    target,
+                    stage=skill_plan.stage if skill_plan else None,
+                    runtime_state=runtime_state,
+                    notes=notes,
+                    track=infer_track(target.description),
+                    selected_skills=skill_plan.skills if skill_plan else [],
+                    operator_resources={
+                        "callback_server": worker_context.settings.callback_resource,
+                    }
+                    if worker_context.settings.callback_resource
+                    else None,
+                )
                 result = await agent.execute(prompt, histories.get(target.code))
                 histories[target.code] = result.history
                 worker_context.state_store.add_history_event(target.code, "turn_completed", result.output or "")

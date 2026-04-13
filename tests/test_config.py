@@ -14,6 +14,8 @@ def test_settings_load_debug_defaults(monkeypatch) -> None:
     assert settings.mode is AgentMode.DEBUG
     assert settings.poll_interval_seconds == 15
     assert settings.contest_mcp_url == "https://challenge.zc.tencent.com/mcp"
+    assert settings.model_context_window_tokens == 256000
+    assert settings.context_compaction_threshold_ratio == 0.9
 
 
 def test_settings_load_competition_defaults(monkeypatch) -> None:
@@ -29,6 +31,8 @@ def test_settings_load_competition_defaults(monkeypatch) -> None:
     assert settings.mode is AgentMode.COMPETITION
     assert settings.poll_interval_seconds == 30
     assert settings.competition_worker_max_seconds_per_challenge == 1800
+    assert settings.model_context_window_tokens == 256000
+    assert settings.context_compaction_threshold_ratio == 0.9
 
 
 def test_settings_builds_primary_and_fallback_model_providers(monkeypatch) -> None:

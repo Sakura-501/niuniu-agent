@@ -38,8 +38,8 @@ class AsyncPentestAgent:
         tool_bus: Any,
         workdir: Path | str | None = None,
         temperature: float = 0.2,
-        context_window_tokens: int = 204800,
-        context_compaction_threshold_ratio: float = 0.8,
+        context_window_tokens: int = 256000,
+        context_compaction_threshold_ratio: float = 0.9,
         estimated_chars_per_token: int = 4,
         context_compaction_keep_tail_messages: int = 8,
         context_compaction_keep_recent_tool_results: int = 3,
@@ -200,28 +200,23 @@ class AsyncPentestAgent:
         return compacted
 
     async def _summarize_history(self, transcript: list[dict[str, Any]]) -> str:
-        serialized = json.dumps(transcript, ensure_ascii=False, default=str)
         prompt = (
-            "Summarize this pentest-agent conversation so work can continue after automatic context compaction.\n"
+            "<system-reminder>\n"
+            "Automatic context compaction request. Summarize the existing conversation so work can continue.\n"
             "Preserve:\n"
             "1. Current objective and active challenge\n"
             "2. Important findings, failed paths, and decisions\n"
             "3. Tools already used and what they proved\n"
             "4. Files, endpoints, credentials, flags, or hosts worth revisiting\n"
-            "5. Remaining next steps\n\n"
-            f"{serialized[: self.context_compaction_summary_input_chars]}"
+            "5. Remaining next steps\n"
+            "Do not call any tools.\n"
+            "</system-reminder>"
         )
         response = await self.client.chat.completions.create(
             model=self.model_name,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You summarize pentest agent context compactly so work can continue without losing critical facts."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
+            messages=[{"role": "system", "content": self.system_prompt}, *transcript, {"role": "user", "content": prompt}],
+            tools=self.tool_bus.tool_schemas(),
+            tool_choice="none",
             temperature=0.2,
             max_tokens=self.context_compaction_summary_max_tokens,
         )
@@ -241,7 +236,7 @@ class AsyncPentestAgent:
             "messages": transcript,
             "tools": self.tool_bus.tool_schemas(),
         }
-        return len(json.dumps(payload, ensure_ascii=False, default=str))
+        return len(json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True))
 
 
 def assistant_message(content: str, tool_calls: list[Any]) -> dict[str, Any]:

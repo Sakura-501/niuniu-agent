@@ -7,6 +7,7 @@ from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
     FLAG_SUBMIT_PROMPT,
     build_entry_prompt,
+    build_runtime_instruction,
     build_trigger_prompt,
 )
 from niuniu_agent.agent_stack.tool_bus import ToolBus
@@ -65,6 +66,8 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             else {}
         )
         notes = compact_challenge_notes(turn_context.state_store.get_challenge_notes(active.code)) if active is not None else {}
+        recent_history = turn_context.state_store.list_history(active.code, limit=5) if active is not None else []
+        recent_memories = turn_context.state_store.list_challenge_memories(active.code, limit=10) if active is not None else []
         track = infer_track(active.description) if active is not None else None
         skill_plan = (
             plan_skills(turn_context.skill_registry, active.description if active else "", runtime_state, notes, track=track)
@@ -82,15 +85,10 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                 [
                     build_entry_prompt(
                         "debug",
-                        snapshot,
-                        active,
-                        skill_plan.skills if skill_plan else [],
+                        None,
+                        None,
+                        [],
                         available_skills=available_skills,
-                        stage=skill_plan.stage if skill_plan else None,
-                        runtime_state=runtime_state,
-                        notes=notes,
-                        summary_request=_is_summary_request(user_input),
-                        track=track,
                         operator_resources={
                             "callback_server": turn_context.settings.callback_resource,
                         }
@@ -127,7 +125,25 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             print(f"[tool:done] {name} -> {preview}", flush=True)
 
         result = await agent.execute_stream(
-            user_input,
+            build_runtime_instruction(
+                mode="debug",
+                user_input=user_input,
+                snapshot=snapshot,
+                active=active,
+                runtime_state=runtime_state,
+                notes=notes,
+                recent_history=recent_history,
+                recent_memories=recent_memories,
+                selected_skills=skill_plan.skills if skill_plan else [],
+                stage=skill_plan.stage if skill_plan else None,
+                track=track,
+                summary_request=_is_summary_request(user_input),
+                operator_resources={
+                    "callback_server": turn_context.settings.callback_resource,
+                }
+                if turn_context.settings.callback_resource
+                else None,
+            ),
             history,
             on_text_delta=on_text_delta,
             on_tool_start=on_tool_start,

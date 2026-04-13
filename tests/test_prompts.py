@@ -1,5 +1,6 @@
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
+    build_runtime_instruction,
     derive_operator_hints,
     build_entry_prompt,
     build_trigger_prompt,
@@ -22,8 +23,15 @@ def test_entry_prompt_includes_selected_skills() -> None:
 
     prompt = build_entry_prompt("debug", snapshot, active, skills)
 
-    assert "Selected skills" in prompt
-    assert "web-surface-mapping" in prompt
+    assert "Selected skills" not in prompt
+    runtime_instruction = build_runtime_instruction(
+        mode="debug",
+        user_input="test",
+        snapshot=snapshot,
+        active=active,
+        selected_skills=skills,
+    )
+    assert "web-surface-mapping" in runtime_instruction
 
 
 def test_entry_prompt_biases_summary_when_requested() -> None:
@@ -35,8 +43,8 @@ def test_entry_prompt_biases_summary_when_requested() -> None:
         summary_request=True,
     )
 
-    assert "summary/final-answer style request" in prompt
-    assert "All visible challenges are currently marked completed" in prompt
+    assert "summary/final-answer style request" not in prompt
+    assert "All visible challenges are currently marked completed" not in prompt
 
 
 def test_trigger_prompt_returns_body() -> None:
@@ -58,6 +66,8 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "reuse deferred unfinished challenges instead of leaving slots idle" in prompt
     assert "Prefer fast, focused probes over slow exhaustive scanning" in prompt
     assert "broad nmap scans" in prompt
+    assert "Active challenge:" not in prompt
+    assert "Recovered notes:" not in prompt
 
 
 def test_entry_prompt_includes_callback_resource_when_available() -> None:
@@ -109,14 +119,12 @@ def test_entry_prompt_includes_gradio_operator_hints_when_notes_match() -> None:
         level=2,
     )
 
-    prompt = build_entry_prompt(
-        "competition",
-        None,
-        active,
-        [],
+    prompt = build_runtime_instruction(
+        mode="competition",
+        active=active,
         notes={"provisional_findings": "config exposed fn_index and /run/predict; Gradio api_name=lambda and /run/Flag are reachable."},
     )
 
-    assert "Operator hints:" in prompt
+    assert "<system-reminder>" in prompt
     assert "Gradio API challenge" in prompt
     assert "session_hash" in prompt

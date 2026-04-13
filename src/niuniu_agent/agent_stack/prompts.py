@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
@@ -151,43 +152,6 @@ def build_entry_prompt(
     track: str | None = None,
     operator_resources: dict | None = None,
 ) -> str:
-    snapshot_text = ""
-    if snapshot is not None:
-        snapshot_text = (
-            f"Current level: {snapshot.current_level}\n"
-            f"Visible challenges: {snapshot.total_challenges}\n"
-            f"Solved challenges: {snapshot.solved_challenges}\n"
-        )
-    active_text = ""
-    if active is not None:
-        active_text = (
-            f"Active challenge: {active.code}\n"
-            f"Title: {active.title}\n"
-            f"Description: {active.description}\n"
-            f"Difficulty: {active.difficulty}\n"
-            f"Entrypoints: {active.entrypoints}\n"
-        )
-    stage_text = f"Current stage: {stage}" if stage else ""
-    runtime_text = f"Runtime state: {runtime_state}" if runtime_state else ""
-    notes_text = f"Recovered notes: {notes}" if notes else ""
-    operator_hints = derive_operator_hints(active, notes)
-    operator_hint_text = (
-        "Operator hints:\n" + "\n".join(f"- {hint}" for hint in operator_hints)
-        if operator_hints
-        else ""
-    )
-    track_profile = TRACK_PROFILES.get(track) if track else None
-    track_text = ""
-    if track_profile is not None:
-        track_text = (
-            f"Track: {track_profile.track_id} / {track_profile.name}\n"
-            f"Focus: {track_profile.focus}\n"
-            "Track priorities:\n"
-            + "\n".join(f"- {item}" for item in track_profile.priorities)
-        )
-    skill_text = "\n".join(
-        f"- {skill.name}: {skill.description} | guidance: {skill.usage_guidance}" for skill in skills
-    )
     available_skills_text = f"Available skills catalog:\n{available_skills}" if available_skills else ""
     operator_resources_text = f"Operator resources:\n{operator_resources}" if operator_resources else ""
     mode_text = (
@@ -201,36 +165,13 @@ def build_entry_prompt(
             "format the final answer with clear markdown sections: 结论, 解法, 关键证据, Flag, 下一步."
         )
     )
-    completion_text = ""
-    if snapshot is not None and snapshot.total_challenges and snapshot.solved_challenges == snapshot.total_challenges:
-        completion_text = (
-            "All visible challenges are currently marked completed. "
-            "Unless the user explicitly asks to retest or reopen a target, do not perform more exploitation. "
-            "Prefer summarizing from the current snapshot, history, and notes."
-        )
-    summary_text = (
-        "The current user request is a summary/final-answer style request. "
-        "Prefer concise synthesis over more probing unless a critical fact is missing."
-        if summary_request
-        else ""
-    )
     return "\n\n".join(
         part
         for part in (
             ENTRY_PROMPT.body,
             mode_text,
-            completion_text,
-            summary_text,
-            stage_text,
-            runtime_text,
-            notes_text,
-            operator_hint_text,
-            track_text,
             available_skills_text,
             operator_resources_text,
-            snapshot_text.strip(),
-            active_text.strip(),
-            f"Selected skills:\n{skill_text}" if skill_text else "",
         )
         if part
     )
@@ -238,3 +179,86 @@ def build_entry_prompt(
 
 def build_trigger_prompt(trigger: TriggerPrompt) -> str:
     return trigger.body
+
+
+def build_runtime_instruction(
+    *,
+    mode: str,
+    user_input: str | None = None,
+    snapshot: ContestSnapshot | None = None,
+    active: ChallengeSnapshot | None = None,
+    runtime_state: dict[str, object] | None = None,
+    notes: dict[str, str] | None = None,
+    recent_history: list[dict[str, object]] | None = None,
+    recent_memories: list[dict[str, object]] | None = None,
+    selected_skills: list | None = None,
+    stage: str | None = None,
+    track: str | None = None,
+    summary_request: bool = False,
+    operator_resources: dict | None = None,
+    hint_context: dict[str, object] | None = None,
+) -> str:
+    track_profile = TRACK_PROFILES.get(track) if track else None
+    operator_hints = derive_operator_hints(active, notes)
+    payload: dict[str, object] = {
+        "mode": mode,
+        "summary_request": summary_request,
+        "snapshot": (
+            {
+                "current_level": snapshot.current_level,
+                "total_challenges": snapshot.total_challenges,
+                "solved_challenges": snapshot.solved_challenges,
+            }
+            if snapshot is not None
+            else None
+        ),
+        "active_challenge": (
+            {
+                "code": active.code,
+                "title": active.title,
+                "description": active.description,
+                "difficulty": active.difficulty,
+                "level": active.level,
+                "entrypoints": list(active.entrypoints),
+                "hint_viewed": active.hint_viewed,
+                "instance_status": active.instance_status,
+            }
+            if active is not None
+            else None
+        ),
+        "stage": stage,
+        "runtime_state": runtime_state or {},
+        "notes": notes or {},
+        "hint_context": hint_context,
+        "recent_history": recent_history or [],
+        "recent_memories": recent_memories or [],
+        "selected_skills": [
+            {
+                "name": skill.name,
+                "description": skill.description,
+                "guidance": skill.usage_guidance,
+            }
+            for skill in (selected_skills or [])
+        ],
+        "track": (
+            {
+                "track_id": track_profile.track_id,
+                "name": track_profile.name,
+                "focus": track_profile.focus,
+                "priorities": list(track_profile.priorities),
+            }
+            if track_profile is not None
+            else None
+        ),
+        "operator_hints": operator_hints,
+        "operator_resources": operator_resources or {},
+    }
+    parts: list[str] = []
+    if user_input:
+        parts.append(user_input)
+    parts.append(
+        "<system-reminder>\n"
+        + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        + "\n</system-reminder>"
+    )
+    return "\n\n".join(parts)

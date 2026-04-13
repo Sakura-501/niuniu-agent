@@ -55,7 +55,7 @@ class CompetitionManagerAgent:
             agent_id=self.agent_id,
             challenge_code=None,
             event_type="manager_cycle",
-            payload=json.dumps(metadata, ensure_ascii=False),
+            payload=json.dumps(metadata, ensure_ascii=False, sort_keys=True),
         )
 
     async def publish_assignment_guidance(
@@ -115,7 +115,7 @@ class CompetitionManagerAgent:
         track = infer_track(challenge.description)
         profile = TRACK_PROFILES.get(track)
         priorities = "\n".join(f"- {item}" for item in (profile.priorities if profile else ()))
-        notes_text = json.dumps(compact_challenge_notes(notes), ensure_ascii=False)[:1000]
+        notes_text = json.dumps(compact_challenge_notes(notes), ensure_ascii=False, sort_keys=True)[:1000]
         memory_lines = "\n".join(
             f"- [{item.get('memory_type')}] {str(item.get('content') or '')[:180]}"
             for item in (memories or [])

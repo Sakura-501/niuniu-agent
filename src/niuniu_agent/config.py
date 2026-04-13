@@ -61,8 +61,8 @@ class AgentSettings(BaseSettings):
     competition_worker_stall_seconds: int = 180
     competition_defer_seconds: int = 60
     official_completion_grace_seconds: int = 30
-    model_context_window_tokens: int = 204800
-    context_compaction_threshold_ratio: float = 0.8
+    model_context_window_tokens: int = 256000
+    context_compaction_threshold_ratio: float = 0.9
     estimated_chars_per_token: int = 4
     context_compaction_keep_tail_messages: int = 8
     context_compaction_keep_recent_tool_results: int = 3

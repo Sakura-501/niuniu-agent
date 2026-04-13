@@ -165,7 +165,7 @@ class ToolBus:
         if isinstance(result, str):
             self._record_agent_event("tool_done", {"name": name, "arguments": arguments, "output_preview": result[:300]})
             return result
-        output = json.dumps(result, ensure_ascii=False)
+        output = json.dumps(result, ensure_ascii=False, sort_keys=True)
         self._record_agent_event("tool_done", {"name": name, "arguments": arguments, "output_preview": output[:300]})
         return output
 
@@ -248,7 +248,7 @@ class ToolBus:
             payload = await self.context.contest_gateway.submit_flag(code, flag)
         if self._is_successful_flag_submission(payload):
             self.context.state_store.record_submitted_flag(code, flag)
-            self.context.state_store.add_history_event(code, "flag_submitted", json.dumps({"flag": flag, "payload": payload}, ensure_ascii=False))
+            self.context.state_store.add_history_event(code, "flag_submitted", json.dumps({"flag": flag, "payload": payload}, ensure_ascii=False, sort_keys=True))
             self.context.state_store.set_challenge_note(code, "last_flag", flag)
             self.context.state_store.add_challenge_memory(code, "flag_submitted", flag, source="submit_flag")
         snapshot = await self.context.challenge_store.refresh()
@@ -319,5 +319,5 @@ class ToolBus:
             agent_id=self.context.agent_id,
             challenge_code=str(challenge_code) if challenge_code else None,
             event_type=event_type,
-            payload=json.dumps(payload, ensure_ascii=False),
+            payload=json.dumps(payload, ensure_ascii=False, sort_keys=True),
         )

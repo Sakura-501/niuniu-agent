@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import asdict
 from typing import Any
@@ -167,29 +166,37 @@ class ChallengeStore:
             ],
         }
 
-    def build_autonomous_prompt(self, snapshot: ContestSnapshot, challenge: ChallengeSnapshot) -> str:
+    def build_autonomous_prompt(
+        self,
+        snapshot: ContestSnapshot,
+        challenge: ChallengeSnapshot,
+        *,
+        stage: str | None = None,
+        runtime_state: dict[str, object] | None = None,
+        notes: dict[str, str] | None = None,
+        track: str | None = None,
+        selected_skills: list | None = None,
+        operator_resources: dict | None = None,
+    ) -> str:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
-        notes = compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
+        notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
         recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
         hint_context = extract_hint_context(notes, recent_history)
-        return json.dumps(
-            {
-                "mode": "competition",
-                "contest_snapshot": self.export_json(snapshot),
-                "active_challenge": asdict(challenge),
-                "recent_history": recent_history,
-                "notes": notes,
-                "hint_context": hint_context,
-                "recent_memories": recent_memories,
-                "instructions": [
-                    "Work on the selected challenge autonomously.",
-                    "Use available MCP and local tools.",
-                    "Submit any discovered flags immediately.",
-                    "If prior history, notes, or memories exist, continue from them instead of restarting from scratch.",
-                    "Do not stop because of uncertainty; gather evidence and continue.",
-                ],
-            },
-            ensure_ascii=False,
+        from niuniu_agent.agent_stack.prompts import build_runtime_instruction
+
+        return build_runtime_instruction(
+            mode="competition",
+            snapshot=snapshot,
+            active=challenge,
+            runtime_state=runtime_state or self.state_store.get_challenge_runtime_state(challenge.code),
+            notes=notes,
+            recent_history=recent_history,
+            recent_memories=recent_memories,
+            selected_skills=selected_skills or [],
+            stage=stage,
+            track=track,
+            operator_resources=operator_resources,
+            hint_context=hint_context,
         )
 
     def _effective_solved_challenges(self, snapshot: ContestSnapshot) -> int:

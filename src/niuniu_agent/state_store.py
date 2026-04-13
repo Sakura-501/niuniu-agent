@@ -763,7 +763,7 @@ class StateStore:
                     challenge_code,
                     status,
                     summary,
-                    json.dumps(metadata or {}, ensure_ascii=False),
+                    json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True),
                     last_error,
                 ),
             )
