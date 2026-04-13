@@ -298,6 +298,14 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：Kerberos 用户枚举与口令验证。  
 安装：`go install github.com/ropnop/kerbrute@latest`
 
+- [x] `PetitPotam` / `DFSCoerce` / `PassTheCert`
+作用：强制认证、Schannel/LDAP 证书认证、AD 证书链路补充。  
+安装：当前已把上游脚本作为仓库内便携资产落地到 `tools/portable/domain/linux_amd64/*`，通过 `tools/bin/petitpotam`、`tools/bin/dfscoerce`、`tools/bin/passthecert` wrapper 在调试机直接调用。
+
+- [x] `Powermad` / `PrivescCheck` / `Certify.exe` / `MS14-068.exe` 备份资产
+作用：Windows 主机上的 MAQ/ADIDNS、Windows 本地提权检查、AD CS 枚举，以及旧版 Kerberos 利用链兜底。  
+安装：当前已把资产落地到 `tools/portable/windows_assets/*`，并提供 `tools/bin/*-asset` wrapper 输出投放路径；对应使用教程已补到 `skills/tool-windows-ad-stage-assets`。
+
 - [x] `hydra`
 作用：多协议口令爆破。  
 安装：`sudo apt-get install -y hydra`

@@ -240,6 +240,18 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         trigger_keywords=("certipy", "adcs", "esc"),
         usage_guidance="Load this skill when AD CS or certificate abuse becomes relevant.",
     ),
+    "tool-petitpotam-dfscoerce": SkillBehavior(
+        trigger_keywords=("petitpotam", "dfscoerce", "coerce", "efsrpc", "dfsnm", "ntlm relay", "forced auth"),
+        usage_guidance="Load this skill when you need concrete coercion and forced-authentication steps against Windows/AD targets.",
+    ),
+    "tool-passthecert": SkillBehavior(
+        trigger_keywords=("passthecert", "schannel", "ldap certificate", "pkinit", "certificate auth", "cert auth"),
+        usage_guidance="Load this skill when certificate auth is available but PKINIT is missing or LDAP Schannel is the practical path.",
+    ),
+    "tool-windows-ad-stage-assets": SkillBehavior(
+        trigger_keywords=("powermad", "privesccheck", "certify", "ms14-068", "machineaccountquota", "adidns", "windows asset"),
+        usage_guidance="Load this skill when a Windows foothold needs staged AD or local escalation assets from the operator host.",
+    ),
     "tool-chisel": SkillBehavior(
         trigger_keywords=("chisel",),
         usage_guidance="Load this skill when you need a lightweight tunnel or SOCKS pivot path.",

@@ -59,6 +59,20 @@ def test_skill_registry_selects_track3_lateral_helpers_from_text() -> None:
     assert "proxy-php-ssrf-lfi-helper" in names
 
 
+def test_skill_registry_selects_new_ad_internal_tool_guides() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select(
+        "petitpotam dfscoerce passthecert schannel machineaccountquota powermad privesccheck certify ms14-068",
+        track="track4",
+    )
+    names = {skill.name for skill in selected}
+
+    assert "tool-petitpotam-dfscoerce" in names
+    assert "tool-passthecert" in names
+    assert "tool-windows-ad-stage-assets" in names
+
+
 def test_skill_registry_loads_skill_body_from_disk() -> None:
     registry = SkillRegistry()
 

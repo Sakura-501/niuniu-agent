@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+exec uv run --with impacket python "${REPO_ROOT}/tools/portable/domain/linux_amd64/dfscoerce/dfscoerce.py" "$@"
