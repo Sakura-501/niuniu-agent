@@ -100,3 +100,39 @@ async def test_contest_gateway_retries_internal_cancelled_errors_for_list_challe
     assert payload["current_level"] == 1
     assert len(gateway.server.calls) == 3
     assert sleeps == [0.5, 1.0]
+
+
+class PoolClosedServer(FakeServer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.cleaned = False
+
+    async def cleanup(self) -> None:
+        self.cleaned = True
+
+    async def call_tool(self, tool_name, arguments):
+        self.calls.append((tool_name, arguments))
+        raise RuntimeError("Cannot acquire connection after closing pool")
+
+
+@pytest.mark.anyio
+async def test_contest_gateway_rebuilds_server_after_pool_closed_error() -> None:
+    created = []
+
+    def server_factory():
+        if not created:
+            server = PoolClosedServer()
+        else:
+            server = FakeServer()
+        created.append(server)
+        return server
+
+    gateway = ContestGateway(server_factory(), server_factory=server_factory)
+
+    payload = await gateway.list_challenges()
+
+    assert payload["current_level"] == 1
+    assert len(created) == 2
+    assert isinstance(created[0], PoolClosedServer)
+    assert created[0].cleaned is True
+    assert gateway.server is created[1]

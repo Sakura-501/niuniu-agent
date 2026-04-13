@@ -82,6 +82,49 @@ async def ensure_challenge_instance_running(
         return False
 
 
+async def ensure_worker_target_instance_ready(
+    *,
+    worker_context: RuntimeContext,
+    target: object,
+    worker_agent_id: str,
+    competition_run_id: str,
+    manager_agent_id: str,
+) -> tuple[object, bool]:
+    if getattr(target, "completed", False) or getattr(target, "instance_status", None) == "running":
+        return target, True
+
+    await ensure_challenge_instance_running(
+        contest_gateway=worker_context.contest_gateway,
+        challenge=target,
+        event_logger=worker_context.event_logger,
+    )
+    snapshot = await worker_context.challenge_store.refresh()
+    refreshed = next((item for item in snapshot.challenges if item.code == target.code), target)
+    if getattr(refreshed, "completed", False) or getattr(refreshed, "instance_status", None) == "running":
+        return refreshed, True
+
+    worker_context.state_store.upsert_agent_status(
+        agent_id=worker_context.agent_id or worker_agent_id,
+        role="challenge_worker",
+        challenge_code=target.code,
+        status="waiting_instance",
+        summary="waiting for challenge instance to become runnable",
+        metadata={
+            "challenge_code": target.code,
+            "competition_run_id": competition_run_id,
+            "manager_agent_id": manager_agent_id,
+            "instance_status": getattr(refreshed, "instance_status", None),
+        },
+    )
+    worker_context.state_store.append_agent_event(
+        agent_id=worker_context.agent_id or worker_agent_id,
+        challenge_code=target.code,
+        event_type="worker_waiting_instance",
+        payload="instance not running after start attempt; retrying later",
+    )
+    return refreshed, False
+
+
 async def recover_stalled_workers(
     *,
     snapshot: object,
@@ -302,14 +345,16 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     return
 
                 worker_context.notes["active_challenge"] = target.code
-                if not target.completed and target.instance_status != "running":
-                    await ensure_challenge_instance_running(
-                        contest_gateway=worker_context.contest_gateway,
-                        challenge=target,
-                        event_logger=worker_context.event_logger,
-                    )
-                    snapshot = await worker_context.challenge_store.refresh()
-                    target = next((item for item in snapshot.challenges if item.code == challenge_code), target)
+                target, instance_ready = await ensure_worker_target_instance_ready(
+                    worker_context=worker_context,
+                    target=target,
+                    worker_agent_id=worker_agent_id,
+                    competition_run_id=competition_run_id,
+                    manager_agent_id=manager.agent_id,
+                )
+                if not instance_ready:
+                    await asyncio.sleep(2)
+                    continue
                 worker_context.state_store.mark_active_challenge(target.code)
                 runtime_state = worker_context.state_store.get_challenge_runtime_state(target.code)
                 notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))

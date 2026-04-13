@@ -16,23 +16,27 @@ class ContestGateway:
         server: MCPServerStreamableHttp,
         *,
         sleep_fn: Any | None = None,
+        server_factory: Any | None = None,
     ) -> None:
         self.server = server
         self._sleep = sleep_fn or asyncio.sleep
+        self._server_factory = server_factory
         self._list_challenges_lock = asyncio.Lock()
 
     @classmethod
     def from_settings(cls, settings: AgentSettings) -> "ContestGateway":
-        server = MCPServerStreamableHttp(
-            params=MCPServerStreamableHttpParams(
-                url=settings.contest_mcp_url,
-                headers={"Authorization": f"Bearer {settings.contest_token}"},
-            ),
-            name="contest-mcp",
-            cache_tools_list=True,
-            max_retry_attempts=2,
-        )
-        return cls(server)
+        def server_factory() -> MCPServerStreamableHttp:
+            return MCPServerStreamableHttp(
+                params=MCPServerStreamableHttpParams(
+                    url=settings.contest_mcp_url,
+                    headers={"Authorization": f"Bearer {settings.contest_token}"},
+                ),
+                name="contest-mcp",
+                cache_tools_list=True,
+                max_retry_attempts=2,
+            )
+
+        return cls(server_factory(), server_factory=server_factory)
 
     async def connect(self) -> None:
         await self.server.connect()
@@ -86,6 +90,8 @@ class ContestGateway:
                 return await self._call(name, arguments)
             except RuntimeError as exc:
                 last_error = exc
+                if self._is_session_reset_runtime_error(str(exc)) and self._server_factory is not None and attempt < max_attempts:
+                    await self._reset_server()
                 if not self._is_retryable_runtime_error(str(exc)) or attempt >= max_attempts:
                     raise
                 await self._sleep(delay)
@@ -106,6 +112,19 @@ class ContestGateway:
                 "timed out",
                 "deadline exceeded",
                 "internally cancelled",
+                "cannot acquire connection after closing pool",
+                "'nonetype' object has no attribute 'acquire'",
+            )
+        )
+
+    @staticmethod
+    def _is_session_reset_runtime_error(message: str) -> bool:
+        lowered = message.lower()
+        return any(
+            marker in lowered
+            for marker in (
+                "cannot acquire connection after closing pool",
+                "'nonetype' object has no attribute 'acquire'",
             )
         )
 
@@ -127,3 +146,13 @@ class ContestGateway:
             return json.loads(text)
         except json.JSONDecodeError:
             return text
+
+    async def _reset_server(self) -> None:
+        if self._server_factory is None:
+            return
+        old_server = self.server
+        try:
+            await old_server.cleanup()
+        except Exception:
+            pass
+        self.server = self._server_factory()

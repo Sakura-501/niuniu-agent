@@ -9,6 +9,7 @@ from niuniu_agent.config import AgentSettings
 from niuniu_agent.runtime.competition_loop import (
     close_completed_challenge_instances,
     ensure_challenge_instance_running,
+    ensure_worker_target_instance_ready,
     recover_stalled_workers,
     stop_challenge_instance_before_worker_exit,
     retire_completed_workers,
@@ -424,3 +425,76 @@ async def test_ensure_challenge_instance_running_skips_running_or_completed_chal
     assert started_running is False
     assert started_completed is False
     assert gateway.started == []
+
+
+@pytest.mark.anyio
+async def test_ensure_worker_target_instance_ready_marks_waiting_when_instance_stays_stopped(tmp_path) -> None:
+    state_store = StateStore(tmp_path / "state.db")
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    class ChallengeStoreStub:
+        async def refresh(self):
+            return SimpleNamespace(
+                current_level=0,
+                total_challenges=1,
+                solved_challenges=0,
+                challenges=[
+                    ChallengeSnapshot(
+                        code="c1",
+                        title="demo",
+                        description="demo",
+                        difficulty="easy",
+                        level=0,
+                        flag_count=1,
+                        flag_got_count=0,
+                        instance_status="stopped",
+                    )
+                ],
+            )
+
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="test-model",
+            model_base_url="https://example.invalid/v1",
+            model_api_key="key",
+            contest_host="https://challenge.zc.tencent.com",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=ChallengeStoreStub(),
+        state_store=state_store,
+        event_logger=logger,
+        local_toolbox=object(),
+        skill_registry=None,
+        agent_id="worker:c1:test",
+        agent_role="challenge_worker",
+        challenge_code="c1",
+    )
+
+    target = ChallengeSnapshot(
+        code="c1",
+        title="demo",
+        description="demo",
+        difficulty="easy",
+        level=0,
+        flag_count=1,
+        flag_got_count=0,
+        instance_status="stopped",
+    )
+
+    refreshed, ready = await ensure_worker_target_instance_ready(
+        worker_context=context,
+        target=target,
+        worker_agent_id="worker:c1:test",
+        competition_run_id="run1",
+        manager_agent_id="manager:competition:run1",
+    )
+
+    status = state_store.get_agent_status("worker:c1:test")
+
+    assert ready is False
+    assert refreshed.instance_status == "stopped"
+    assert gateway.started == ["c1"]
+    assert status is not None
+    assert status["status"] == "waiting_instance"
