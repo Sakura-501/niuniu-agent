@@ -3,4 +3,4 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT_DIR="${REPO_ROOT}/tools/portable/web/phpggc"
 cd "${SCRIPT_DIR}"
-exec php "${SCRIPT_DIR}/phpggc" "$@"
+exec php "${SCRIPT_DIR}/niuniu-phpggc.php" "$@"
