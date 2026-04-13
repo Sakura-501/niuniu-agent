@@ -19,9 +19,15 @@ def _repo_root() -> Path:
 
 
 def tool_path(name: str) -> str | None:
-    found = shutil.which(name)
-    if found is not None:
-        return found
+    search_paths = [
+        None,
+        str(Path.home() / ".local" / "bin"),
+        "/usr/local/bin",
+    ]
+    for path in search_paths:
+        found = shutil.which(name, path=path) if path is not None else shutil.which(name)
+        if found is not None:
+            return found
     managed = _repo_root() / "tools" / "bin" / name
     if managed.exists() and managed.is_file():
         return str(managed)
@@ -73,9 +79,9 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("smbclient", "domain", ("track4",), "sudo apt-get install -y smbclient"),
         ("smbmap", "domain", ("track4",), "python3 -m pip install --user smbmap"),
         ("ldapsearch", "domain", ("track4",), "sudo apt-get install -y ldap-utils"),
-        ("certipy-ad", "domain", ("track4",), "python3 -m pip install --user certipy-ad"),
+        ("certipy-ad", "domain", ("track4",), "python3 -m pip install --user certipy-ad and expose it as certipy-ad/certipy"),
         ("enum4linux-ng", "domain", ("track4",), "git clone https://github.com/cddmp/enum4linux-ng and use enum4linux-ng.py"),
-        ("responder", "domain", ("track4",), "python3 -m pip install --user responder"),
+        ("responder", "domain", ("track4",), "git clone https://github.com/SpiderLabs/Responder and expose Responder.py as responder"),
         ("hydra", "domain", ("track3", "track4"), "sudo apt-get install -y hydra"),
         ("john", "domain", ("track3", "track4"), "sudo apt-get install -y john"),
         ("hashcat", "domain", ("track3", "track4"), "sudo apt-get install -y hashcat"),

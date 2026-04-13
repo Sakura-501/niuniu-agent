@@ -20,7 +20,7 @@ Use this skill when AD or Windows file services are involved and you need quick 
 1. Use `kerbrute` for bounded user enumeration or careful password validation.
 2. Use `smbmap` for share and permission visibility.
 3. Use `enum4linux-ng` for SMB/NetBIOS enumeration when Linux-side coverage is needed.
-4. Use `responder` only when the scenario actually supports poisoning/relay style opportunities.
+4. Use the official SpiderLabs `Responder.py` via the `responder` wrapper only when the scenario actually supports poisoning/relay style opportunities.
 
 ## Resource Guardrails
 

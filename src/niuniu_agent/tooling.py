@@ -283,9 +283,13 @@ class LocalToolbox:
 
     def _tool_env(self) -> dict[str, str]:
         env = os.environ.copy()
-        managed = str(self.managed_bin_dir)
+        preferred = [
+            str(self.managed_bin_dir),
+            str(Path.home() / ".local" / "bin"),
+            "/usr/local/bin",
+        ]
         current_path = env.get("PATH", "")
-        env["PATH"] = f"{managed}:{current_path}" if current_path else managed
+        env["PATH"] = ":".join([*preferred, current_path] if current_path else preferred)
         return env
 
     @staticmethod

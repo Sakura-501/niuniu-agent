@@ -18,7 +18,7 @@ Use this skill when AD CS or certificate-based privilege paths are in scope.
 ## Recommended Workflow
 
 1. Confirm domain reachability, credentials, and CA presence.
-2. Use `certipy-ad` for discovery before trying certificate requests.
+2. Use `certipy-ad` (or `certipy` if the packaged binary uses the shorter name) for discovery before trying certificate requests.
 3. Rank findings by shortest path to privilege escalation or impersonation.
 4. Save templates, CA names, and request parameters carefully.
 

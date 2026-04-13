@@ -179,6 +179,18 @@ install_plan() {
     echo "pip install failed: ${PIP_PACKAGES[*]}" >&2
     failures+=("pip:${PIP_PACKAGES[*]}")
   fi
+  if [[ -x "${HOME}/.local/bin/certipy" ]]; then
+    sudo ln -sf "${HOME}/.local/bin/certipy" /usr/local/bin/certipy-ad
+  fi
+  if [[ ! -d "${HOME}/.local/Responder" ]]; then
+    if ! git clone --depth=1 https://github.com/SpiderLabs/Responder "${HOME}/.local/Responder"; then
+      echo "git clone failed: Responder" >&2
+      failures+=("git:Responder")
+    fi
+  fi
+  if [[ -f "${HOME}/.local/Responder/Responder.py" ]]; then
+    sudo ln -sf "${HOME}/.local/Responder/Responder.py" /usr/local/bin/responder
+  fi
   if [[ ! -d "${HOME}/.local/enum4linux-ng" ]]; then
     if ! git clone --depth=1 https://github.com/cddmp/enum4linux-ng "${HOME}/.local/enum4linux-ng"; then
       echo "git clone failed: enum4linux-ng" >&2
