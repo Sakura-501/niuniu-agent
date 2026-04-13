@@ -53,6 +53,8 @@ class AsyncPentestAgent:
         self.tool_bus = tool_bus
         self.workdir = Path(workdir or Path.cwd()).resolve()
         self.temperature = temperature
+        self._system_message = {"role": "system", "content": self.system_prompt}
+        self._tool_schemas = self.tool_bus.tool_schemas()
         self.context_window_tokens = context_window_tokens
         self.context_compaction_threshold_ratio = context_compaction_threshold_ratio
         self.estimated_chars_per_token = estimated_chars_per_token
@@ -119,8 +121,8 @@ class AsyncPentestAgent:
     ) -> tuple[str, list[ToolCallData]]:
         kwargs = {
             "model": self.model_name,
-            "messages": [{"role": "system", "content": self.system_prompt}, *transcript],
-            "tools": self.tool_bus.tool_schemas(),
+            "messages": [self._system_message, *transcript],
+            "tools": self._tool_schemas,
             "tool_choice": "auto",
             "temperature": self.temperature,
         }
@@ -214,8 +216,8 @@ class AsyncPentestAgent:
         )
         response = await self.client.chat.completions.create(
             model=self.model_name,
-            messages=[{"role": "system", "content": self.system_prompt}, *transcript, {"role": "user", "content": prompt}],
-            tools=self.tool_bus.tool_schemas(),
+            messages=[self._system_message, *transcript, {"role": "user", "content": prompt}],
+            tools=self._tool_schemas,
             tool_choice="none",
             temperature=0.2,
             max_tokens=self.context_compaction_summary_max_tokens,
@@ -234,7 +236,7 @@ class AsyncPentestAgent:
         payload = {
             "system": self.system_prompt,
             "messages": transcript,
-            "tools": self.tool_bus.tool_schemas(),
+            "tools": self._tool_schemas,
         }
         return len(json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True))
 

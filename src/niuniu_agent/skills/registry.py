@@ -215,6 +215,7 @@ class SkillRegistry:
     def __init__(self, skills_dir: Path | None = None) -> None:
         self.skills_dir = skills_dir or self.default_skills_dir()
         self.skills = self._load_skills()
+        self._available_description_cache = self._build_available_description()
 
     @staticmethod
     def default_skills_dir() -> Path:
@@ -266,13 +267,16 @@ class SkillRegistry:
             usage_guidance="Load the full skill body before acting.",
         )
 
-    def describe_available(self) -> str:
+    def _build_available_description(self) -> str:
         if not self.skills:
             return "(no skills available)"
         return "\n".join(
             f"- {skill.name}: {skill.description}"
             for skill in sorted(self.skills, key=lambda item: item.name)
         )
+
+    def describe_available(self) -> str:
+        return self._available_description_cache
 
     def load_full_text(self, name: str) -> str:
         skill = next((item for item in self.skills if item.name == name), None)

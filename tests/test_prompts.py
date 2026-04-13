@@ -86,8 +86,8 @@ def test_entry_prompt_includes_callback_resource_when_available() -> None:
         },
     )
 
-    assert "callback_server" in prompt
-    assert "129.211.15.16" in prompt
+    assert "callback_server" not in prompt
+    assert "129.211.15.16" not in prompt
 
 
 def test_derive_operator_hints_for_dify_style_notes() -> None:
@@ -128,6 +128,28 @@ def test_entry_prompt_includes_gradio_operator_hints_when_notes_match() -> None:
     assert "<system-reminder>" in prompt
     assert "Gradio API challenge" in prompt
     assert "session_hash" in prompt
+
+
+def test_build_runtime_instruction_includes_available_skills_and_operator_resources() -> None:
+    active = ChallengeSnapshot(
+        code="c4",
+        title="demo",
+        description="demo",
+        difficulty="easy",
+        level=1,
+    )
+
+    prompt = build_runtime_instruction(
+        mode="competition",
+        active=active,
+        available_skills="- web-surface-mapping: demo",
+        operator_resources={"callback_server": {"host": "129.211.15.16", "username": "root"}},
+    )
+
+    assert "available_skills_catalog" in prompt
+    assert "web-surface-mapping" in prompt
+    assert "callback_server" in prompt
+    assert "129.211.15.16" in prompt
 
 
 def test_build_runtime_instruction_is_stable_for_reordered_dicts() -> None:

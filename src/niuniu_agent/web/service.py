@@ -360,6 +360,7 @@ class DebugSessionManager:
                         recent_history=recent_history,
                         recent_memories=recent_memories,
                         selected_skills=skill_plan.skills if skill_plan else [],
+                        available_skills=available_skills,
                         stage=skill_plan.stage if skill_plan else None,
                         track=track,
                         summary_request=False,

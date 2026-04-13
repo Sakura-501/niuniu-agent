@@ -176,6 +176,7 @@ class ChallengeStore:
         notes: dict[str, str] | None = None,
         track: str | None = None,
         selected_skills: list | None = None,
+        available_skills: str | None = None,
         operator_resources: dict | None = None,
     ) -> str:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
@@ -193,6 +194,7 @@ class ChallengeStore:
             recent_history=recent_history,
             recent_memories=recent_memories,
             selected_skills=selected_skills or [],
+            available_skills=available_skills,
             stage=stage,
             track=track,
             operator_resources=operator_resources,

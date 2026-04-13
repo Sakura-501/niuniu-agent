@@ -135,6 +135,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                 recent_history=recent_history,
                 recent_memories=recent_memories,
                 selected_skills=skill_plan.skills if skill_plan else [],
+                available_skills=available_skills,
                 stage=skill_plan.stage if skill_plan else None,
                 track=track,
                 summary_request=_is_summary_request(user_input),

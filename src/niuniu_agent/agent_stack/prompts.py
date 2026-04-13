@@ -152,12 +152,6 @@ def build_entry_prompt(
     track: str | None = None,
     operator_resources: dict | None = None,
 ) -> str:
-    available_skills_text = f"Available skills catalog:\n{available_skills}" if available_skills else ""
-    operator_resources_text = (
-        "Operator resources:\n" + json.dumps(operator_resources, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        if operator_resources
-        else ""
-    )
     mode_text = (
         "Mode: competition. Keep running forever and recover from errors. "
         "Use the load_skill tool when a task needs specialized instructions before acting."
@@ -174,8 +168,6 @@ def build_entry_prompt(
         for part in (
             ENTRY_PROMPT.body,
             mode_text,
-            available_skills_text,
-            operator_resources_text,
         )
         if part
     )
@@ -196,6 +188,7 @@ def build_runtime_instruction(
     recent_history: list[dict[str, object]] | None = None,
     recent_memories: list[dict[str, object]] | None = None,
     selected_skills: list | None = None,
+    available_skills: str | None = None,
     stage: str | None = None,
     track: str | None = None,
     summary_request: bool = False,
@@ -244,6 +237,7 @@ def build_runtime_instruction(
             }
             for skill in (selected_skills or [])
         ],
+        "available_skills_catalog": available_skills or "",
         "track": (
             {
                 "track_id": track_profile.track_id,

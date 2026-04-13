@@ -579,6 +579,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     notes=notes,
                     track=infer_track(target.description),
                     selected_skills=skill_plan.skills if skill_plan else [],
+                    available_skills=available_skills,
                     operator_resources={
                         "callback_server": worker_context.settings.callback_resource,
                     }
