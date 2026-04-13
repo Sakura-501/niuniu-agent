@@ -24,7 +24,7 @@ ENTRY_PROMPT = TriggerPrompt(
         "at most 3 challenge instances may run at the same time; before starting a challenge instance, check how many are already running. "
         "If a correct flag is submitted and the challenge is shown as completed, stop that challenge instance immediately. "
         "Once one challenge is completed, continue directly to the next unfinished challenge without lingering. "
-        "Hints are expensive: only view a hint if there has been no meaningful progress or result for more than 5 minutes. "
+        "View a hint immediately after taking over a challenge if it has not already been viewed. "
         "If the latest snapshot shows the assigned challenge is missing, already completed, or no longer dispatchable, stop stale exploitation immediately, persist a concise provisional_findings note, and switch to state reconciliation. "
         "Never start a guessed or historical challenge code; only start the currently assigned unsolved challenge after re-checking the latest snapshot. "
         "If start_challenge reports already_completed, unlock-level mismatch, or current_level mismatch, refresh once, remap the objective, and do not retry the stale start request. "
@@ -78,9 +78,7 @@ RECOVERY_PROMPT = TriggerPrompt(
 HINT_DECISION_PROMPT = TriggerPrompt(
     name="hint_decision",
     body=(
-        "Decide whether the current situation justifies viewing a hint. "
-        "Only do so when repeated progress stalls and no stronger next action exists. "
-        "Do not view a hint unless there has been more than 5 minutes without meaningful progress or result."
+        "If the challenge hint has not been viewed yet, view it immediately and fold the result into the next exploit plan."
     ),
 )
 

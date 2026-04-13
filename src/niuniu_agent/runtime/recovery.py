@@ -51,13 +51,7 @@ def should_view_hint(
         return False
     if notes.get("hint_viewed") == "true":
         return False
-    if any(notes.get(key) for key in ("foothold", "credential_hint", "provisional_findings", "last_flag")):
-        return False
-    if seconds_since_attempt is not None and seconds_since_attempt >= 300:
-        return True
-    if seconds_since_progress is None:
-        return False
-    return seconds_since_progress >= 300
+    return True
 
 
 def recover_competition_state(

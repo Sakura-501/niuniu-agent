@@ -49,7 +49,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "first check whether that challenge is already solved or completed" in prompt
     assert "at most 3 challenge instances" in prompt
     assert "stop that challenge instance immediately" in prompt
-    assert "more than 5 minutes" in prompt
+    assert "View a hint immediately" in prompt
     assert "missing, already completed, or no longer dispatchable" in prompt
     assert "Never start a guessed or historical challenge code" in prompt
     assert "do at most 2 short verification probes" in prompt
