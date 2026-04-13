@@ -69,6 +69,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "prefer fscan first" in prompt
     assert "built-in internet search capability" in prompt
     assert "/root/niuniu-agent/exp" in prompt
+    assert "129.211.15.16" in prompt
     assert "Active challenge:" not in prompt
     assert "Recovered notes:" not in prompt
 
@@ -90,7 +91,7 @@ def test_entry_prompt_includes_callback_resource_when_available() -> None:
     )
 
     assert "callback_server" not in prompt
-    assert "129.211.15.16" not in prompt
+    assert "129.211.15.16" in prompt
 
 
 def test_derive_operator_hints_for_dify_style_notes() -> None:

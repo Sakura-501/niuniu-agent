@@ -24,6 +24,8 @@ Use this skill when you need a stable route between the target and the callback 
 
 ## Practical Notes
 
+- For this environment, the default public callback host is `129.211.15.16`.
+- `stowaway_admin -l` is a valid listener form in this environment; verify the port and route plan before deploying the agent side.
 - Record listener address, exposed internal service, and cleanup path.
 - Use `proxychains4` only after the SOCKS path is verified.
 - For reverse shells and relay one-offs, `socat` may still be the lightest option.

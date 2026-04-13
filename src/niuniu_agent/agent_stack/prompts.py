@@ -37,6 +37,7 @@ ENTRY_PROMPT = TriggerPrompt(
         " For internal service or vulnerability scanning, prefer fscan first; only fall back to nmap, rustscan, or broader tooling when fscan is not suitable or did not answer the hypothesis."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
         " Local exploit references and PoC notes may exist under /root/niuniu-agent/exp on the debug machine; check that directory before reinventing public exploit research."
+        " When a target must call back, use the public callback host 129.211.15.16 unless a more specific runtime reminder overrides it."
     ),
 )
 
