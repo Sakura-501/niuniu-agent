@@ -67,6 +67,9 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("psql", "service", ("track2", "track3"), "sudo apt-get install -y postgresql-client"),
         ("socat", "service", ("track2", "track3"), "sudo apt-get install -y socat"),
         ("proxychains4", "pivot", ("track3", "track4"), "sudo apt-get install -y proxychains4"),
+        ("sshuttle", "pivot", ("track3", "track4"), "sudo apt-get install -y sshuttle"),
+        ("ligolo-proxy", "pivot", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install ligolo-ng"),
+        ("ligolo-agent", "pivot", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install ligolo-ng"),
         ("smbclient", "domain", ("track4",), "sudo apt-get install -y smbclient"),
         ("smbmap", "domain", ("track4",), "python3 -m pip install --user smbmap"),
         ("ldapsearch", "domain", ("track4",), "sudo apt-get install -y ldap-utils"),
@@ -86,6 +89,9 @@ def default_tool_inventory() -> list[ToolAvailability]:
         ("pspy", "privesc", ("track3", "track4"), "python3 scripts/fetch_portable_tools.py install pspy"),
         ("winpeasx64", "privesc", ("track4",), "python3 scripts/fetch_portable_tools.py install winpeas"),
         ("msfconsole", "framework", ("track2", "track3", "track4"), "brew install metasploit or install metasploit-framework from official packages"),
+        ("php", "service", ("track1", "track3"), "sudo apt-get install -y php-cli"),
+        ("tcpdump", "service", ("track3", "track4"), "sudo apt-get install -y tcpdump"),
+        ("tmux", "base", ("track3", "track4"), "sudo apt-get install -y tmux"),
     ]
     return [
         ToolAvailability(

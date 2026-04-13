@@ -59,6 +59,15 @@ TOOLS: dict[str, PortableTool] = {
         },
         binaries=("chisel",),
     ),
+    "ligolo-ng": PortableTool(
+        name="ligolo-ng",
+        repo="nicocha30/ligolo-ng",
+        assets={
+            "darwin_arm64": ("darwin_arm64.tar.gz",),
+            "linux_amd64": ("linux_amd64.tar.gz",),
+        },
+        binaries=("ligolo-proxy", "ligolo-agent"),
+    ),
     "frp": PortableTool(
         name="frp",
         repo="fatedier/frp",
@@ -250,6 +259,24 @@ def install() -> int:
                     target_name = next((value for key, value in mapping.items() if key in lowered), source.name)
                     destination = BIN_DIR / target_name
                     shutil.copy2(source, destination)
+                    destination.chmod(destination.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    installed.append(target_name)
+                continue
+
+            if tool.name == "ligolo-ng":
+                for path in temp_dir.rglob("*"):
+                    if not path.is_file():
+                        continue
+                    lowered = path.name.lower()
+                    if "proxy" in lowered:
+                        target_name = "ligolo-proxy"
+                    elif "agent" in lowered:
+                        target_name = "ligolo-agent"
+                    else:
+                        continue
+                    destination = BIN_DIR / target_name
+                    destination.unlink(missing_ok=True)
+                    shutil.copy2(path, destination)
                     destination.chmod(destination.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                     installed.append(target_name)
                 continue

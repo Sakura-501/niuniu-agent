@@ -29,11 +29,15 @@ APT_PACKAGES=(
   postgresql-client
   socat
   proxychains4
+  sshuttle
   smbclient
   ldap-utils
   hydra
   john
   hashcat
+  php-cli
+  tcpdump
+  tmux
 )
 
 GO_PACKAGES=(
@@ -59,6 +63,7 @@ PORTABLE_TOOLS=(
   rustscan
   cloudfox
   chisel
+  ligolo-ng
   frp
   stowaway
   fscan

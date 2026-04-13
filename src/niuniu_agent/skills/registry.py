@@ -39,6 +39,16 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Use fast discovery first, then confirm with service fingerprinting before exploitation.",
         recommended_tracks=("track1", "track2", "track3", "track4"),
     ),
+    "pearcmd-php-shell-drop": SkillBehavior(
+        trigger_keywords=("pearcmd", "lfi", "php shell", "config-create", "pear"),
+        usage_guidance="Use this when PHP LFI already exists and PEAR offers the shortest path to a writable shell file.",
+        recommended_tracks=("track3", "track4"),
+    ),
+    "redis-mariadb-lateral-movement": SkillBehavior(
+        trigger_keywords=("redis", "mariadb", "mysql", "postgres", "internal db", "6379", "3306", "5432"),
+        usage_guidance="Use this when internal Redis or database services become visible from a foothold and you need a focused next-step workflow.",
+        recommended_tracks=("track3", "track4"),
+    ),
     "known-vulnerability-mapping": SkillBehavior(
         trigger_keywords=("cve", "version", "apache", "nginx", "spring", "grafana", "fastapi"),
         usage_guidance="Normalize product and version clues, then rank likely known-vulnerability paths by fit.",
@@ -223,6 +233,10 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
     "tool-chisel": SkillBehavior(
         trigger_keywords=("chisel",),
         usage_guidance="Load this skill when you need a lightweight tunnel or SOCKS pivot path.",
+    ),
+    "tool-ligolo-sshuttle": SkillBehavior(
+        trigger_keywords=("ligolo", "sshuttle"),
+        usage_guidance="Load this skill when you need concrete ligolo-ng or sshuttle pivot steps.",
     ),
     "tool-winpeas-windows-assets": SkillBehavior(
         trigger_keywords=("winpeas", "windows asset", "windows privesc"),
