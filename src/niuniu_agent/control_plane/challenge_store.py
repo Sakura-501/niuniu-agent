@@ -183,18 +183,16 @@ class ChallengeStore:
         notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
         recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
         hint_context = extract_hint_context(notes, recent_history)
-        from niuniu_agent.agent_stack.prompts import build_runtime_instruction
+        from niuniu_agent.agent_stack.prompts import build_worker_runtime_instruction
 
-        return build_runtime_instruction(
-            mode="competition",
-            snapshot=snapshot,
+        return build_worker_runtime_instruction(
             active=challenge,
+            current_level=snapshot.current_level,
             runtime_state=runtime_state or self.state_store.get_challenge_runtime_state(challenge.code),
             notes=notes,
             recent_history=recent_history,
             recent_memories=recent_memories,
             selected_skills=selected_skills or [],
-            available_skills=available_skills,
             stage=stage,
             track=track,
             operator_resources=operator_resources,

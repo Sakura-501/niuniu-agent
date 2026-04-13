@@ -228,6 +228,23 @@ async def test_challenge_store_autonomous_prompt_always_includes_persisted_hint_
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_for_worker_omits_global_contest_summary() -> None:
+    state = DummyStateStore()
+    state.notes = {"hint_viewed": "true", "hint_content": "check admin workflow"}
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert '"active_challenge"' in prompt
+    assert '"hint_context"' in prompt
+    assert '"total_challenges"' not in prompt
+    assert '"solved_challenges"' not in prompt
+    assert '"available_skills_catalog"' not in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
     store = ChallengeStore(DummyContestClient(), DummyStateStore())
 

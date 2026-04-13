@@ -260,3 +260,66 @@ def build_runtime_instruction(
         + "\n</system-reminder>"
     )
     return "\n\n".join(parts)
+
+
+def build_worker_runtime_instruction(
+    *,
+    active: ChallengeSnapshot,
+    current_level: int | None = None,
+    runtime_state: dict[str, object] | None = None,
+    notes: dict[str, str] | None = None,
+    recent_history: list[dict[str, object]] | None = None,
+    recent_memories: list[dict[str, object]] | None = None,
+    selected_skills: list | None = None,
+    stage: str | None = None,
+    track: str | None = None,
+    operator_resources: dict | None = None,
+    hint_context: dict[str, object] | None = None,
+) -> str:
+    track_profile = TRACK_PROFILES.get(track) if track else None
+    operator_hints = derive_operator_hints(active, notes)
+    payload: dict[str, object] = {
+        "mode": "competition",
+        "current_level": current_level,
+        "active_challenge": {
+            "code": active.code,
+            "title": active.title,
+            "description": active.description,
+            "difficulty": active.difficulty,
+            "level": active.level,
+            "entrypoints": list(active.entrypoints),
+            "hint_viewed": active.hint_viewed,
+            "instance_status": active.instance_status,
+        },
+        "stage": stage,
+        "runtime_state": runtime_state or {},
+        "notes": notes or {},
+        "hint_context": hint_context,
+        "recent_history": recent_history or [],
+        "recent_memories": recent_memories or [],
+        "selected_skills": [
+            {
+                "name": skill.name,
+                "description": skill.description,
+                "guidance": skill.usage_guidance,
+            }
+            for skill in (selected_skills or [])
+        ],
+        "track": (
+            {
+                "track_id": track_profile.track_id,
+                "name": track_profile.name,
+                "focus": track_profile.focus,
+                "priorities": list(track_profile.priorities),
+            }
+            if track_profile is not None
+            else None
+        ),
+        "operator_hints": operator_hints,
+        "operator_resources": operator_resources or {},
+    }
+    return (
+        "<system-reminder>\n"
+        + json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n</system-reminder>"
+    )
