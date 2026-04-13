@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from niuniu_agent.runtime.manager import (
     CompetitionManagerAgent,
+    build_manager_challenge_roster,
     has_alternative_unfinished_challenges,
     has_unstarted_dispatchable_challenges,
     partition_dispatchable_challenges,
@@ -13,6 +14,7 @@ class DummyStateStore:
         self.notes_map = notes_map
         self.runtime_map = runtime_map or {}
         self.submitted_flags_map = submitted_flags_map or {}
+        self.memories_map = {}
 
     def get_challenge_notes(self, code: str):
         return self.notes_map.get(code, {})
@@ -22,6 +24,9 @@ class DummyStateStore:
 
     def get_challenge_runtime_state(self, code: str):
         return self.runtime_map.get(code, {})
+
+    def list_challenge_memories(self, code: str, limit: int = 1):
+        return self.memories_map.get(code, [])[:limit]
 
 
 def test_partition_dispatchable_challenges_excludes_paused_items() -> None:
@@ -278,12 +283,41 @@ def test_manager_guidance_omits_recursive_shared_findings_from_notes() -> None:
 
     guidance = CompetitionManagerAgent._build_guidance(
         challenge,
-        notes={
-            "foothold": "www-data shell",
-            "shared_findings": "Shared findings: [manager] Recovered notes: {\"shared_findings\": \"nested\"}",
-        },
-        memories=[],
+        runtime_state={"attempt_count": 2, "failure_count": 1},
     )
 
-    assert "www-data shell" in guidance
+    assert "Runtime summary" in guidance
     assert "shared_findings" not in guidance
+
+
+def test_build_manager_challenge_roster_keeps_global_scheduler_facts() -> None:
+    snapshot = SimpleNamespace(
+        current_level=2,
+        challenges=[
+            SimpleNamespace(code="c1", completed=False, flag_count=1, level=2, difficulty="hard", instance_status="running", hint_viewed=True),
+            SimpleNamespace(code="c2", completed=False, flag_count=1, level=3, difficulty="easy", instance_status="stopped", hint_viewed=False),
+        ],
+    )
+
+    state = DummyStateStore(
+        {"c2": {"operator_pause": "true"}},
+        runtime_map={
+            "c1": {"attempt_count": 2, "failure_count": 1, "defer_until": None},
+            "c2": {"attempt_count": 0, "failure_count": 0, "defer_until": 200.0},
+        },
+    )
+    state.memories_map = {"c1": [{"memory_type": "turn_summary", "content": "x"}]}
+
+    def list_memories(code: str, limit: int = 1):
+        return state.memories_map.get(code, [])[:limit]
+
+    state.list_challenge_memories = list_memories
+
+    roster = build_manager_challenge_roster(snapshot, state)
+
+    assert roster[0]["code"] == "c1"
+    assert roster[0]["level"] == 2
+    assert roster[0]["instance_status"] == "running"
+    assert roster[0]["has_memories"] is True
+    assert roster[1]["locked"] is True
+    assert roster[1]["paused"] is True

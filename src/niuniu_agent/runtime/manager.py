@@ -41,6 +41,7 @@ class CompetitionManagerAgent:
             "paused_challenges": paused,
             "active_workers": active_workers,
             "idle_slots": idle_slots,
+            "challenge_roster": build_manager_challenge_roster(snapshot, self.context.state_store),
             "run_id": self.agent_id.split(":")[-1] if ":" in self.agent_id else None,
         }
         self.context.state_store.upsert_agent_status(
@@ -72,8 +73,7 @@ class CompetitionManagerAgent:
                 continue
             guidance = self._build_guidance(
                 challenge,
-                notes=self.context.state_store.get_challenge_notes(code),
-                memories=self.context.state_store.list_challenge_memories(code, limit=5),
+                runtime_state=self.context.state_store.get_challenge_runtime_state(code),
             )
             if self._last_guidance.get(code) == guidance:
                 continue
@@ -109,17 +109,12 @@ class CompetitionManagerAgent:
     def _build_guidance(
         challenge: ChallengeSnapshot,
         *,
-        notes: dict[str, str] | None = None,
-        memories: list[dict[str, object]] | None = None,
+        runtime_state: dict[str, object] | None = None,
     ) -> str:
         track = infer_track(challenge.description)
         profile = TRACK_PROFILES.get(track)
         priorities = "\n".join(f"- {item}" for item in (profile.priorities if profile else ()))
-        notes_text = json.dumps(compact_challenge_notes(notes), ensure_ascii=False, sort_keys=True)[:1000]
-        memory_lines = "\n".join(
-            f"- [{item.get('memory_type')}] {str(item.get('content') or '')[:180]}"
-            for item in (memories or [])
-        )
+        runtime_text = json.dumps(runtime_state or {}, ensure_ascii=False, sort_keys=True)[:400]
         return (
             f"Manager guidance for {challenge.code} / {challenge.title}.\n"
             f"Track: {track}\n"
@@ -127,9 +122,40 @@ class CompetitionManagerAgent:
             f"Entrypoints: {challenge.entrypoints}\n"
             "Priorities:\n"
             f"{priorities or '- follow the most deterministic next step'}\n"
-            f"Recovered notes: {notes_text or '{}'}\n"
-            f"Recent memories:\n{memory_lines or '- none'}"
+            f"Runtime summary: {runtime_text or '{}'}"
         )
+
+
+def build_manager_challenge_roster(
+    snapshot: ContestSnapshot | Any,
+    state_store: Any,
+) -> list[dict[str, object]]:
+    roster: list[dict[str, object]] = []
+    current_level = getattr(snapshot, "current_level", None)
+    for challenge in getattr(snapshot, "challenges", []):
+        local_flags = state_store.list_submitted_flags(challenge.code)
+        effective_completed = bool(challenge.completed) or (
+            getattr(challenge, "flag_count", 0) > 0 and len(local_flags) >= getattr(challenge, "flag_count", 0)
+        ) or (getattr(challenge, "flag_count", 0) == 0 and bool(local_flags))
+        notes = state_store.get_challenge_notes(challenge.code)
+        runtime_state = state_store.get_challenge_runtime_state(challenge.code)
+        roster.append(
+            {
+                "code": challenge.code,
+                "level": getattr(challenge, "level", 0),
+                "difficulty": getattr(challenge, "difficulty", "unknown"),
+                "completed": effective_completed,
+                "locked": _challenge_is_locked(challenge, current_level),
+                "paused": notes.get("operator_pause") == "true",
+                "deferred": runtime_state.get("defer_until") not in (None, ""),
+                "attempt_count": int(runtime_state.get("attempt_count", 0) or 0),
+                "failure_count": int(runtime_state.get("failure_count", 0) or 0),
+                "instance_status": getattr(challenge, "instance_status", None),
+                "hint_viewed": getattr(challenge, "hint_viewed", False),
+                "has_memories": bool(state_store.list_challenge_memories(challenge.code, limit=1)),
+            }
+        )
+    return roster
 
 
 def partition_dispatchable_challenges(
