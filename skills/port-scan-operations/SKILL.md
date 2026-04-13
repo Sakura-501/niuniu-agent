@@ -1,13 +1,13 @@
 ---
 name: port-scan-operations
-description: Use when you need fast and structured port and service discovery with rustscan, nmap, or masscan before choosing an exploit path.
+description: Use when you need fast and structured port and service discovery before choosing an exploit path, especially on internal targets where fscan should usually be the first scanner.
 ---
 
 # Port Scan Operations
 
 ## Overview
 
-Use this skill to convert an IP or segment into a reliable service map without wasting time or memory.
+Use this skill to convert an IP or segment into a reliable service map without wasting time or memory. On internal targets, default to `fscan` first.
 
 ## When to Use
 
@@ -17,16 +17,18 @@ Use this skill to convert an IP or segment into a reliable service map without w
 
 ## Tool Selection
 
-- `rustscan`: fast TCP discovery on a single host, then hand off open ports to `nmap`.
+- `fscan`: first choice for internal hosts, mixed service environments, and fast vuln+service triage.
+- `rustscan`: fast TCP discovery on a single host when `fscan` is not suitable.
 - `nmap`: service detection, NSE, TLS clues, OS fingerprints, validation after a fast scan.
 - `masscan`: large-range discovery only when rate control and collateral risk are understood.
 
 ## Quick Reference
 
-1. Start with a bounded fast scan before deep fingerprinting.
-2. Use `rustscan` or `masscan` for discovery, then confirm with `nmap`.
-3. Record open port, protocol, service, banner, version, and reachability.
-4. Avoid full-range aggressive scans unless the target and memory budget allow it.
+1. Start with `fscan` on internal or mixed-service targets.
+2. Use `rustscan` or `masscan` only when `fscan` is not the right fit.
+3. Confirm uncertain results with `nmap`.
+4. Record open port, protocol, service, banner, version, and reachability.
+5. Avoid full-range aggressive scans unless the target and memory budget allow it.
 
 ## Resource Guardrails
 

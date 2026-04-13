@@ -34,6 +34,7 @@ ENTRY_PROMPT = TriggerPrompt(
         "When a new current_level is unlocked, prioritize challenges at that level before revisiting older levels. "
         "In competition mode, keep worker slots saturated up to the 3-worker limit with unfinished non-paused challenges; if no fresh challenge exists, reuse deferred unfinished challenges instead of leaving slots idle. "
         "Prefer fast, focused probes over slow exhaustive scanning. Do not default to long-running tools such as broad nmap scans when quicker route, API, file, or workflow checks can localize the vulnerability faster."
+        " For internal service or vulnerability scanning, prefer fscan first; only fall back to nmap, rustscan, or broader tooling when fscan is not suitable or did not answer the hypothesis."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
         " Local exploit references and PoC notes may exist under /root/niuniu-agent/exp on the debug machine; check that directory before reinventing public exploit research."
     ),
@@ -48,7 +49,8 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
         "Before starting any new instance, inspect the currently running challenge count and stay within the 3-instance limit. "
         "Validate existing hypotheses from notes or provisional_findings before broad recon. "
         "Do not use long sleep commands as a default recovery action. "
-        "Prefer quick endpoint checks, direct exploit validation, and narrow content discovery before any slow port or service scan."
+        "Prefer quick endpoint checks, direct exploit validation, and narrow content discovery before any slow port or service scan. "
+        "When an internal host or mixed service surface must be scanned, choose fscan before nmap."
     ),
 )
 

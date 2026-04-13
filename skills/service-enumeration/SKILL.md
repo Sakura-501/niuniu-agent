@@ -9,6 +9,8 @@ description: Use when a target may expose multiple services or non-web protocols
 
 Use this skill to convert an unknown host or segment into a reliable service inventory.
 
+For internal targets, prefer `fscan` as the first enumeration tool before `nmap`.
+
 ## When to Use
 
 - Web is not the only possible entrypoint.
@@ -17,7 +19,7 @@ Use this skill to convert an unknown host or segment into a reliable service inv
 
 ## Quick Reference
 
-1. Enumerate open ports and protocol banners.
+1. Start with `fscan` for internal or mixed-service hosts.
 2. Confirm whether the service is reachable directly or only through a foothold.
 3. Capture product, version, TLS, and access-control clues.
 4. Keep the service table concise enough to drive the next action.

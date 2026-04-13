@@ -18,14 +18,14 @@ Use this skill when reconnaissance already produced enough service or product cl
 ## Recommended Workflow
 
 1. Fingerprint first with `httpx`, `whatweb`, or manual requests.
-2. Use `nuclei` with narrow tags/templates whenever possible.
-3. Use `fscan` for internal host/service sweeps and common misconfiguration checks.
+2. Use `fscan` first for internal host/service sweeps and common misconfiguration checks.
+3. Use `nuclei` with narrow tags/templates whenever possible after product fit is known.
 4. Manually verify every promising hit.
 
 ## Practical Notes
 
+- `fscan` is the default first scanner for internal IP-driven exploration where service mix is still unclear.
 - `nuclei` should be scoped by tags, severity, or template set.
-- `fscan` is useful for internal IP-driven exploration where service mix is still unclear.
 - Treat both as triage tools, not as proof by themselves.
 
 ## Resource Guardrails
