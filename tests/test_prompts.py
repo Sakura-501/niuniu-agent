@@ -74,6 +74,31 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "Recovered notes:" not in prompt
 
 
+def test_entry_prompt_can_embed_fixed_worker_hint_context() -> None:
+    active = ChallengeSnapshot(
+        code="c-fixed",
+        title="upload portal",
+        description="web upload target",
+        difficulty="medium",
+        level=2,
+    )
+
+    prompt = build_entry_prompt(
+        "competition",
+        None,
+        active,
+        [],
+        hint_context={
+            "hint_viewed": True,
+            "hint_content": "后台上传功能的后缀名检测不够全面。",
+        },
+    )
+
+    assert "Persistent challenge context for this worker" in prompt
+    assert "c-fixed" in prompt
+    assert "后台上传功能的后缀名检测不够全面" in prompt
+
+
 def test_entry_prompt_includes_callback_resource_when_available() -> None:
     prompt = build_entry_prompt(
         "competition",

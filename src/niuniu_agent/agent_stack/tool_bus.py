@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
+from niuniu_agent.control_plane.challenge_store import compact_challenge_notes, persist_hint_payload
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.skills.tracks import infer_track
 
@@ -329,7 +329,13 @@ class ToolBus:
 
     async def view_hint(self, code: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.view_hint(code)
-        return {"code": code, "payload": payload}
+        hint_context = persist_hint_payload(
+            self.context.state_store,
+            code,
+            payload,
+            source=self.context.agent_id or "view_hint",
+        )
+        return {"code": code, "payload": payload, "hint_context": hint_context}
 
     async def http_request(self, method: str, url: str, body: str | None = None, timeout_seconds: int = 20) -> dict[str, Any]:
         return await self.context.local_toolbox.http_request(method=method, url=url, body=body, timeout_seconds=timeout_seconds)

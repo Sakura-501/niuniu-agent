@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import asdict
 from typing import Any
@@ -28,22 +29,112 @@ def compact_challenge_notes(
 def extract_hint_context(
     notes: dict[str, str] | None,
     history: list[dict[str, object]] | None = None,
+    memories: list[dict[str, object]] | None = None,
 ) -> dict[str, object] | None:
     notes = notes or {}
     history = history or []
+    memories = memories or []
     hint_content = str(notes.get("hint_content") or "").strip()
     if not hint_content:
         for item in history:
             if item.get("event_type") == "hint_viewed":
-                hint_content = str(item.get("payload") or "").strip()
+                hint_content = extract_hint_text(item.get("payload"))
                 if hint_content:
                     break
+    if not hint_content:
+        for item in memories:
+            if str(item.get("memory_type") or "") not in {"persistent_hint", "hint_viewed"}:
+                continue
+            hint_content = extract_hint_text(item.get("content"))
+            if hint_content:
+                break
     hint_seen = notes.get("hint_viewed") == "true" or bool(hint_content)
     if not hint_seen:
         return None
     return {
         "hint_viewed": True,
         "hint_content": hint_content[:2000],
+    }
+
+
+def _iter_hint_candidates(payload: Any) -> list[str]:
+    if payload is None:
+        return []
+    if isinstance(payload, str):
+        value = payload.strip()
+        if not value:
+            return []
+        try:
+            decoded = json.loads(value)
+        except Exception:
+            return [value]
+        return _iter_hint_candidates(decoded) or [value]
+    if isinstance(payload, dict):
+        ordered_keys = [
+            "hint",
+            "hint_content",
+            "content",
+            "text",
+            "detail",
+            "description",
+            "message",
+            "payload",
+            "data",
+        ]
+        seen_keys: set[str] = set()
+        candidates: list[str] = []
+        for key in ordered_keys + [key for key in payload.keys() if str(key) not in seen_keys]:
+            key_text = str(key)
+            if key_text in seen_keys or key not in payload:
+                continue
+            seen_keys.add(key_text)
+            candidates.extend(_iter_hint_candidates(payload.get(key)))
+        return candidates
+    if isinstance(payload, (list, tuple)):
+        candidates: list[str] = []
+        for item in payload:
+            candidates.extend(_iter_hint_candidates(item))
+        return candidates
+    return [str(payload).strip()] if str(payload).strip() else []
+
+
+def extract_hint_text(payload: Any) -> str:
+    for candidate in _iter_hint_candidates(payload):
+        normalized = candidate.strip()
+        if normalized:
+            return normalized[:2000]
+    if payload is None:
+        return ""
+    if isinstance(payload, str):
+        return payload.strip()[:2000]
+    try:
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))[:2000]
+    except TypeError:
+        return str(payload).strip()[:2000]
+
+
+def persist_hint_payload(
+    state_store: Any,
+    challenge_code: str,
+    payload: Any,
+    *,
+    source: str = "system",
+) -> dict[str, object]:
+    hint_content = extract_hint_text(payload)
+    state_store.add_history_event(challenge_code, "hint_viewed", hint_content or str(payload))
+    state_store.set_challenge_note(challenge_code, "hint_viewed", "true")
+    if hint_content:
+        state_store.set_challenge_note(challenge_code, "hint_content", hint_content)
+        state_store.add_challenge_memory(
+            challenge_code,
+            "persistent_hint",
+            hint_content,
+            source=source,
+            persistent=True,
+        )
+    return {
+        "hint_viewed": True,
+        "hint_content": hint_content,
     }
 
 
@@ -191,7 +282,7 @@ class ChallengeStore:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
         notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
         recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
-        hint_context = extract_hint_context(notes, recent_history)
+        hint_context = extract_hint_context(notes, recent_history, recent_memories)
         from niuniu_agent.agent_stack.prompts import build_worker_runtime_instruction
 
         return build_worker_runtime_instruction(

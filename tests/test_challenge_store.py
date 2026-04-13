@@ -228,6 +228,28 @@ async def test_challenge_store_autonomous_prompt_always_includes_persisted_hint_
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_recovers_hint_context_from_persistent_memory() -> None:
+    state = DummyStateStore()
+    state.memories = [
+        {
+            "memory_type": "persistent_hint",
+            "content": "后台上传功能的后缀名检测不够全面。",
+            "source": "worker:c2",
+            "persistent": True,
+            "created_at": "now",
+        }
+    ]
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "hint_context" in prompt
+    assert "后台上传功能的后缀名检测不够全面" in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_autonomous_prompt_for_worker_omits_global_contest_summary() -> None:
     state = DummyStateStore()
     state.notes = {"hint_viewed": "true", "hint_content": "check admin workflow"}

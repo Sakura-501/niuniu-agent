@@ -156,6 +156,7 @@ def build_entry_prompt(
     summary_request: bool = False,
     track: str | None = None,
     operator_resources: dict | None = None,
+    hint_context: dict[str, object] | None = None,
 ) -> str:
     mode_text = (
         "Mode: competition. Keep running forever and recover from errors. "
@@ -168,11 +169,38 @@ def build_entry_prompt(
             "format the final answer with clear markdown sections: 结论, 解法, 关键证据, Flag, 下一步."
         )
     )
+    fixed_worker_context = (
+        "Persistent challenge context for this worker. "
+        "Treat this block as durable system context for the entire worker session and keep using it even after history compaction.\n"
+        "<worker-static-context>\n"
+        + json.dumps(
+            {
+                "active_challenge": (
+                    {
+                        "code": active.code,
+                        "title": active.title,
+                        "difficulty": active.difficulty,
+                        "level": active.level,
+                    }
+                    if active is not None
+                    else None
+                ),
+                "hint_context": hint_context,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n</worker-static-context>"
+        if active is not None and hint_context is not None
+        else ""
+    )
     return "\n\n".join(
         part
         for part in (
             ENTRY_PROMPT.body,
             mode_text,
+            fixed_worker_context,
         )
         if part
     )

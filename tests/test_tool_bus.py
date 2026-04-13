@@ -146,6 +146,46 @@ async def test_tool_bus_returns_error_string_instead_of_raising(tmp_path) -> Non
 
 
 @pytest.mark.anyio
+async def test_tool_bus_view_hint_persists_hint_notes_history_and_memory(tmp_path) -> None:
+    class HintGateway(DummyContestGateway):
+        async def view_hint(self, code: str):
+            return {"payload": {"hint": "look at the proxy filter first"}}
+
+    gateway = HintGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+        agent_id="worker:c1",
+        challenge_code="c1",
+    )
+    bus = ToolBus(context)
+
+    payload = await bus.view_hint("c1")
+
+    assert payload["hint_context"]["hint_viewed"] is True
+    assert payload["hint_context"]["hint_content"] == "look at the proxy filter first"
+    assert state_store.get_challenge_notes("c1")["hint_content"] == "look at the proxy filter first"
+    history = state_store.list_history("c1", limit=5)
+    assert history[0]["event_type"] == "hint_viewed"
+    memories = state_store.list_challenge_memories("c1", limit=5)
+    assert memories[0]["memory_type"] == "persistent_hint"
+    assert memories[0]["persistent"] is True
+
+
+@pytest.mark.anyio
 async def test_tool_bus_start_challenge_handles_instance_limit(tmp_path) -> None:
     class LimitedGateway(DummyContestGateway):
         def __init__(self) -> None:

@@ -16,7 +16,7 @@ from niuniu_agent.agent_stack.prompts import (
     build_trigger_prompt,
 )
 from niuniu_agent.agent_stack.tool_bus import ToolBus
-from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
+from niuniu_agent.control_plane.challenge_store import compact_challenge_notes, extract_hint_context, persist_hint_payload
 from niuniu_agent.runtime.coordinator import CompetitionCoordinator
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
@@ -396,6 +396,8 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 worker_context.state_store.mark_active_challenge(target.code)
                 runtime_state = worker_context.state_store.get_challenge_runtime_state(target.code)
                 notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))
+                recent_history = worker_context.state_store.list_history(target.code, limit=5)
+                recent_memories = worker_context.state_store.list_challenge_memories(target.code, limit=10)
                 if notes.get("operator_pause") == "true":
                     await stop_challenge_instance_before_worker_exit(
                         contest_gateway=worker_context.contest_gateway,
@@ -481,7 +483,8 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     )
                     return
                 seconds_since_progress = worker_context.state_store.seconds_since_progress(target.code)
-                if should_view_hint(
+                existing_hint_context = extract_hint_context(notes, recent_history, recent_memories)
+                if existing_hint_context is None or should_view_hint(
                     int(runtime_state.get("failure_count", 0)),
                     target.hint_viewed,
                     notes,
@@ -489,15 +492,15 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     seconds_since_attempt=seconds_in_attempt,
                 ):
                     hint_payload = await worker_context.contest_gateway.view_hint(target.code)
-                    worker_context.state_store.add_history_event(target.code, "hint_viewed", str(hint_payload))
-                    worker_context.state_store.set_challenge_note(target.code, "hint_viewed", "true")
-                    worker_context.state_store.add_challenge_memory(
+                    persist_hint_payload(
+                        worker_context.state_store,
                         target.code,
-                        "hint_viewed",
-                        str(hint_payload),
+                        hint_payload,
                         source=worker_context.agent_id or worker_agent_id,
                     )
                     notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))
+                    recent_history = worker_context.state_store.list_history(target.code, limit=5)
+                    recent_memories = worker_context.state_store.list_challenge_memories(target.code, limit=10)
 
                 skill_plan = (
                     plan_skills(
@@ -541,6 +544,11 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 client = worker_context.provider_router.build_client() if worker_context.provider_router is not None else None
                 if client is None:
                     raise RuntimeError("model provider router unavailable")
+                hint_context = extract_hint_context(
+                    notes,
+                    recent_history,
+                    recent_memories,
+                )
 
                 agent = AsyncPentestAgent(
                     client=client,
@@ -550,7 +558,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                             build_entry_prompt(
                                 "competition",
                                 None,
-                                None,
+                                target,
                                 [],
                                 available_skills=available_skills,
                                 operator_resources={
@@ -558,6 +566,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                                 }
                                 if worker_context.settings.callback_resource
                                 else None,
+                                hint_context=hint_context,
                             ),
                             build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                             build_trigger_prompt(PRE_EXPLOIT_PROMPT),
