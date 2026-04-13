@@ -268,6 +268,10 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：多级隧道和横向网络转发。  
 安装：官方 release 二进制，当前通过 `scripts/fetch_portable_tools.py` 获取
 
+- [x] `AJPy` / `phpggc` / `grafanaExp` / `redis-rogue-server` / `rogue_mysql_server`
+作用：Tomcat AJP / Ghostcat、PHP 反序列化 gadget 生成、Grafana `CVE-2021-43798` 文件读、Redis rogue replication/module load、rogue MySQL 握手链路。  
+安装：当前已把高价值上游脚本/二进制作为仓库内便携资产落地到 `tools/portable/web/*`、`tools/portable/service/*`，通过 `tools/bin/ajpy-tomcat`、`tools/bin/phpggc`、`tools/bin/grafana-exp`、`tools/bin/redis-rogue-server`、`tools/bin/rogue-mysql-server` 直接调用。
+
 ### D. 内网 / 域渗透 / 横向基础工具
 
 - [x] `smbclient`
@@ -302,9 +306,17 @@ dashboard、challenge detail、agent detail、online debug chat、competition st
 作用：强制认证、Schannel/LDAP 证书认证、AD 证书链路补充。  
 安装：当前已把上游脚本作为仓库内便携资产落地到 `tools/portable/domain/linux_amd64/*`，通过 `tools/bin/petitpotam`、`tools/bin/dfscoerce`、`tools/bin/passthecert` wrapper 在调试机直接调用。
 
+- [x] `noPac`
+作用：`CVE-2021-42278` / `CVE-2021-42287` 域提权链扫描与利用。  
+安装：当前已把上游 Python 脚本作为仓库内便携资产落地到 `tools/portable/domain/linux_amd64/nopac`，通过 `tools/bin/nopac`、`tools/bin/nopac-scanner` wrapper 在调试机直接调用。
+
 - [x] `Powermad` / `PrivescCheck` / `Certify.exe` / `MS14-068.exe` 备份资产
 作用：Windows 主机上的 MAQ/ADIDNS、Windows 本地提权检查、AD CS 枚举，以及旧版 Kerberos 利用链兜底。  
 安装：当前已把资产落地到 `tools/portable/windows_assets/*`，并提供 `tools/bin/*-asset` wrapper 输出投放路径；对应使用教程已补到 `skills/tool-windows-ad-stage-assets`。
+
+- [x] `Rubeus` / `SharpHound` / `SweetPotato` / `SeBackupPrivilege` 备份资产
+作用：Windows Kerberos 操作、Windows 侧 BloodHound 采集、本地提权、`SeBackupPrivilege` 复制受保护文件。  
+安装：当前已把资产落地到 `tools/portable/windows_assets/*`，并提供 `rubeus-asset`、`sharphound-asset`、`sweetpotato-asset`、`sebackupprivilege-asset` wrapper 输出投放路径。
 
 - [x] `hydra`
 作用：多协议口令爆破。  

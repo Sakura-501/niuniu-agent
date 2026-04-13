@@ -73,6 +73,21 @@ def test_skill_registry_selects_new_ad_internal_tool_guides() -> None:
     assert "tool-windows-ad-stage-assets" in names
 
 
+def test_skill_registry_selects_new_specialized_exploit_helpers() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select(
+        "nopac cve-2021-42278 ghostcat ajpy php unserialize phpggc grafana cve-2021-43798 redis rogue mysql rogue",
+        track="track2",
+    )
+    names = {skill.name for skill in selected}
+
+    assert "tool-nopac" in names
+    assert "tool-ajpy-tomcat" in names
+    assert "tool-phpggc" in names
+    assert "tool-rogue-service-exploits" in names
+
+
 def test_skill_registry_loads_skill_body_from_disk() -> None:
     registry = SkillRegistry()
 

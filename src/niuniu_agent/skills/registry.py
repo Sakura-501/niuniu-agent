@@ -248,8 +248,24 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         trigger_keywords=("passthecert", "schannel", "ldap certificate", "pkinit", "certificate auth", "cert auth"),
         usage_guidance="Load this skill when certificate auth is available but PKINIT is missing or LDAP Schannel is the practical path.",
     ),
+    "tool-nopac": SkillBehavior(
+        trigger_keywords=("nopac", "cve-2021-42278", "cve-2021-42287", "sam-the-admin", "machineaccountquota", "s4u2self"),
+        usage_guidance="Load this skill when the noPac machine-account rename chain is relevant and you need concrete scanner or exploit steps.",
+    ),
+    "tool-ajpy-tomcat": SkillBehavior(
+        trigger_keywords=("ajpy", "ajp", "ghostcat", "cve-2020-1938", "tomcat ajp", "war upload"),
+        usage_guidance="Load this skill when Tomcat AJP exposure or Ghostcat-style file-read/upload paths are in play.",
+    ),
+    "tool-phpggc": SkillBehavior(
+        trigger_keywords=("phpggc", "php unserialize", "phar", "gadget chain", "deserialization php"),
+        usage_guidance="Load this skill when a PHP deserialization sink exists and you need a gadget-chain generator quickly.",
+    ),
+    "tool-rogue-service-exploits": SkillBehavior(
+        trigger_keywords=("redis rogue", "redis module", "rogue mysql", "grafanaexp", "cve-2021-43798", "grafana file read", "rogue_mysql_server"),
+        usage_guidance="Load this skill when the shortest exploit path is a rogue service handshake, Redis module-load path, or Grafana arbitrary file-read workflow.",
+    ),
     "tool-windows-ad-stage-assets": SkillBehavior(
-        trigger_keywords=("powermad", "privesccheck", "certify", "ms14-068", "machineaccountquota", "adidns", "windows asset"),
+        trigger_keywords=("powermad", "privesccheck", "certify", "ms14-068", "machineaccountquota", "adidns", "windows asset", "rubeus", "sharphound", "sweetpotato", "sebackupprivilege"),
         usage_guidance="Load this skill when a Windows foothold needs staged AD or local escalation assets from the operator host.",
     ),
     "tool-chisel": SkillBehavior(
