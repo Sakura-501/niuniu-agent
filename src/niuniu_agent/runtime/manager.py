@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
 from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.coordinator import CompetitionCoordinator
@@ -114,7 +115,7 @@ class CompetitionManagerAgent:
         track = infer_track(challenge.description)
         profile = TRACK_PROFILES.get(track)
         priorities = "\n".join(f"- {item}" for item in (profile.priorities if profile else ()))
-        notes_text = json.dumps(notes or {}, ensure_ascii=False)[:1000]
+        notes_text = json.dumps(compact_challenge_notes(notes), ensure_ascii=False)[:1000]
         memory_lines = "\n".join(
             f"- [{item.get('memory_type')}] {str(item.get('content') or '')[:180]}"
             for item in (memories or [])

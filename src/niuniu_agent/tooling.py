@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -167,15 +168,17 @@ class LocalToolbox:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self._tool_env(),
+            start_new_session=True,
         )
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
         except TimeoutError:
-            process.kill()
-            await process.communicate()
+            self._kill_process_group(process)
+            with contextlib.suppress(Exception):
+                await process.communicate()
             return {"exit_code": -1, "stdout": "", "stderr": "command timed out"}
         except asyncio.CancelledError:
-            process.kill()
+            self._kill_process_group(process)
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(process.communicate(), timeout=1)
             raise
@@ -284,3 +287,13 @@ class LocalToolbox:
         current_path = env.get("PATH", "")
         env["PATH"] = f"{managed}:{current_path}" if current_path else managed
         return env
+
+    @staticmethod
+    def _kill_process_group(process: asyncio.subprocess.Process) -> None:
+        pid = getattr(process, "pid", None)
+        if pid:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(pid, signal.SIGKILL)
+            return
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()

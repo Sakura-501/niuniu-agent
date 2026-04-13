@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from niuniu_agent.runtime.manager import (
+    CompetitionManagerAgent,
     has_unstarted_dispatchable_challenges,
     partition_dispatchable_challenges,
 )
@@ -137,3 +138,25 @@ def test_has_unstarted_dispatchable_challenges_detects_fresh_targets() -> None:
     )
 
     assert result is True
+
+
+def test_manager_guidance_omits_recursive_shared_findings_from_notes() -> None:
+    challenge = SimpleNamespace(
+        code="c1",
+        title="demo",
+        description="demo",
+        difficulty="easy",
+        entrypoints=["127.0.0.1:8080"],
+    )
+
+    guidance = CompetitionManagerAgent._build_guidance(
+        challenge,
+        notes={
+            "foothold": "www-data shell",
+            "shared_findings": "Shared findings: [manager] Recovered notes: {\"shared_findings\": \"nested\"}",
+        },
+        memories=[],
+    )
+
+    assert "www-data shell" in guidance
+    assert "shared_findings" not in guidance

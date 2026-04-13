@@ -99,6 +99,23 @@ async def test_challenge_store_autonomous_prompt_includes_history_and_notes() ->
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_omits_recursive_shared_findings_note() -> None:
+    state = DummyStateStore()
+    state.notes = {
+        "foothold": "user shell",
+        "shared_findings": "Shared findings: [manager] Recovered notes: {\"shared_findings\": \"nested\"}",
+    }
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "foothold" in prompt
+    assert "shared_findings" not in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
     store = ChallengeStore(DummyContestClient(), DummyStateStore())
 

@@ -24,7 +24,12 @@ ENTRY_PROMPT = TriggerPrompt(
         "at most 3 challenge instances may run at the same time; before starting a challenge instance, check how many are already running. "
         "If a correct flag is submitted and the challenge is shown as completed, stop that challenge instance immediately. "
         "Once one challenge is completed, continue directly to the next unfinished challenge without lingering. "
-        "Hints are expensive: only view a hint if there has been no meaningful progress or result for more than 5 minutes."
+        "Hints are expensive: only view a hint if there has been no meaningful progress or result for more than 5 minutes. "
+        "If the latest snapshot shows the assigned challenge is missing, already completed, or no longer dispatchable, stop stale exploitation immediately, persist a concise provisional_findings note, and switch to state reconciliation. "
+        "Never start a guessed or historical challenge code; only start the currently assigned unsolved challenge after re-checking the latest snapshot. "
+        "If start_challenge reports already_completed, unlock-level mismatch, or current_level mismatch, refresh once, remap the objective, and do not retry the stale start request. "
+        "If a target becomes unreachable or repeatedly times out, do at most 2 short verification probes, record target_unreachable, and stop wasting turns on repeated curl or sleep loops. "
+        "If notes contain provisional_findings, treat them as the highest-priority hypotheses before doing generic enumeration."
     ),
 )
 
@@ -34,7 +39,9 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
         "A challenge is being actively taken over. "
         "First identify the most relevant capability skills, then choose the least wasteful next action. "
         "Before starting any instance, verify from the latest challenge snapshot that the target challenge is not already solved. "
-        "Before starting any new instance, inspect the currently running challenge count and stay within the 3-instance limit."
+        "Before starting any new instance, inspect the currently running challenge count and stay within the 3-instance limit. "
+        "Validate existing hypotheses from notes or provisional_findings before broad recon. "
+        "Do not use long sleep commands as a default recovery action."
     ),
 )
 
@@ -59,7 +66,8 @@ RECOVERY_PROMPT = TriggerPrompt(
     name="recovery",
     body=(
         "A prior attempt failed or stalled. "
-        "Summarize what was learned, choose the next skill, and continue without restarting from scratch."
+        "Summarize what was learned, choose the next skill, and continue without restarting from scratch. "
+        "If the environment changed or the target disappeared, preserve only the reusable clues and stop probing stale entrypoints."
     ),
 )
 

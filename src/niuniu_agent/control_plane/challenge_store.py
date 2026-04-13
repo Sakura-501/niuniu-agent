@@ -8,6 +8,23 @@ from typing import Any
 from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
 
 
+def compact_challenge_notes(
+    notes: dict[str, str] | None,
+    *,
+    include_shared_findings: bool = False,
+    value_limit: int = 600,
+) -> dict[str, str]:
+    compacted: dict[str, str] = {}
+    for key, raw_value in sorted((notes or {}).items()):
+        if key == "shared_findings" and not include_shared_findings:
+            continue
+        value = str(raw_value or "").strip()
+        if not value:
+            continue
+        compacted[key] = value[:value_limit]
+    return compacted
+
+
 class ChallengeStore:
     def __init__(self, contest_client: Any, state_store: Any, *, official_completion_grace_seconds: int = 30) -> None:
         self.contest_client = contest_client
@@ -110,7 +127,7 @@ class ChallengeStore:
                     "completed": self.is_effectively_completed(challenge),
                     "locally_submitted_flags": self.state_store.list_submitted_flags(challenge.code),
                     "runtime_state": self.state_store.get_challenge_runtime_state(challenge.code),
-                    "notes": self.state_store.get_challenge_notes(challenge.code),
+                    "notes": compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code)),
                     "recent_history": self.state_store.list_history(challenge.code, limit=5),
                     "recent_memories": self.state_store.list_challenge_memories(challenge.code, limit=5),
                 }
@@ -120,7 +137,7 @@ class ChallengeStore:
 
     def build_autonomous_prompt(self, snapshot: ContestSnapshot, challenge: ChallengeSnapshot) -> str:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
-        notes = self.state_store.get_challenge_notes(challenge.code)
+        notes = compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
         recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
         return json.dumps(
             {

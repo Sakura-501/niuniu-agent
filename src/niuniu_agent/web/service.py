@@ -23,6 +23,7 @@ from niuniu_agent.agent_stack.prompts import (
 from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.control_plane import ChallengeStore, ContestGateway
+from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
 from niuniu_agent.model_routing import ModelProviderRouter
 from niuniu_agent.runtime.answer_formatter import should_format_debug_answer, stream_formatted_answer
 from niuniu_agent.runtime.context import RuntimeContext
@@ -266,7 +267,7 @@ class DebugSessionManager:
             if active is not None
             else {}
         )
-        notes = turn_context.state_store.get_challenge_notes(active.code) if active is not None else {}
+        notes = compact_challenge_notes(turn_context.state_store.get_challenge_notes(active.code)) if active is not None else {}
         track = infer_track(active.description) if active is not None else None
         skill_plan = (
             plan_skills(turn_context.skill_registry, active.description if active else "", runtime_state, notes, track=track)
@@ -538,7 +539,7 @@ class AgentWebService:
         local = {
             "runtime_state": self.context.state_store.get_challenge_runtime_state(code),
             "submitted_flags": self.context.state_store.list_submitted_flags(code),
-            "notes": self.context.state_store.get_challenge_notes(code),
+            "notes": compact_challenge_notes(self.context.state_store.get_challenge_notes(code), include_shared_findings=True),
             "memories": self.context.state_store.list_challenge_memories(code, limit=50),
             "history": self.context.state_store.list_history(code, limit=50),
             "agent_statuses": self.context.state_store.list_agent_statuses(challenge_code=code),

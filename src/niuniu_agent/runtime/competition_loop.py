@@ -15,6 +15,7 @@ from niuniu_agent.agent_stack.prompts import (
     build_trigger_prompt,
 )
 from niuniu_agent.agent_stack.tool_bus import ToolBus
+from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
 from niuniu_agent.runtime.coordinator import CompetitionCoordinator
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
@@ -311,7 +312,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     target = next((item for item in snapshot.challenges if item.code == challenge_code), target)
                 worker_context.state_store.mark_active_challenge(target.code)
                 runtime_state = worker_context.state_store.get_challenge_runtime_state(target.code)
-                notes = worker_context.state_store.get_challenge_notes(target.code)
+                notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))
                 if notes.get("operator_pause") == "true":
                     await stop_challenge_instance_before_worker_exit(
                         contest_gateway=worker_context.contest_gateway,
@@ -412,7 +413,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         str(hint_payload),
                         source=worker_context.agent_id or worker_agent_id,
                     )
-                    notes = worker_context.state_store.get_challenge_notes(target.code)
+                    notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))
 
                 skill_plan = (
                     plan_skills(
@@ -432,7 +433,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         "shared_findings",
                         findings_bus.format_unread(shared_findings)[:4000],
                     )
-                    notes = worker_context.state_store.get_challenge_notes(target.code)
+                    notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))
                 available_skills = worker_context.skill_registry.describe_available() if worker_context.skill_registry else None
                 worker_context.state_store.upsert_agent_status(
                     agent_id=worker_context.agent_id or worker_agent_id,

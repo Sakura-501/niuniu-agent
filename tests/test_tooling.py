@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 from niuniu_agent.tooling import LocalToolbox
 
@@ -163,3 +164,21 @@ async def test_run_shell_command_prepends_managed_bin_dir_to_path(monkeypatch, t
 
     assert result["exit_code"] == 0
     assert str(toolbox.managed_bin_dir) in seen["env"]["PATH"]
+
+
+@pytest.mark.anyio
+async def test_run_shell_command_timeout_kills_background_children(tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+    marker = Path(tmp_path) / "late-child.txt"
+    command = (
+        "sh -c '"
+        f"(sleep 2; echo late > {marker}) & "
+        "sleep 30"
+        "'"
+    )
+
+    result = await toolbox.run_shell_command(command, timeout_seconds=1)
+
+    assert result["exit_code"] == -1
+    await asyncio.sleep(3)
+    assert marker.exists() is False

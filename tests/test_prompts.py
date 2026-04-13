@@ -49,6 +49,10 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "at most 3 challenge instances" in prompt
     assert "stop that challenge instance immediately" in prompt
     assert "more than 5 minutes" in prompt
+    assert "missing, already completed, or no longer dispatchable" in prompt
+    assert "Never start a guessed or historical challenge code" in prompt
+    assert "do at most 2 short verification probes" in prompt
+    assert "provisional_findings" in prompt
 
 
 def test_entry_prompt_includes_callback_resource_when_available() -> None:
