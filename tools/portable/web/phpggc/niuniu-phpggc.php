@@ -5,18 +5,15 @@ declare(strict_types=1);
 
 chdir(__DIR__);
 
-$bootstrapRoot = __DIR__ . '/lib/PHPGGC';
-$iterator = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($bootstrapRoot, FilesystemIterator::SKIP_DOTS),
-    RecursiveIteratorIterator::LEAVES_ONLY
-);
-
-foreach ($iterator as $fileInfo) {
-    if ($fileInfo->getExtension() !== 'php') {
-        continue;
+spl_autoload_register(static function (string $class): void {
+    if (!str_starts_with($class, 'PHPGGC\\')) {
+        return;
     }
-    require_once $fileInfo->getPathname();
-}
+    $path = __DIR__ . '/lib/' . str_replace('\\', '/', $class) . '.php';
+    if (is_file($path)) {
+        require_once $path;
+    }
+});
 
 require_once __DIR__ . '/lib/PHPGGC.php';
 
