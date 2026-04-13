@@ -104,6 +104,11 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Use concrete Next.js middleware bypass checks before assuming the auth boundary is solid.",
         recommended_tracks=("track2",),
     ),
+    "local-exp-catalog": SkillBehavior(
+        trigger_keywords=("exp", "poc", "exploit", "/root/niuniu-agent/exp", "local exploit", "cve"),
+        usage_guidance="Check the local EXP catalog before external research when a product or CVE hint already exists.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
     "cloud-security-enumeration": SkillBehavior(
         trigger_keywords=("cloudfox", "cloudsword", "bucket", "metadata", "iam", "aksk", "object storage"),
         usage_guidance="Map cloud identities, metadata, storage, and public management surfaces before exploitation.",

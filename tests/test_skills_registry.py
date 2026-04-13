@@ -37,6 +37,15 @@ def test_skill_registry_selects_supply_chain_skills_from_text() -> None:
     assert "ci-workflow-poisoning" in names
 
 
+def test_skill_registry_selects_local_exp_catalog_from_text() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select("need local exploit poc from /root/niuniu-agent/exp for a cve", track="track2")
+    names = {skill.name for skill in selected}
+
+    assert "local-exp-catalog" in names
+
+
 def test_skill_registry_loads_skill_body_from_disk() -> None:
     registry = SkillRegistry()
 

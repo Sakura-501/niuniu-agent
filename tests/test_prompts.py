@@ -67,6 +67,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "Prefer fast, focused probes over slow exhaustive scanning" in prompt
     assert "broad nmap scans" in prompt
     assert "built-in internet search capability" in prompt
+    assert "/root/niuniu-agent/exp" in prompt
     assert "Active challenge:" not in prompt
     assert "Recovered notes:" not in prompt
 

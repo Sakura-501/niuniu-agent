@@ -10,6 +10,7 @@ from niuniu_agent.control_plane.models import ChallengeSnapshot, ContestSnapshot
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.coordinator import CompetitionCoordinator
 from niuniu_agent.runtime.findings_bus import ChallengeFindingsBus
+from niuniu_agent.strategies.local_exp_catalog import has_local_exp_support
 from niuniu_agent.skills.tracks import TRACK_PROFILES, infer_track
 
 
@@ -277,15 +278,17 @@ def _challenge_dispatch_priority(
     notes: dict[str, str],
     current_level: int | None,
     deferred: bool,
-) -> tuple[int, int, int, int, int, int, int, str]:
+) -> tuple[int, int, int, int, int, int, int, int, str]:
     deprioritized = 1 if notes.get("deprioritized") == "true" else 0
     attempt_count = int(runtime_state.get("attempt_count", 0) or 0)
     started = 0 if attempt_count == 0 else 1
     level = int(getattr(challenge, "level", 0) or 0)
     level_band, level_distance = _level_dispatch_priority(level, current_level)
+    exp_priority = 0 if has_local_exp_support(getattr(challenge, "code", "")) and not deprioritized else 1
     difficulty_rank = _difficulty_priority(getattr(challenge, "difficulty", "unknown"))
     failure_count = int(runtime_state.get("failure_count", 0) or 0)
     return (
+        exp_priority,
         level_band,
         level_distance,
         1 if deferred else 0,

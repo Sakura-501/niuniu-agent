@@ -146,6 +146,30 @@ def test_partition_dispatchable_challenges_prioritizes_current_level_over_older_
     assert paused == []
 
 
+def test_partition_dispatchable_challenges_prioritizes_local_exp_backed_challenge_first() -> None:
+    snapshot = SimpleNamespace(
+        current_level=3,
+        challenges=[
+            SimpleNamespace(code="other", completed=False, flag_count=1, level=3, difficulty="easy"),
+            SimpleNamespace(code="BpOxyTLXpdveWilhjRCFjZtMGjgr", completed=False, flag_count=1, level=2, difficulty="easy"),
+        ],
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "other": {"attempt_count": 0},
+                "BpOxyTLXpdveWilhjRCFjZtMGjgr": {"attempt_count": 0},
+            },
+        ),
+    )
+
+    assert dispatchable[0] == "BpOxyTLXpdveWilhjRCFjZtMGjgr"
+    assert paused == []
+
+
 def test_partition_dispatchable_challenges_excludes_locked_future_levels() -> None:
     snapshot = SimpleNamespace(
         current_level=0,
