@@ -106,13 +106,26 @@ class PoolClosedServer(FakeServer):
     def __init__(self) -> None:
         super().__init__()
         self.cleaned = False
+        self.connected = False
 
     async def cleanup(self) -> None:
         self.cleaned = True
 
+    async def connect(self) -> None:
+        self.connected = True
+
     async def call_tool(self, tool_name, arguments):
         self.calls.append((tool_name, arguments))
         raise RuntimeError("Cannot acquire connection after closing pool")
+
+
+class ConnectedServer(FakeServer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.connected = False
+
+    async def connect(self) -> None:
+        self.connected = True
 
 
 @pytest.mark.anyio
@@ -123,7 +136,7 @@ async def test_contest_gateway_rebuilds_server_after_pool_closed_error() -> None
         if not created:
             server = PoolClosedServer()
         else:
-            server = FakeServer()
+            server = ConnectedServer()
         created.append(server)
         return server
 
@@ -135,4 +148,5 @@ async def test_contest_gateway_rebuilds_server_after_pool_closed_error() -> None
     assert len(created) == 2
     assert isinstance(created[0], PoolClosedServer)
     assert created[0].cleaned is True
+    assert getattr(created[1], "connected", False) is True
     assert gateway.server is created[1]

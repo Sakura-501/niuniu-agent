@@ -156,3 +156,4 @@ class ContestGateway:
         except Exception:
             pass
         self.server = self._server_factory()
+        await self.server.connect()

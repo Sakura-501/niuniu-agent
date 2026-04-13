@@ -98,6 +98,19 @@ def recover_competition_state(
         elif role == "challenge_worker":
             worker_run_id = str(metadata.get("competition_run_id") or "").strip()
             if worker_run_id and worker_run_id != competition_run_id and agent.get("status") != "completed":
+                challenge_code = str(agent.get("challenge_code") or "").strip()
+                if challenge_code:
+                    runtime_state = state_store.get_challenge_runtime_state(challenge_code)
+                    if runtime_state.get("active"):
+                        state_store.clear_active_challenge(challenge_code)
+                        if challenge_code not in reset_stale_active_challenges:
+                            reset_stale_active_challenges.append(challenge_code)
+                        if hasattr(state_store, "add_history_event"):
+                            state_store.add_history_event(
+                                challenge_code,
+                                "stale_attempt_reset",
+                                "cleared stale active challenge attempt while removing old-run worker state",
+                            )
                 state_store.delete_agent_status(agent_id)
                 removed_stale_agents.append(agent_id)
 
