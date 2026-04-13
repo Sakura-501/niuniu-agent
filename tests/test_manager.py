@@ -60,6 +60,34 @@ def test_partition_dispatchable_challenges_excludes_deferred_items() -> None:
     assert paused == []
 
 
+def test_partition_dispatchable_challenges_deprioritizes_expired_deferred_items() -> None:
+    snapshot = SimpleNamespace(
+        challenges=[
+            SimpleNamespace(code="c1", completed=False, flag_count=1, level=0),
+            SimpleNamespace(code="c2", completed=False, flag_count=1, level=0),
+            SimpleNamespace(code="c3", completed=False, flag_count=1, level=0),
+        ]
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {
+                "c1": {"deprioritized": "true"},
+            },
+            runtime_map={
+                "c1": {"attempt_count": 3, "defer_until": 90.0},
+                "c2": {"attempt_count": 0},
+                "c3": {"attempt_count": 1},
+            },
+        ),
+        now=100.0,
+    )
+
+    assert dispatchable == ["c2", "c3", "c1"]
+    assert paused == []
+
+
 def test_has_unstarted_dispatchable_challenges_detects_fresh_targets() -> None:
     snapshot = SimpleNamespace(
         challenges=[

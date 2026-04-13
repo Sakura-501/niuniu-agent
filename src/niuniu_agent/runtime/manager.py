@@ -137,7 +137,7 @@ def partition_dispatchable_challenges(
     *,
     now: float | None = None,
 ) -> tuple[list[str], list[str]]:
-    dispatchable: list[str] = []
+    dispatchable: list[tuple[tuple[int, int, int, int, str], str]] = []
     paused: list[str] = []
     current = time.time() if now is None else now
     for challenge in snapshot.challenges:
@@ -155,8 +155,17 @@ def partition_dispatchable_challenges(
         defer_until = runtime_state.get("defer_until")
         if defer_until not in (None, "") and float(defer_until) > current:
             continue
-        dispatchable.append(challenge.code)
-    return dispatchable, paused
+        dispatchable.append(
+            (
+                _challenge_dispatch_priority(
+                    challenge=challenge,
+                    runtime_state=runtime_state,
+                    notes=notes,
+                ),
+                challenge.code,
+            )
+        )
+    return [code for _priority, code in sorted(dispatchable)], paused
 
 
 def has_unstarted_dispatchable_challenges(
@@ -186,3 +195,23 @@ def has_unstarted_dispatchable_challenges(
         if int(runtime_state.get("attempt_count", 0) or 0) == 0:
             return True
     return False
+
+
+def _challenge_dispatch_priority(
+    *,
+    challenge: ChallengeSnapshot | Any,
+    runtime_state: dict[str, object],
+    notes: dict[str, str],
+) -> tuple[int, int, int, int, str]:
+    deprioritized = 1 if notes.get("deprioritized") == "true" else 0
+    attempt_count = int(runtime_state.get("attempt_count", 0) or 0)
+    started = 0 if attempt_count == 0 else 1
+    level = int(getattr(challenge, "level", 0) or 0)
+    failure_count = int(runtime_state.get("failure_count", 0) or 0)
+    return (
+        deprioritized,
+        started,
+        level,
+        failure_count,
+        getattr(challenge, "code", ""),
+    )
