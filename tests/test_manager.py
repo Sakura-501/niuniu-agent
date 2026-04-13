@@ -116,6 +116,108 @@ def test_partition_dispatchable_challenges_orders_same_level_by_difficulty() -> 
     assert paused == []
 
 
+def test_partition_dispatchable_challenges_prioritizes_current_level_over_older_levels() -> None:
+    snapshot = SimpleNamespace(
+        current_level=1,
+        challenges=[
+            SimpleNamespace(code="old", completed=False, flag_count=1, level=0, difficulty="easy"),
+            SimpleNamespace(code="new", completed=False, flag_count=1, level=1, difficulty="hard"),
+        ],
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "old": {"attempt_count": 0},
+                "new": {"attempt_count": 0},
+            },
+        ),
+    )
+
+    assert dispatchable == ["new", "old"]
+    assert paused == []
+
+
+def test_partition_dispatchable_challenges_excludes_locked_future_levels() -> None:
+    snapshot = SimpleNamespace(
+        current_level=0,
+        challenges=[
+            SimpleNamespace(code="open", completed=False, flag_count=1, level=0, difficulty="easy"),
+            SimpleNamespace(code="locked", completed=False, flag_count=1, level=1, difficulty="easy"),
+        ],
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "open": {"attempt_count": 0},
+                "locked": {"attempt_count": 0},
+            },
+        ),
+    )
+
+    assert dispatchable == ["open"]
+    assert paused == []
+
+
+def test_partition_dispatchable_challenges_uses_deferred_items_to_fill_idle_workers() -> None:
+    snapshot = SimpleNamespace(
+        current_level=0,
+        challenges=[
+            SimpleNamespace(code="fresh", completed=False, flag_count=1, level=0, difficulty="easy"),
+            SimpleNamespace(code="deferred-one", completed=False, flag_count=1, level=0, difficulty="medium"),
+            SimpleNamespace(code="deferred-two", completed=False, flag_count=1, level=0, difficulty="hard"),
+        ],
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "fresh": {"attempt_count": 0},
+                "deferred-one": {"attempt_count": 2, "defer_until": 200.0},
+                "deferred-two": {"attempt_count": 1, "defer_until": 210.0},
+            },
+        ),
+        now=100.0,
+        fill_idle_workers=True,
+    )
+
+    assert dispatchable == ["fresh", "deferred-one", "deferred-two"]
+    assert paused == []
+
+
+def test_partition_dispatchable_challenges_prefers_current_level_deferred_over_older_level_fresh_when_filling() -> None:
+    snapshot = SimpleNamespace(
+        current_level=1,
+        challenges=[
+            SimpleNamespace(code="old-fresh", completed=False, flag_count=1, level=0, difficulty="easy"),
+            SimpleNamespace(code="new-deferred", completed=False, flag_count=1, level=1, difficulty="hard"),
+        ],
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "old-fresh": {"attempt_count": 0},
+                "new-deferred": {"attempt_count": 1, "defer_until": 200.0},
+            },
+        ),
+        now=100.0,
+        fill_idle_workers=True,
+    )
+
+    assert dispatchable == ["new-deferred", "old-fresh"]
+    assert paused == []
+
+
 def test_has_unstarted_dispatchable_challenges_detects_fresh_targets() -> None:
     snapshot = SimpleNamespace(
         challenges=[

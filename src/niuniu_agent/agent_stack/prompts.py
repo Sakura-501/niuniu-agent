@@ -29,7 +29,9 @@ ENTRY_PROMPT = TriggerPrompt(
         "Never start a guessed or historical challenge code; only start the currently assigned unsolved challenge after re-checking the latest snapshot. "
         "If start_challenge reports already_completed, unlock-level mismatch, or current_level mismatch, refresh once, remap the objective, and do not retry the stale start request. "
         "If a target becomes unreachable or repeatedly times out, do at most 2 short verification probes, record target_unreachable, and stop wasting turns on repeated curl or sleep loops. "
-        "If notes contain provisional_findings, treat them as the highest-priority hypotheses before doing generic enumeration."
+        "If notes contain provisional_findings, treat them as the highest-priority hypotheses before doing generic enumeration. "
+        "When a new current_level is unlocked, prioritize challenges at that level before revisiting older levels. "
+        "In competition mode, keep worker slots saturated up to the 3-worker limit with unfinished non-paused challenges; if no fresh challenge exists, reuse deferred unfinished challenges instead of leaving slots idle."
     ),
 )
 

@@ -82,6 +82,100 @@ async def test_challenge_store_refresh_and_next_candidate() -> None:
 
 
 @pytest.mark.anyio
+async def test_challenge_store_next_candidate_prioritizes_current_level() -> None:
+    class MultiLevelContestClient(DummyContestClient):
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "total_challenges": 2,
+                "solved_challenges": 0,
+                "challenges": [
+                    {
+                        "title": "old",
+                        "code": "c-old",
+                        "difficulty": "easy",
+                        "description": "older zone",
+                        "level": 0,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "stopped",
+                        "entrypoint": None,
+                    },
+                    {
+                        "title": "new",
+                        "code": "c-new",
+                        "difficulty": "hard",
+                        "description": "new zone",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "stopped",
+                        "entrypoint": None,
+                    },
+                ],
+            }
+
+    class EmptyFlagsState(DummyStateStore):
+        def list_submitted_flags(self, challenge_code: str) -> list[str]:
+            return []
+
+    store = ChallengeStore(MultiLevelContestClient(), EmptyFlagsState())
+
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    assert challenge is not None
+    assert challenge.code == "c-new"
+
+
+@pytest.mark.anyio
+async def test_challenge_store_next_candidate_skips_locked_future_levels() -> None:
+    class LockedContestClient(DummyContestClient):
+        async def list_challenges(self):
+            return {
+                "current_level": 0,
+                "total_challenges": 2,
+                "solved_challenges": 0,
+                "challenges": [
+                    {
+                        "title": "open",
+                        "code": "c-open",
+                        "difficulty": "easy",
+                        "description": "open zone",
+                        "level": 0,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "stopped",
+                        "entrypoint": None,
+                    },
+                    {
+                        "title": "locked",
+                        "code": "c-locked",
+                        "difficulty": "easy",
+                        "description": "locked zone",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 0,
+                        "instance_status": "stopped",
+                        "entrypoint": None,
+                    },
+                ],
+            }
+
+    class EmptyFlagsState(DummyStateStore):
+        def list_submitted_flags(self, challenge_code: str) -> list[str]:
+            return []
+
+    store = ChallengeStore(LockedContestClient(), EmptyFlagsState())
+
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    assert challenge is not None
+    assert challenge.code == "c-open"
+
+
+@pytest.mark.anyio
 async def test_challenge_store_autonomous_prompt_includes_history_and_notes() -> None:
     state = DummyStateStore()
     state.history = [{"event_type": "turn_completed", "payload": "summary", "created_at": "now"}]
@@ -214,5 +308,5 @@ async def test_challenge_store_clears_stale_local_completion_after_official_rese
     snapshot = await store.refresh()
 
     assert state.cleared == ["c2"]
-    assert store.next_candidate(snapshot).code == "c1"
+    assert store.next_candidate(snapshot).code == "c2"
     assert any(item["event_type"] == "official_reset_detected" for item in state.history)

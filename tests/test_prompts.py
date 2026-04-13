@@ -53,6 +53,8 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "Never start a guessed or historical challenge code" in prompt
     assert "do at most 2 short verification probes" in prompt
     assert "provisional_findings" in prompt
+    assert "prioritize challenges at that level before revisiting older levels" in prompt
+    assert "reuse deferred unfinished challenges instead of leaving slots idle" in prompt
 
 
 def test_entry_prompt_includes_callback_resource_when_available() -> None:

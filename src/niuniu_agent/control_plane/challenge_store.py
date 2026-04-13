@@ -76,7 +76,17 @@ class ChallengeStore:
         current = snapshot or self._latest_snapshot
         if current is None:
             return None
-        for challenge in sorted(current.challenges, key=lambda item: (item.level, self.is_effectively_completed(item), item.code)):
+        current_level = current.current_level
+        for challenge in sorted(
+            current.challenges,
+            key=lambda item: (
+                _next_candidate_level_priority(item.level, current_level),
+                _difficulty_priority(item.difficulty),
+                item.code,
+            ),
+        ):
+            if current_level is not None and challenge.level > current_level:
+                continue
             if not self.is_effectively_completed(challenge):
                 return challenge
         return None
@@ -186,3 +196,25 @@ class ChallengeStore:
                 "official_reset_detected",
                 f"cleared {cleared} local submitted flag(s) because official snapshot shows unsolved state",
             )
+
+
+def _next_candidate_level_priority(level: int, current_level: int | None) -> tuple[int, int]:
+    if current_level is None:
+        return (0, level)
+    if level == current_level:
+        return (0, 0)
+    if level < current_level:
+        return (1, current_level - level)
+    return (2, level - current_level)
+
+
+def _difficulty_priority(raw: object) -> int:
+    normalized = str(raw or "unknown").strip().lower()
+    order = {
+        "easy": 0,
+        "medium": 1,
+        "hard": 2,
+        "insane": 3,
+        "unknown": 9,
+    }
+    return order.get(normalized, 8)

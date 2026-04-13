@@ -696,7 +696,11 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 )
             manager.heartbeat(snapshot, coordinator)
             manager.reconcile(coordinator)
-            candidates, _paused = partition_dispatchable_challenges(snapshot, context.state_store)
+            candidates, _paused = partition_dispatchable_challenges(
+                snapshot,
+                context.state_store,
+                fill_idle_workers=True,
+            )
 
             if not candidates:
                 context.event_logger.log("competition.idle", {"reason": "no-open-challenges"})

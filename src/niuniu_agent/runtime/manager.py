@@ -137,10 +137,13 @@ def partition_dispatchable_challenges(
     state_store: Any,
     *,
     now: float | None = None,
+    fill_idle_workers: bool = False,
 ) -> tuple[list[str], list[str]]:
-    dispatchable: list[tuple[tuple[int, int, int, int, str], str]] = []
+    dispatchable: list[tuple[tuple[int, int, int, int, int, int, int, str], str]] = []
+    deferred: list[tuple[tuple[int, int, int, int, int, int, int, str], str]] = []
     paused: list[str] = []
     current = time.time() if now is None else now
+    current_level = getattr(snapshot, "current_level", None)
     for challenge in snapshot.challenges:
         local_flags = state_store.list_submitted_flags(challenge.code)
         effective_completed = bool(challenge.completed) or (
@@ -148,25 +151,34 @@ def partition_dispatchable_challenges(
         ) or (getattr(challenge, "flag_count", 0) == 0 and bool(local_flags))
         if effective_completed:
             continue
+        if _challenge_is_locked(challenge, current_level):
+            continue
         notes = state_store.get_challenge_notes(challenge.code)
         if notes.get("operator_pause") == "true":
             paused.append(challenge.code)
             continue
         runtime_state = state_store.get_challenge_runtime_state(challenge.code)
         defer_until = runtime_state.get("defer_until")
-        if defer_until not in (None, "") and float(defer_until) > current:
-            continue
-        dispatchable.append(
+        is_deferred = defer_until not in (None, "") and float(defer_until) > current
+        ranked = (
             (
                 _challenge_dispatch_priority(
                     challenge=challenge,
                     runtime_state=runtime_state,
                     notes=notes,
+                    current_level=current_level,
+                    deferred=is_deferred,
                 ),
                 challenge.code,
             )
         )
-    return [code for _priority, code in sorted(dispatchable)], paused
+        if is_deferred:
+            deferred.append(ranked)
+            continue
+        dispatchable.append(ranked)
+    ranked = dispatchable if not fill_idle_workers else [*dispatchable, *deferred]
+    ordered = [code for _priority, code in sorted(ranked)]
+    return ordered, paused
 
 
 def has_unstarted_dispatchable_challenges(
@@ -177,6 +189,7 @@ def has_unstarted_dispatchable_challenges(
     now: float | None = None,
 ) -> bool:
     current = time.time() if now is None else now
+    current_level = getattr(snapshot, "current_level", None)
     for challenge in snapshot.challenges:
         if challenge.code == current_code:
             continue
@@ -185,6 +198,8 @@ def has_unstarted_dispatchable_challenges(
             getattr(challenge, "flag_count", 0) > 0 and len(local_flags) >= getattr(challenge, "flag_count", 0)
         ) or (getattr(challenge, "flag_count", 0) == 0 and bool(local_flags))
         if effective_completed:
+            continue
+        if _challenge_is_locked(challenge, current_level):
             continue
         notes = state_store.get_challenge_notes(challenge.code)
         if notes.get("operator_pause") == "true":
@@ -203,21 +218,42 @@ def _challenge_dispatch_priority(
     challenge: ChallengeSnapshot | Any,
     runtime_state: dict[str, object],
     notes: dict[str, str],
-) -> tuple[int, int, int, int, int, str]:
+    current_level: int | None,
+    deferred: bool,
+) -> tuple[int, int, int, int, int, int, int, str]:
     deprioritized = 1 if notes.get("deprioritized") == "true" else 0
     attempt_count = int(runtime_state.get("attempt_count", 0) or 0)
     started = 0 if attempt_count == 0 else 1
     level = int(getattr(challenge, "level", 0) or 0)
+    level_band, level_distance = _level_dispatch_priority(level, current_level)
     difficulty_rank = _difficulty_priority(getattr(challenge, "difficulty", "unknown"))
     failure_count = int(runtime_state.get("failure_count", 0) or 0)
     return (
-        deprioritized,
+        level_band,
+        level_distance,
+        1 if deferred else 0,
         started,
-        level,
+        deprioritized,
         difficulty_rank,
         failure_count,
         getattr(challenge, "code", ""),
     )
+
+
+def _challenge_is_locked(challenge: ChallengeSnapshot | Any, current_level: int | None) -> bool:
+    if current_level is None:
+        return False
+    return int(getattr(challenge, "level", 0) or 0) > int(current_level)
+
+
+def _level_dispatch_priority(level: int, current_level: int | None) -> tuple[int, int]:
+    if current_level is None:
+        return (0, level)
+    if level == current_level:
+        return (0, 0)
+    if level < current_level:
+        return (1, current_level - level)
+    return (2, level - current_level)
 
 
 def _difficulty_priority(raw: object) -> int:
