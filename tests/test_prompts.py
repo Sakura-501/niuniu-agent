@@ -1,5 +1,6 @@
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
+    derive_operator_hints,
     build_entry_prompt,
     build_trigger_prompt,
 )
@@ -75,3 +76,45 @@ def test_entry_prompt_includes_callback_resource_when_available() -> None:
 
     assert "callback_server" in prompt
     assert "129.211.15.16" in prompt
+
+
+def test_derive_operator_hints_for_dify_style_notes() -> None:
+    active = ChallengeSnapshot(
+        code="c1",
+        title="portal",
+        description="dify target",
+        difficulty="easy",
+        level=1,
+    )
+
+    hints = derive_operator_hints(
+        active,
+        {
+            "provisional_findings": "Dify frontend only reachable externally; data-api-prefix=http://127.0.0.1:5001/console/api and direct /console/api returns 404.",
+        },
+    )
+
+    assert any("loopback-bound backend" in hint for hint in hints)
+    assert any("direct 5001 probing" in hint for hint in hints)
+
+
+def test_entry_prompt_includes_gradio_operator_hints_when_notes_match() -> None:
+    active = ChallengeSnapshot(
+        code="c2",
+        title="gradio demo",
+        description="ai challenge",
+        difficulty="medium",
+        level=2,
+    )
+
+    prompt = build_entry_prompt(
+        "competition",
+        None,
+        active,
+        [],
+        notes={"provisional_findings": "config exposed fn_index and /run/predict; Gradio api_name=lambda and /run/Flag are reachable."},
+    )
+
+    assert "Operator hints:" in prompt
+    assert "Gradio API challenge" in prompt
+    assert "session_hash" in prompt

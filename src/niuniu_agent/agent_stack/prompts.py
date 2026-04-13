@@ -92,6 +92,52 @@ FLAG_SUBMIT_PROMPT = TriggerPrompt(
 )
 
 
+def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None = None) -> list[str]:
+    if active is None:
+        return []
+    notes = notes or {}
+    haystack = "\n".join(str(value) for value in notes.values()).lower()
+    hints: list[str] = []
+
+    if any(marker in haystack for marker in ("no longer includes challenge", "all demo challenges", "state reconciliation")):
+        hints.append(
+            "The latest snapshot may be stale or reset. Reconcile state first and avoid exploiting stale challenge codes or entrypoints."
+        )
+    if any(marker in haystack for marker in ("dify", "127.0.0.1:5001", "/console/api", "createServerReference".lower())):
+        hints.append(
+            "Treat this as a Dify/Next.js frontend to a loopback-bound backend. Prioritize same-origin route handlers, RSC/server actions, and install/init/signin flows over direct 5001 probing."
+        )
+        hints.append(
+            "Do not burn turns on generic package installs or broad CVE hunting unless a concrete version-linked path appears in the shipped frontend code."
+        )
+    if any(marker in haystack for marker in ("gradio", "/config", "fn_index", "/run/predict", "api_name=", "/run/flag", "/run/lambda")):
+        hints.append(
+            "Treat this as a Gradio API challenge. Work from /config to backend function mapping, then exercise api_name/fn_index/state transitions directly with crafted session_hash values."
+        )
+        hints.append(
+            "Avoid local environment setup unless it directly helps decode an observed Gradio protocol artifact; the exposed HTTP API should be the main attack surface."
+        )
+    if any(marker in haystack for marker in ("telnetd", "login incorrect", "port 23", "telnet")):
+        hints.append(
+            "Treat brute-force hits as untrusted until confirmed with a protocol-aware telnet client. Respect telnet negotiation and avoid blind retries after repeated connection refusals."
+        )
+        hints.append(
+            "If the service becomes unreachable after login attempts, restart the instance and switch from password spraying to credential-source discovery."
+        )
+    if any(marker in haystack for marker in ("jwt header kid", "dot-notation", "migration notes", "rule execution")):
+        hints.append(
+            "Prioritize the migration-notes, JWT kid, and dotted-parameter rule-engine chain before generic enumeration. This looks like an auth-to-admin-to-rule-exec path."
+        )
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for hint in hints:
+        if hint not in seen:
+            seen.add(hint)
+            deduped.append(hint)
+    return deduped
+
+
 def build_entry_prompt(
     mode: str,
     snapshot: ContestSnapshot | None,
@@ -124,6 +170,12 @@ def build_entry_prompt(
     stage_text = f"Current stage: {stage}" if stage else ""
     runtime_text = f"Runtime state: {runtime_state}" if runtime_state else ""
     notes_text = f"Recovered notes: {notes}" if notes else ""
+    operator_hints = derive_operator_hints(active, notes)
+    operator_hint_text = (
+        "Operator hints:\n" + "\n".join(f"- {hint}" for hint in operator_hints)
+        if operator_hints
+        else ""
+    )
     track_profile = TRACK_PROFILES.get(track) if track else None
     track_text = ""
     if track_profile is not None:
@@ -172,6 +224,7 @@ def build_entry_prompt(
             stage_text,
             runtime_text,
             notes_text,
+            operator_hint_text,
             track_text,
             available_skills_text,
             operator_resources_text,
