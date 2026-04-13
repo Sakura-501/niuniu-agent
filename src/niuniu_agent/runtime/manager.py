@@ -202,16 +202,30 @@ def _challenge_dispatch_priority(
     challenge: ChallengeSnapshot | Any,
     runtime_state: dict[str, object],
     notes: dict[str, str],
-) -> tuple[int, int, int, int, str]:
+) -> tuple[int, int, int, int, int, str]:
     deprioritized = 1 if notes.get("deprioritized") == "true" else 0
     attempt_count = int(runtime_state.get("attempt_count", 0) or 0)
     started = 0 if attempt_count == 0 else 1
     level = int(getattr(challenge, "level", 0) or 0)
+    difficulty_rank = _difficulty_priority(getattr(challenge, "difficulty", "unknown"))
     failure_count = int(runtime_state.get("failure_count", 0) or 0)
     return (
         deprioritized,
         started,
         level,
+        difficulty_rank,
         failure_count,
         getattr(challenge, "code", ""),
     )
+
+
+def _difficulty_priority(raw: object) -> int:
+    normalized = str(raw or "unknown").strip().lower()
+    order = {
+        "easy": 0,
+        "medium": 1,
+        "hard": 2,
+        "insane": 3,
+        "unknown": 9,
+    }
+    return order.get(normalized, 8)

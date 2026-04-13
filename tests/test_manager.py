@@ -88,6 +88,33 @@ def test_partition_dispatchable_challenges_deprioritizes_expired_deferred_items(
     assert paused == []
 
 
+def test_partition_dispatchable_challenges_orders_same_level_by_difficulty() -> None:
+    snapshot = SimpleNamespace(
+        challenges=[
+            SimpleNamespace(code="c-hard", completed=False, flag_count=1, level=0, difficulty="hard"),
+            SimpleNamespace(code="c-easy", completed=False, flag_count=1, level=0, difficulty="easy"),
+            SimpleNamespace(code="c-unknown", completed=False, flag_count=1, level=0, difficulty="unknown"),
+            SimpleNamespace(code="c-medium", completed=False, flag_count=1, level=0, difficulty="medium"),
+        ]
+    )
+
+    dispatchable, paused = partition_dispatchable_challenges(
+        snapshot,
+        DummyStateStore(
+            {},
+            runtime_map={
+                "c-hard": {"attempt_count": 0},
+                "c-easy": {"attempt_count": 0},
+                "c-unknown": {"attempt_count": 0},
+                "c-medium": {"attempt_count": 0},
+            },
+        ),
+    )
+
+    assert dispatchable == ["c-easy", "c-medium", "c-hard", "c-unknown"]
+    assert paused == []
+
+
 def test_has_unstarted_dispatchable_challenges_detects_fresh_targets() -> None:
     snapshot = SimpleNamespace(
         challenges=[
