@@ -14,6 +14,17 @@ def test_skill_registry_selects_generic_capabilities() -> None:
     assert "evidence-capture" in names
 
 
+def test_skill_registry_selects_ai_platform_skills_from_text() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select("self-hosted dify portal with /config gradio fn_index and 127.0.0.1:5001 backend", track="track2")
+    names = {skill.name for skill in selected}
+
+    assert "ai-platform-attack-surface" in names
+    assert "dify-self-hosted-assessment" in names
+    assert "gradio-api-abuse" in names
+
+
 def test_skill_registry_loads_skill_body_from_disk() -> None:
     registry = SkillRegistry()
 

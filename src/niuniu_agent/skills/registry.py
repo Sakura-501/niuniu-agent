@@ -69,6 +69,21 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Check metadata, object storage, model-serving APIs, and exposed infrastructure control points.",
         recommended_tracks=("track2",),
     ),
+    "ai-platform-attack-surface": SkillBehavior(
+        trigger_keywords=("dify", "gradio", "open-webui", "langflow", "flowise", "ragflow", "llm portal", "ai platform", "model ui"),
+        usage_guidance="Fingerprint the AI platform first, then map the frontend-to-backend trust boundary before attempting exploit paths.",
+        recommended_tracks=("track2",),
+    ),
+    "dify-self-hosted-assessment": SkillBehavior(
+        trigger_keywords=("dify", "127.0.0.1:5001", "/console/api", "/install", "/init", "serverreference", "createServerReference"),
+        usage_guidance="Treat Dify as a Next.js frontend with internal console/public APIs and look for same-origin bridges to loopback services.",
+        recommended_tracks=("track2",),
+    ),
+    "gradio-api-abuse": SkillBehavior(
+        trigger_keywords=("gradio", "/config", "fn_index", "api_name", "/run/predict", "session_hash", "/file="),
+        usage_guidance="Work from /config and backend function mapping, then exercise stateful Gradio API paths directly instead of broad fuzzing.",
+        recommended_tracks=("track2",),
+    ),
     "cloud-security-enumeration": SkillBehavior(
         trigger_keywords=("cloudfox", "cloudsword", "bucket", "metadata", "iam", "aksk", "object storage"),
         usage_guidance="Map cloud identities, metadata, storage, and public management surfaces before exploitation.",
