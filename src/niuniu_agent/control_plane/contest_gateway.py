@@ -54,16 +54,16 @@ class ContestGateway:
             raise RuntimeError("contest gateway list_challenges internally cancelled") from exc
 
     async def start_challenge(self, code: str) -> Any:
-        return await self._call("start_challenge", {"code": code})
+        return await self._call_with_rate_limit_retry("start_challenge", {"code": code})
 
     async def stop_challenge(self, code: str) -> Any:
-        return await self._call("stop_challenge", {"code": code})
+        return await self._call_with_rate_limit_retry("stop_challenge", {"code": code})
 
     async def submit_flag(self, code: str, flag: str) -> Any:
         return await self._call("submit_flag", {"code": code, "flag": flag})
 
     async def view_hint(self, code: str) -> Any:
-        return await self._call("view_hint", {"code": code})
+        return await self._call_with_rate_limit_retry("view_hint", {"code": code})
 
     async def _call(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
         try:
@@ -114,6 +114,10 @@ class ContestGateway:
                 "internally cancelled",
                 "cannot acquire connection after closing pool",
                 "'nonetype' object has no attribute 'acquire'",
+                "server not initialized",
+                "赛题实例正在操作中",
+                "答题开关切换中",
+                "赛题实例正在启动中",
             )
         )
 
@@ -125,6 +129,7 @@ class ContestGateway:
             for marker in (
                 "cannot acquire connection after closing pool",
                 "'nonetype' object has no attribute 'acquire'",
+                "server not initialized",
             )
         )
 

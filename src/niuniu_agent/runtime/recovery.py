@@ -63,6 +63,7 @@ def recover_competition_state(
     normalized_completed: list[str] = []
     reset_stale_active_challenges: list[str] = []
     removed_stale_agents: list[str] = []
+    snapshot_codes = {str(challenge.code) for challenge in snapshot.challenges}
 
     for challenge in snapshot.challenges:
         local_flags = state_store.list_submitted_flags(challenge.code)
@@ -113,6 +114,20 @@ def recover_competition_state(
                             )
                 state_store.delete_agent_status(agent_id)
                 removed_stale_agents.append(agent_id)
+
+    if hasattr(state_store, "list_active_challenge_codes"):
+        for challenge_code in state_store.list_active_challenge_codes():
+            if challenge_code in snapshot_codes:
+                continue
+            state_store.clear_active_challenge(challenge_code)
+            if challenge_code not in reset_stale_active_challenges:
+                reset_stale_active_challenges.append(challenge_code)
+            if hasattr(state_store, "add_history_event"):
+                state_store.add_history_event(
+                    challenge_code,
+                    "stale_attempt_reset",
+                    "cleared active challenge attempt because the challenge was missing from the latest snapshot",
+                )
 
     return {
         "normalized_completed_challenges": normalized_completed,

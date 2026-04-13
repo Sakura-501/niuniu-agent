@@ -128,6 +128,23 @@ class ConnectedServer(FakeServer):
         self.connected = True
 
 
+class NotInitializedServer(FakeServer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.cleaned = False
+        self.connected = False
+
+    async def cleanup(self) -> None:
+        self.cleaned = True
+
+    async def connect(self) -> None:
+        self.connected = True
+
+    async def call_tool(self, tool_name, arguments):
+        self.calls.append((tool_name, arguments))
+        raise RuntimeError("Server not initialized. Make sure you call `connect()` first.")
+
+
 @pytest.mark.anyio
 async def test_contest_gateway_rebuilds_server_after_pool_closed_error() -> None:
     created = []
@@ -150,3 +167,26 @@ async def test_contest_gateway_rebuilds_server_after_pool_closed_error() -> None
     assert created[0].cleaned is True
     assert getattr(created[1], "connected", False) is True
     assert gateway.server is created[1]
+
+
+@pytest.mark.anyio
+async def test_contest_gateway_rebuilds_server_after_not_initialized_error() -> None:
+    created = []
+
+    def server_factory():
+        if not created:
+            server = NotInitializedServer()
+        else:
+            server = ConnectedServer()
+        created.append(server)
+        return server
+
+    gateway = ContestGateway(server_factory(), server_factory=server_factory)
+
+    payload = await gateway.list_challenges()
+
+    assert payload["current_level"] == 1
+    assert len(created) == 2
+    assert isinstance(created[0], NotInitializedServer)
+    assert created[0].cleaned is True
+    assert getattr(created[1], "connected", False) is True

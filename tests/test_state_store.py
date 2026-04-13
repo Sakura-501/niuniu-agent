@@ -219,6 +219,16 @@ def test_state_store_tracks_latest_agent_activity_timestamp(tmp_path) -> None:
     assert abs(now - activity) < 10
 
 
+def test_state_store_lists_active_challenge_codes(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    store.mark_active_challenge("c1")
+    store.mark_active_challenge("c2")
+    store.clear_active_challenge("c2")
+
+    assert store.list_active_challenge_codes() == ["c1"]
+
+
 def test_state_store_tracks_agent_runtime_status_and_events(tmp_path) -> None:
     store = StateStore(tmp_path / "state.db")
 

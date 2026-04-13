@@ -117,3 +117,20 @@ def test_recover_competition_state_clears_stale_attempt_for_removed_old_run_work
     assert "c-hidden" in summary["reset_stale_active_challenges"]
     assert runtime_state["active"] is False
     assert runtime_state["attempt_started_at"] is None
+
+
+def test_recover_competition_state_clears_active_attempts_for_codes_missing_from_snapshot(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+    store.mark_active_challenge("c-missing")
+
+    summary = recover_competition_state(
+        snapshot=_snapshot(_challenge("c-visible", completed=False, flag_count=1, flag_got_count=0)),
+        state_store=store,
+        competition_run_id="run1",
+    )
+
+    runtime_state = store.get_challenge_runtime_state("c-missing")
+
+    assert "c-missing" in summary["reset_stale_active_challenges"]
+    assert runtime_state["active"] is False
+    assert runtime_state["attempt_started_at"] is None

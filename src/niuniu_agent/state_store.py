@@ -499,6 +499,18 @@ class StateStore:
         remaining = float(defer_until) - current
         return remaining if remaining > 0 else 0.0
 
+    def list_active_challenge_codes(self) -> list[str]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT challenge_code
+                FROM challenge_runtime_state
+                WHERE active = 1
+                ORDER BY challenge_code ASC
+                """
+            ).fetchall()
+        return [str(row[0]) for row in rows if row and row[0]]
+
     def add_history_event(self, challenge_code: str, event_type: str, payload: str) -> None:
         with self._connect() as connection:
             connection.execute(
