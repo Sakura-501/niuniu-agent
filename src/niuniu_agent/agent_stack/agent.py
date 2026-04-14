@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,6 +30,19 @@ class ToolCallData:
     arguments: str
 
 
+def build_prompt_cache_key(*parts: object, system_prompt: str, max_length: int = 180) -> str:
+    normalized_parts = [
+        "".join(ch if ch.isalnum() or ch in {"-", "_", ":"} else "-" for ch in str(part).strip())
+        for part in parts
+        if str(part).strip()
+    ]
+    prefix = ":".join(part[:48] for part in normalized_parts if part)[:120]
+    digest = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:16]
+    if prefix:
+        return f"{prefix}:{digest}"[:max_length]
+    return digest
+
+
 class AsyncPentestAgent:
     def __init__(
         self,
@@ -46,6 +60,8 @@ class AsyncPentestAgent:
         context_compaction_tool_result_preview_chars: int = 240,
         context_compaction_summary_input_chars: int = 80000,
         context_compaction_summary_max_tokens: int = 2000,
+        prompt_cache_key: str | None = None,
+        prompt_cache_retention: str | None = None,
     ) -> None:
         self.client = client
         self.model_name = model_name
@@ -63,6 +79,9 @@ class AsyncPentestAgent:
         self.context_compaction_tool_result_preview_chars = context_compaction_tool_result_preview_chars
         self.context_compaction_summary_input_chars = context_compaction_summary_input_chars
         self.context_compaction_summary_max_tokens = context_compaction_summary_max_tokens
+        self.prompt_cache_key = prompt_cache_key
+        self.prompt_cache_retention = prompt_cache_retention
+        self._prompt_cache_supported = True
 
     async def execute(self, instruction: str, history: list[dict[str, Any]] | None = None) -> AgentResult:
         return await self._execute_loop(instruction, history, on_text_delta=None)
@@ -126,8 +145,12 @@ class AsyncPentestAgent:
             "tool_choice": "auto",
             "temperature": self.temperature,
         }
+        if self._prompt_cache_supported and self.prompt_cache_key:
+            kwargs["prompt_cache_key"] = self.prompt_cache_key
+            if self.prompt_cache_retention:
+                kwargs["prompt_cache_retention"] = self.prompt_cache_retention
         if on_text_delta is None:
-            response = await self.client.chat.completions.create(**kwargs)
+            response = await self._create_with_cache_fallback(kwargs)
             message = response.choices[0].message
             content = stringify_content(getattr(message, "content", ""))
             tool_calls = [
@@ -140,7 +163,8 @@ class AsyncPentestAgent:
             ]
             return content, tool_calls
 
-        stream = await self.client.chat.completions.create(stream=True, **kwargs)
+        kwargs["stream"] = True
+        stream = await self._create_with_cache_fallback(kwargs)
         content_parts: list[str] = []
         tool_buffers: dict[int, ToolCallData] = {}
         async for chunk in stream:
@@ -162,6 +186,29 @@ class AsyncPentestAgent:
 
         tool_calls = [tool_buffers[index] for index in sorted(tool_buffers.keys())]
         return "".join(content_parts), tool_calls
+
+    async def _create_with_cache_fallback(self, kwargs: dict[str, Any]) -> Any:
+        try:
+            return await self.client.chat.completions.create(**kwargs)
+        except Exception as exc:  # noqa: BLE001
+            if not self._prompt_cache_supported or not self._is_prompt_cache_unsupported_error(str(exc)):
+                raise
+            self._prompt_cache_supported = False
+            retry_kwargs = dict(kwargs)
+            retry_kwargs.pop("prompt_cache_key", None)
+            retry_kwargs.pop("prompt_cache_retention", None)
+            return await self.client.chat.completions.create(**retry_kwargs)
+
+    @staticmethod
+    def _is_prompt_cache_unsupported_error(message: str) -> bool:
+        lowered = message.lower()
+        return (
+            "prompt_cache_key" in lowered
+            or "prompt_cache_retention" in lowered
+            or ("unknown" in lowered and "cache" in lowered)
+            or ("unexpected" in lowered and "cache" in lowered)
+            or ("extra inputs are not permitted" in lowered and "cache" in lowered)
+        )
 
     async def _maybe_compact_transcript(self, transcript: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if self._estimate_context_chars(transcript) <= self._context_threshold_chars():

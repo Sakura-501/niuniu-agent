@@ -13,7 +13,7 @@ import time
 from typing import AsyncIterator
 from uuid import uuid4
 
-from niuniu_agent.agent_stack.agent import AsyncPentestAgent
+from niuniu_agent.agent_stack.agent import AsyncPentestAgent, build_prompt_cache_key
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
     FLAG_SUBMIT_PROMPT,
@@ -282,26 +282,34 @@ class DebugSessionManager:
         client = turn_context.provider_router.build_client() if turn_context.provider_router is not None else None
         if client is None:
             raise RuntimeError("model provider router unavailable")
+        debug_system_prompt = "\n\n".join(
+            [
+                build_entry_prompt(
+                    "debug",
+                    None,
+                    None,
+                    [],
+                    available_skills=available_skills,
+                    operator_resources={
+                        "callback_server": turn_context.settings.callback_resource,
+                    }
+                    if turn_context.settings.callback_resource
+                    else None,
+                ),
+                build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
+                build_trigger_prompt(FLAG_SUBMIT_PROMPT),
+            ]
+        )
         agent = AsyncPentestAgent(
             client=client,
             model_name=turn_context.settings.model,
-            system_prompt="\n\n".join(
-                [
-                    build_entry_prompt(
-                        "debug",
-                        None,
-                        None,
-                        [],
-                        available_skills=available_skills,
-                        operator_resources={
-                            "callback_server": turn_context.settings.callback_resource,
-                        }
-                        if turn_context.settings.callback_resource
-                        else None,
-                    ),
-                    build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
-                    build_trigger_prompt(FLAG_SUBMIT_PROMPT),
-                ]
+            system_prompt=debug_system_prompt,
+            prompt_cache_key=build_prompt_cache_key(
+                "web-debug",
+                turn_context.agent_role or "debug",
+                active.code if active is not None else "no-challenge",
+                turn_context.settings.model,
+                system_prompt=debug_system_prompt,
             ),
             tool_bus=ToolBus(turn_context),
             workdir=turn_context.settings.runtime_dir,

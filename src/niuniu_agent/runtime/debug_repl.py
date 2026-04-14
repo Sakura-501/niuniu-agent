@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from niuniu_agent.agent_stack.agent import AsyncPentestAgent
+from niuniu_agent.agent_stack.agent import AsyncPentestAgent, build_prompt_cache_key
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
     FLAG_SUBMIT_PROMPT,
@@ -98,6 +98,30 @@ async def run_debug_repl(context: RuntimeContext) -> None:
                     build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                     build_trigger_prompt(FLAG_SUBMIT_PROMPT),
                 ]
+            ),
+            prompt_cache_key=build_prompt_cache_key(
+                "debug",
+                turn_context.agent_role or "debug",
+                active.code if active is not None else "no-challenge",
+                turn_context.settings.model,
+                system_prompt="\n\n".join(
+                    [
+                        build_entry_prompt(
+                            "debug",
+                            None,
+                            None,
+                            [],
+                            available_skills=available_skills,
+                            operator_resources={
+                                "callback_server": turn_context.settings.callback_resource,
+                            }
+                            if turn_context.settings.callback_resource
+                            else None,
+                        ),
+                        build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
+                        build_trigger_prompt(FLAG_SUBMIT_PROMPT),
+                    ]
+                ),
             ),
             tool_bus=ToolBus(turn_context),
             workdir=turn_context.settings.runtime_dir,

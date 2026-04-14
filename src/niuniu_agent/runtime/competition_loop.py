@@ -5,7 +5,7 @@ import time
 from types import SimpleNamespace
 from uuid import uuid4
 
-from niuniu_agent.agent_stack.agent import AsyncPentestAgent
+from niuniu_agent.agent_stack.agent import AsyncPentestAgent, build_prompt_cache_key
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
     FLAG_SUBMIT_PROMPT,
@@ -551,28 +551,36 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     recent_memories,
                 )
 
+                worker_system_prompt = "\n\n".join(
+                    [
+                        build_entry_prompt(
+                            "competition",
+                            None,
+                            target,
+                            [],
+                            available_skills=available_skills,
+                            operator_resources={
+                                "callback_server": worker_context.settings.callback_resource,
+                            }
+                            if worker_context.settings.callback_resource
+                            else None,
+                            hint_context=hint_context,
+                        ),
+                        build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
+                        build_trigger_prompt(PRE_EXPLOIT_PROMPT),
+                        build_trigger_prompt(FLAG_SUBMIT_PROMPT),
+                    ]
+                )
                 agent = AsyncPentestAgent(
                     client=client,
                     model_name=context.settings.model,
-                    system_prompt="\n\n".join(
-                        [
-                            build_entry_prompt(
-                                "competition",
-                                None,
-                                target,
-                                [],
-                                available_skills=available_skills,
-                                operator_resources={
-                                    "callback_server": worker_context.settings.callback_resource,
-                                }
-                                if worker_context.settings.callback_resource
-                                else None,
-                                hint_context=hint_context,
-                            ),
-                            build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
-                            build_trigger_prompt(PRE_EXPLOIT_PROMPT),
-                            build_trigger_prompt(FLAG_SUBMIT_PROMPT),
-                        ]
+                    system_prompt=worker_system_prompt,
+                    prompt_cache_key=build_prompt_cache_key(
+                        "competition",
+                        "worker",
+                        target.code,
+                        worker_context.settings.model,
+                        system_prompt=worker_system_prompt,
                     ),
                     tool_bus=ToolBus(worker_context),
                     workdir=worker_context.settings.runtime_dir,
