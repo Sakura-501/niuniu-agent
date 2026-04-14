@@ -80,7 +80,7 @@ class AsyncPentestAgent:
         self.context_compaction_summary_input_chars = context_compaction_summary_input_chars
         self.context_compaction_summary_max_tokens = context_compaction_summary_max_tokens
         self.prompt_cache_key = prompt_cache_key
-        self.prompt_cache_retention = prompt_cache_retention
+        self.prompt_cache_retention = prompt_cache_retention or ("24h" if prompt_cache_key else None)
         self._prompt_cache_supported = True
 
     async def execute(self, instruction: str, history: list[dict[str, Any]] | None = None) -> AgentResult:
@@ -248,14 +248,19 @@ class AsyncPentestAgent:
             "Do not call any tools.\n"
             "</system-reminder>"
         )
-        response = await self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[self._system_message, *transcript, {"role": "user", "content": prompt}],
-            tools=self._tool_schemas,
-            tool_choice="none",
-            temperature=0.2,
-            max_tokens=self.context_compaction_summary_max_tokens,
-        )
+        kwargs = {
+            "model": self.model_name,
+            "messages": [self._system_message, *transcript, {"role": "user", "content": prompt}],
+            "tools": self._tool_schemas,
+            "tool_choice": "none",
+            "temperature": 0.2,
+            "max_tokens": self.context_compaction_summary_max_tokens,
+        }
+        if self._prompt_cache_supported and self.prompt_cache_key:
+            kwargs["prompt_cache_key"] = self.prompt_cache_key
+            if self.prompt_cache_retention:
+                kwargs["prompt_cache_retention"] = self.prompt_cache_retention
+        response = await self._create_with_cache_fallback(kwargs)
         message = response.choices[0].message
         return stringify_content(getattr(message, "content", "")) or "(summary unavailable)"
 
