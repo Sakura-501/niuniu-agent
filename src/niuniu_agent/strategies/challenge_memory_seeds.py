@@ -18,11 +18,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Track 3 chain: the historical winning path used a traversal-based PHP LFI primitive, "
-            "then a PEAR-based write primitive to obtain code execution and reach an internal HTTP pivot helper. "
-            "However, this challenge instance can drift between runs, and older webshell or tunnel paths may 404 after remap. "
-            "Treat older footholds as low-trust when the current external entrypoint changes. "
-            "For fresh runs, first revalidate the current entrypoint, rebuild foothold if needed, map the reachable internal network, then prioritize page-loading logic, route maps, and parameter-filter bypasses over SSH."
+            "Primary chain: exploit the services.php parameter filtering weakness to reach PHP LFI, "
+            "then use pearcmd.php to write a controllable shell. "
+            "After RCE, first read local challenge files such as /challenge/flag1.txt, then use the internal HTTP pivot helper to reach backend APIs and read sensitive configuration like /api/config. "
+            "Keep the focus on page-loading logic, route maps, parameter-filter bypasses, and internal API exploration. "
+            "If SSH becomes relevant, enumerate the current run's reachable SSH services from the live foothold first, then try fscan weak-password checks or the local OpenSSH CVE-2024-6387 helpers only when the banner and version fit."
         ),
     ),
     SeedMemory(
@@ -30,12 +30,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Track 3 multi-hop chain: upload bypass -> PHP webshell/RCE as www-data. "
-            "A recent successful run exposed an internal OA service, Redis, MariaDB, and a sibling web application behind the foothold. "
-            "Redis password 12345678 and MariaDB root/root were validated; Redis data exposed stale inventory keys and an already-submitted flag, while MariaDB corporate tables only held stale config and submitted data. "
-            "Key blocker is now OA auth bypass or Flask secret-key recovery, or a DB/Redis-to-container pivot beyond current creds. "
-            "Network-architecture discovery remains mandatory on every new run because internal ranges drift. "
-            "After any future flag submission, continue deeper into OA/DB/container paths instead of stopping."
+            "Primary chain: use the PHP management backend to bypass upload restrictions and land a webshell. "
+            "After shell access, immediately map the current run's network interfaces and use fscan to enumerate internal services. "
+            "Redis credentials 12345678 and MariaDB credentials root/root are already known-good hypotheses and should be retried on the current run. "
+            "Inspect Redis data and MariaDB user/application tables carefully for flags, accounts, passwords, Flask secrets, and OA-related configuration. "
+            "A likely next step is recovering the internal Flask/OA credentials or session material from MariaDB or Redis rather than guessing passwords."
         ),
     ),
     SeedMemory(
@@ -43,11 +42,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Track 3/4 key chain: an external proxy-style feature had an empty auth guard, yielding unauthenticated SSRF + file LFI. "
-            "Confirmed local flag reads, admin takeover via captcha/session abuse, a backend SQLi path, and a planted webshell. "
-            "A prior successful run exposed an OA application and a Flask core service behind the foothold. "
-            "Two flags have already been submitted on this chain; remaining work is to extract exact source/config/session material for the internal OA and Flask services and exploit query/report/export or auth-bypass paths. "
-            "Do not default to reverse callback or SSH/password spraying unless a concrete config or service banner justifies it."
+            "Primary chain: use /proxy.php for unauthenticated SSRF and file:// LFI to read source code and session files, "
+            "recover backend credentials and captcha/session state, then log into the admin panel. "
+            "Exploit the admin/articles.php?action=edit&id=... SQLi path with UNION ... INTO OUTFILE to land a webshell and read local challenge files such as /challenge/flag1.txt and /challenge/flag2.txt. "
+            "After that, focus on the internal OA and Flask services, especially their data-query, report, export, config, and log features. "
+            "Treat any query feature as a possible SSRF or internal file/data exfiltration surface, including attempts to fetch another host's db.sql or equivalent backup material."
         ),
     ),
     SeedMemory(
@@ -65,8 +64,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="operator_strategy",
         persistent=True,
         content=(
-            "Once SQLi + webshell are proven, the fastest remaining path is internal app abuse, not SSH guessing. "
-            "Treat the internal OA and Flask services as the next objectives and prefer source/config/session extraction plus query-function abuse before any credential brute force. "
+            "Once SQLi and a webshell are proven, the fastest remaining path is internal app abuse, not SSH guessing. "
+            "Treat the internal OA and Flask services as the next objectives and prefer source extraction, config review, session recovery, and query-function abuse before any credential brute force. "
             "If callback transport is still needed later, prefer 129.211.15.16 first and then try 172.21.0.36 as the local eth0 fallback."
         ),
     ),
@@ -76,7 +75,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "The remaining path is likely in frontend loading logic or internal API routing behind the current tunnel/webshell foothold. "
-            "Prioritize JS bundle harvesting, route discovery, and parameter filter bypasses; however, if the current instance entrypoint changes, rebuild foothold first and distrust older webshell/tunnel paths until revalidated. "
+            "Prioritize JS bundle harvesting, route discovery, parameter filter bypasses, and the current run's reachable SSH services; however, if the current instance entrypoint changes, rebuild foothold first and distrust older webshell/tunnel paths until revalidated. "
             "If callback transport is unavoidable, prefer 129.211.15.16 first and then test 172.21.0.36 as the local eth0 fallback."
         ),
     ),
@@ -129,6 +128,15 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
 
 
 def apply_seed_memories(state_store: Any) -> None:
+    with state_store._connect() as connection:  # noqa: SLF001
+        for seed in SEED_MEMORIES:
+            connection.execute(
+                """
+                DELETE FROM challenge_memories
+                WHERE challenge_code = ? AND memory_type = ? AND source = 'seed' AND content != ?
+                """,
+                (seed.challenge_code, seed.memory_type, seed.content.strip()[:4000]),
+            )
     for seed in SEED_MEMORIES:
         state_store.add_challenge_memory(
             seed.challenge_code,

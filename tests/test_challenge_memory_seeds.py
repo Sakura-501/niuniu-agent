@@ -42,3 +42,29 @@ def test_track3_seed_memories_avoid_instance_specific_ips_and_webshell_paths(tmp
             assert "/var/www/html/c.php" not in content
             assert "backup/check_port.php" not in content
             assert "backup/tunnel.php" not in content
+
+
+def test_apply_seed_memories_replaces_outdated_track3_seed_content(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+    code = "K7kbx40FbhQNODZkS"
+    store.add_challenge_memory(
+        code,
+        "persistent_flag_record",
+        "old seed mentions 172.20.0.3 and /var/www/html/c.php",
+        source="seed",
+        persistent=True,
+    )
+    store.add_challenge_memory(
+        code,
+        "operator_strategy",
+        "old seed mentions 172.20.0.5 specifically",
+        source="seed",
+        persistent=True,
+    )
+
+    apply_seed_memories(store)
+
+    memories = store.list_challenge_memories(code, limit=20)
+    contents = [item["content"] for item in memories if item["source"] == "seed"]
+    assert not any("old seed mentions 172.20.0.3" in item for item in contents)
+    assert not any("old seed mentions 172.20.0.5" in item for item in contents)
