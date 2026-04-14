@@ -39,9 +39,8 @@ def test_track3_seed_memories_avoid_instance_specific_ips_and_webshell_paths(tmp
             assert "172.20.0." not in content
             assert "192.168." not in content
             assert "/backup/b.php" not in content
-            assert "/var/www/html/c.php" not in content
-            assert "backup/check_port.php" not in content
-            assert "backup/tunnel.php" not in content
+            assert "/uploads/lv.php" not in content
+            assert "/uploads/suo5.php" not in content
 
 
 def test_apply_seed_memories_replaces_outdated_track3_seed_content(tmp_path) -> None:
@@ -68,3 +67,26 @@ def test_apply_seed_memories_replaces_outdated_track3_seed_content(tmp_path) -> 
     contents = [item["content"] for item in memories if item["source"] == "seed"]
     assert not any("old seed mentions 172.20.0.3" in item for item in contents)
     assert not any("old seed mentions 172.20.0.5" in item for item in contents)
+
+
+def test_track3_operator_strategy_contains_curated_attack_routes(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    apply_seed_memories(store)
+
+    layer = next(
+        item for item in store.list_challenge_memories("K7kbx40FbhQNODZkS", limit=20)
+        if item["memory_type"] == "operator_strategy"
+    )
+    firewall = next(
+        item for item in store.list_challenge_memories("2ihdUTWqg7iVcvvD7GAZzOadCxS", limit=20)
+        if item["memory_type"] == "operator_strategy"
+    )
+
+    assert "/proxy.php" in layer["content"]
+    assert "admin/articles.php?action=edit&id=..." in layer["content"]
+    assert "/var/www/html/c.php" in layer["content"]
+    assert "db.sql" in layer["content"]
+    assert "/backup/tunnel.php" in firewall["content"]
+    assert "backup/check_port.php" in firewall["content"]
+    assert "CVE-2024-6387" in firewall["content"]

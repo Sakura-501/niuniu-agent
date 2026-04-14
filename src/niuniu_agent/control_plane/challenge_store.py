@@ -205,7 +205,9 @@ def filter_recent_memories_for_instance(
             filtered.append(memory)
             continue
         if memory_type in stale_sensitive_types:
-            if re.search(r"/(?:uploads|backup)/[A-Za-z0-9._-]+\.(?:php|jsp|aspx|ashx)", content):
+            if re.search(r"/uploads/[A-Za-z0-9._-]+\.(?:php|jsp|aspx|ashx)", content):
+                continue
+            if re.search(r"(?:^|/)(?:lv|pp|suo5|b|cv9v9nr)\.php\b", content):
                 continue
             filtered.append(memory)
     return filtered

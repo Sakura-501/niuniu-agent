@@ -54,9 +54,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="operator_strategy",
         persistent=True,
         content=(
-            "Prefer app-layer pivoting over reverse callbacks here. "
-            "If a listener is needed, verify it first; otherwise stay inside the webshell and upload only a lightweight tunnel/proxy helper when it directly enables access to the current run's config-derived internal hosts. "
-            "For callback testing, prefer 129.211.15.16 first and then test 172.21.0.36 if the local eth0 path is more appropriate."
+            "官方 hint：后台上传功能的后缀名检测不够全面。拿到 Shell 后注意看网卡信息和内网网段。 "
+            "攻击路线：通过 PHP 管理后台绕过上传限制拿到 webshell；随后立即查看当前 run 的网卡和内网段，并用 fscan 枚举内网服务。 "
+            "Redis 口令 12345678 与 MariaDB 口令 root/root 是优先验证的已知假设。 "
+            "进入 Redis 和 MariaDB 后要认真翻用户库、业务库、配置表和缓存键，记录所有 flag、账号、密码、Flask secret、OA 配置。 "
+            "内网 Flask Web 站点的账号密码大概率就在 MariaDB 或 Redis 里，不要先猜密码。"
         ),
     ),
     SeedMemory(
@@ -64,9 +66,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="operator_strategy",
         persistent=True,
         content=(
-            "Once SQLi and a webshell are proven, the fastest remaining path is internal app abuse, not SSH guessing. "
-            "Treat the internal OA and Flask services as the next objectives and prefer source extraction, config review, session recovery, and query-function abuse before any credential brute force. "
-            "If callback transport is still needed later, prefer 129.211.15.16 first and then try 172.21.0.36 as the local eth0 fallback."
+            "官方 hint：注意数据查询的功能是否可行，内部网络环境能否访问。 "
+            "攻击路线：入口优先利用 /proxy.php 未授权 SSRF + file:// LFI 读取源码与 session，再登录后台。 "
+            "随后利用 admin/articles.php?action=edit&id=... 的 SQLi，通过 UNION ... INTO OUTFILE 落地 /var/www/html/c.php webshell，并读取本地 /challenge/flag1.txt 与 /challenge/flag2.txt。 "
+            "下一阶段重点转向内部 OA 和 Flask 服务的数据查询、报表、导出、config、log 功能。 "
+            "要重点判断这些 query 功能是否本质上是 SSRF，是否能进一步访问其他机器并取回 db.sql 或同类备份数据。"
         ),
     ),
     SeedMemory(
@@ -74,9 +78,12 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="operator_strategy",
         persistent=True,
         content=(
-            "The remaining path is likely in frontend loading logic or internal API routing behind the current tunnel/webshell foothold. "
-            "Prioritize JS bundle harvesting, route discovery, parameter filter bypasses, and the current run's reachable SSH services; however, if the current instance entrypoint changes, rebuild foothold first and distrust older webshell/tunnel paths until revalidated. "
-            "If callback transport is unavoidable, prefer 129.211.15.16 first and then test 172.21.0.36 as the local eth0 fallback."
+            "官方 hint：仔细看看网站的页面加载机制，参数过滤真的严格吗？拿到Shell后注意网段信息和SSH服务。 "
+            "攻击路线：services.php 参数绕过 LFI，再利用 pearcmd.php 写 shell；拿到 RCE 后先读取本地 /challenge/flag1.txt。 "
+            "随后通过 /backup/tunnel.php 打到内部 API，优先验证 /api/config 这类配置接口。 "
+            "重点路径包括 services.php、news.php、backup/check_port.php、backup/tunnel.php。 "
+            "后续必须认真摸清当前 run 的内网网段和 SSH 服务，再决定是否继续走 SSH。 "
+            "SSH 可以先尝试用 fscan 做弱口令检查；若 OpenSSH banner 与版本匹配，再考虑 /root/niuniu-agent/exp/CVE-2024-6387 和 /root/niuniu-agent/exp/openssh-exp-2 的本地脚本。"
         ),
     ),
     SeedMemory(
