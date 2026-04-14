@@ -84,6 +84,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "If reverse callback or tunnel setup fails" in prompt
     assert "verify that the listener is actually reachable" in prompt
     assert "Do not default to password brute-force or spraying" in prompt
+    assert "compromised service instance is likely to contain at least one flag" in prompt
     assert "after one flag is submitted successfully, continue deeper" in prompt
     assert "built-in internet search capability" in prompt
     assert "/root/niuniu-agent/exp" in prompt
