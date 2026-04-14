@@ -118,63 +118,28 @@ async def test_model_provider_router_falls_back_after_repeated_rate_limit(tmp_pa
 
 
 @pytest.mark.anyio
-async def test_model_provider_router_uses_responses_api_for_rightcodes_non_streaming(tmp_path, monkeypatch) -> None:
+async def test_model_provider_router_rewrites_leading_system_message_to_developer_for_rightcodes(
+    tmp_path,
+    monkeypatch,
+) -> None:
     settings = build_settings()
     state_store = StateStore(tmp_path / "state.db")
     state_store.set_runtime_option("selected_model_provider_id", "rightcodes")
     router = ModelProviderRouter(settings, state_store)
 
-    class FakeChatCompletions:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        async def create(self, **kwargs):
-            self.calls += 1
-            return {"unexpected": True}
-
-    class FakeResponses:
+    class FakeCompletions:
         def __init__(self) -> None:
             self.calls = []
 
         async def create(self, **kwargs):
             self.calls.append(kwargs)
-            return type(
-                "Response",
-                (),
-                {
-                    "id": "resp_1",
-                    "usage": {"prompt_tokens": 10},
-                    "output": [
-                        type(
-                            "Msg",
-                            (),
-                            {
-                                "type": "message",
-                                "content": [type("Text", (), {"type": "output_text", "text": "hello"})()],
-                            },
-                        )(),
-                        type(
-                            "Call",
-                            (),
-                            {
-                                "type": "function_call",
-                                "call_id": "call_1",
-                                "id": "fc_1",
-                                "name": "list_challenges",
-                                "arguments": "{}",
-                            },
-                        )(),
-                    ],
-                },
-            )()
+            return {"ok": True}
 
-    fake_chat = FakeChatCompletions()
-    fake_responses = FakeResponses()
+    fake_completions = FakeCompletions()
 
     class FakeClient:
         def __init__(self, *args, **kwargs) -> None:
-            self.chat = type("Chat", (), {"completions": fake_chat})()
-            self.responses = fake_responses
+            self.chat = type("Chat", (), {"completions": fake_completions})()
 
     monkeypatch.setattr("niuniu_agent.model_routing.AsyncOpenAI", FakeClient)
 
@@ -184,71 +149,82 @@ async def test_model_provider_router_uses_responses_api_for_rightcodes_non_strea
             {"role": "system", "content": "system prompt"},
             {"role": "user", "content": "hello"},
         ],
-        tools=[
-            {
-                "type": "function",
-                "function": {
-                    "name": "list_challenges",
-                    "description": "List challenges",
-                    "parameters": {"type": "object", "properties": {}},
-                },
-            }
-        ],
-        tool_choice="auto",
         prompt_cache_key="worker:c1",
         prompt_cache_retention="24h",
     )
 
-    assert fake_chat.calls == 0
-    assert len(fake_responses.calls) == 1
-    req = fake_responses.calls[0]
-    assert req["instructions"] == "system prompt"
-    assert req["input"][0]["role"] == "user"
-    assert req["tools"][0]["type"] == "function"
-    assert req["tools"][0]["name"] == "list_challenges"
-    assert result.choices[0].message.content == "hello"
-    assert result.choices[0].message.tool_calls[0].id == "call_1"
+    assert result["ok"] is True
+    assert len(fake_completions.calls) == 1
+    req = fake_completions.calls[0]
+    assert req["messages"][0]["role"] == "developer"
+    assert req["messages"][0]["content"] == "system prompt"
+    assert req["messages"][1]["role"] == "user"
+    assert req["prompt_cache_key"] == "worker:c1"
 
 
 @pytest.mark.anyio
-async def test_model_provider_router_uses_responses_api_for_rightcodes_streaming(tmp_path, monkeypatch) -> None:
+async def test_model_provider_router_keeps_system_message_for_official_provider(tmp_path, monkeypatch) -> None:
     settings = build_settings()
     state_store = StateStore(tmp_path / "state.db")
-    state_store.set_runtime_option("selected_model_provider_id", "rightcodes")
     router = ModelProviderRouter(settings, state_store)
 
-    class FakeResponses:
+    class FakeCompletions:
         def __init__(self) -> None:
             self.calls = []
 
         async def create(self, **kwargs):
             self.calls.append(kwargs)
+            return {"provider": "official"}
 
-            async def _stream():
-                yield type("Evt", (), {"type": "response.output_text.delta", "delta": "he"})()
-                yield type("Evt", (), {"type": "response.output_text.delta", "delta": "llo"})()
-                yield type("Evt", (), {"type": "response.function_call_arguments.delta", "output_index": 0, "delta": "{"})()
-                yield type("Evt", (), {"type": "response.function_call_arguments.delta", "output_index": 0, "delta": "}"})()
-                yield type(
-                    "Evt",
-                    (),
-                    {
-                        "type": "response.output_item.done",
-                        "output_index": 0,
-                        "item": type(
-                            "Call",
-                            (),
-                            {"type": "function_call", "call_id": "call_2", "id": "fc_2", "name": "tool_a", "arguments": "{}"},
-                        )(),
-                    },
-                )()
-
-            return _stream()
+    fake_completions = FakeCompletions()
 
     class FakeClient:
         def __init__(self, *args, **kwargs) -> None:
-            self.chat = type("Chat", (), {"completions": type("C", (), {"create": None})()})()
-            self.responses = FakeResponses()
+            self.chat = type("Chat", (), {"completions": fake_completions})()
+
+    monkeypatch.setattr("niuniu_agent.model_routing.AsyncOpenAI", FakeClient)
+
+    result = await router.create_completion(
+        model="ignored",
+        messages=[
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        tools=[],
+        tool_choice="auto",
+    )
+
+    assert result["provider"] == "official"
+    assert len(fake_completions.calls) == 1
+    req = fake_completions.calls[0]
+    assert req["messages"][0]["role"] == "system"
+    assert req["messages"][0]["content"] == "system prompt"
+
+
+@pytest.mark.anyio
+async def test_model_provider_router_streams_via_chat_completions_for_rightcodes(tmp_path, monkeypatch) -> None:
+    settings = build_settings()
+    state_store = StateStore(tmp_path / "state.db")
+    state_store.set_runtime_option("selected_model_provider_id", "rightcodes")
+    router = ModelProviderRouter(settings, state_store)
+
+    class FakeCompletions:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def create(self, **kwargs):
+            self.calls.append(kwargs)
+            async def _stream():
+                yield "chunk-1"
+                yield "chunk-2"
+
+            return _stream()
+
+    fake_completions = FakeCompletions()
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.chat = type("Chat", (), {"completions": fake_completions})()
 
     monkeypatch.setattr("niuniu_agent.model_routing.AsyncOpenAI", FakeClient)
 
@@ -267,11 +243,11 @@ async def test_model_provider_router_uses_responses_api_for_rightcodes_streaming
     async for chunk in stream:
         chunks.append(chunk)
 
-    assert chunks[0].choices[0].delta.content == "he"
-    assert chunks[1].choices[0].delta.content == "llo"
-    assert chunks[2].choices[0].delta.tool_calls[0].function.arguments == "{"
-    assert chunks[4].choices[0].delta.tool_calls[0].id == "call_2"
-    assert chunks[4].choices[0].delta.tool_calls[0].function.name == "tool_a"
+    assert chunks == ["chunk-1", "chunk-2"]
+    assert len(fake_completions.calls) == 1
+    req = fake_completions.calls[0]
+    assert req["stream"] is True
+    assert req["messages"][0]["role"] == "developer"
 
 
 @pytest.mark.anyio
