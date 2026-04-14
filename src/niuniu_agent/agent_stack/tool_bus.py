@@ -27,6 +27,8 @@ class RuntimeTool:
 
 
 class ToolBus:
+    AUTO_FLAG_SUBMISSION_TOOLS = frozenset({"http_request", "run_shell_command", "run_python_snippet"})
+
     def __init__(self, context: RuntimeContext) -> None:
         self.context = context
         self._handlers = {
@@ -166,12 +168,66 @@ class ToolBus:
             output = f"Error calling tool '{name}': {exc}"
             self._record_agent_event("tool_error", {"name": name, "arguments": arguments, "error": str(exc)})
             return output
+        auto_submitted_flags = await self._auto_submit_flags_if_needed(name, result)
+        if auto_submitted_flags and isinstance(result, dict):
+            result = {**result, "auto_submitted_flags": auto_submitted_flags}
         if isinstance(result, str):
             self._record_agent_event("tool_done", {"name": name, "arguments": arguments, "output_preview": result[:300]})
             return result
         output = json.dumps(result, ensure_ascii=False, sort_keys=True)
         self._record_agent_event("tool_done", {"name": name, "arguments": arguments, "output_preview": output[:300]})
         return output
+
+    async def _auto_submit_flags_if_needed(self, tool_name: str, result: Any) -> list[dict[str, Any]]:
+        if tool_name not in self.AUTO_FLAG_SUBMISSION_TOOLS:
+            return []
+        challenge_code = self.context.challenge_code
+        if not challenge_code:
+            return []
+        flags = self._extract_flags_from_value(result)
+        if not flags:
+            return []
+        submissions: list[dict[str, Any]] = []
+        for flag in flags:
+            try:
+                submission = await self.submit_flag(challenge_code, flag)
+                submissions.append(submission)
+                self._record_agent_event(
+                    "auto_flag_submit",
+                    {"source_tool": tool_name, "challenge_code": challenge_code, "flag": flag},
+                )
+            except Exception as exc:  # noqa: BLE001
+                submissions.append({"code": challenge_code, "flag": flag, "error": str(exc)})
+                self._record_agent_event(
+                    "auto_flag_submit_error",
+                    {"source_tool": tool_name, "challenge_code": challenge_code, "flag": flag, "error": str(exc)},
+                )
+        return submissions
+
+    def _extract_flags_from_value(self, value: Any) -> list[str]:
+        candidates: list[str] = []
+
+        def _walk(node: Any) -> None:
+            if isinstance(node, str):
+                candidates.extend(self.context.local_toolbox.extract_flags(node))
+                return
+            if isinstance(node, dict):
+                for nested in node.values():
+                    _walk(nested)
+                return
+            if isinstance(node, (list, tuple, set)):
+                for nested in node:
+                    _walk(nested)
+
+        _walk(value)
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for flag in candidates:
+            if flag in seen:
+                continue
+            seen.add(flag)
+            deduped.append(flag)
+        return deduped
 
     async def get_challenge_overview(self) -> str:
         snapshot = await self.context.challenge_store.refresh()

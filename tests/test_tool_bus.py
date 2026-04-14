@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from niuniu_agent.agent_stack.tool_bus import ToolBus
@@ -143,6 +145,127 @@ async def test_tool_bus_returns_error_string_instead_of_raising(tmp_path) -> Non
 
     assert "Error calling tool 'view_hint'" in result
     assert "赛题实例未运行" in result
+
+
+@pytest.mark.anyio
+async def test_tool_bus_auto_submits_detected_flags_from_tool_output(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        def __init__(self) -> None:
+            self.submit_calls = []
+
+        async def submit_flag(self, code: str, flag: str):
+            self.submit_calls.append((code, flag))
+            return {"correct": True, "message": "恭喜！答案正确"}
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {
+                        "title": "demo",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 1,
+                        "instance_status": "running",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+        async def stop_challenge(self, code: str):
+            return {"code": 0}
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+        challenge_code="c1",
+    )
+    bus = ToolBus(context)
+
+    async def fake_run_python_snippet(code: str, timeout_seconds: int = 30):
+        return {"exit_code": 0, "stdout": "found flag{demo}", "stderr": ""}
+
+    bus._handlers["run_python_snippet"] = fake_run_python_snippet
+    result = json.loads(await bus.dispatch("run_python_snippet", {"code": "print(1)"}))
+
+    assert gateway.submit_calls == [("c1", "flag{demo}")]
+    assert result["auto_submitted_flags"][0]["flag"] == "flag{demo}"
+
+
+@pytest.mark.anyio
+async def test_tool_bus_auto_submits_even_if_flag_was_previously_recorded(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        def __init__(self) -> None:
+            self.submit_calls = []
+
+        async def submit_flag(self, code: str, flag: str):
+            self.submit_calls.append((code, flag))
+            return {"correct": True, "message": "correct"}
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {
+                        "title": "demo",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "",
+                        "level": 1,
+                        "flag_count": 1,
+                        "flag_got_count": 1,
+                        "instance_status": "stopped",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    state_store.record_submitted_flag("c1", "flag{demo}")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+        challenge_code="c1",
+    )
+    bus = ToolBus(context)
+
+    async def fake_http_request(method: str, url: str, body: str | None = None, timeout_seconds: int = 20):
+        return {"status_code": 200, "text": "flag{demo}"}
+
+    bus._handlers["http_request"] = fake_http_request
+    await bus.dispatch("http_request", {"method": "GET", "url": "http://example.com"})
+
+    assert gateway.submit_calls == [("c1", "flag{demo}")]
 
 
 @pytest.mark.anyio
