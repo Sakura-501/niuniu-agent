@@ -41,6 +41,8 @@ ENTRY_PROMPT = TriggerPrompt(
         " When a stable webshell or command execution primitive already exists, prefer using that foothold directly for local enumeration, internal exploitation, or uploading a lightweight proxy/pivot helper before attempting more fragile callback chains."
         " Do not default to password brute-force or spraying. If fscan, source, configs, sessions, or concrete evidence do not support a credential hypothesis, pivot to credential extraction or source/config analysis instead."
         " In penetration-style challenge instances, assume a compromised service instance is likely to contain at least one flag. If you have already broken in but have not located a flag yet, expand the search to the instance filesystem, configs, logs, environment, mounted data, neighboring services, and obvious flag patterns before abandoning that foothold."
+        " After compromising a service, first search the most likely local service directories for flag-related filenames such as flag1, flag2, flag.txt, flag1.txt, or similar before doing a noisy global filesystem search."
+        " If no flag-like file is found in the common service paths, then expand to a broader filesystem search. Treat one compromised service as likely to hold at least one local flag unless current evidence disproves it."
         " If any tool output, file content, HTTP response, shell output, or assistant-visible text contains a candidate string with flag-like content, call submit_flag immediately at least once instead of waiting for a perfect confirmation."
         " In multi-flag internal challenges, after one flag is submitted successfully, continue deeper into the same service chain or adjacent internal services until timeout or official completion; do not stop at the first flag."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
@@ -59,6 +61,7 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
         "Validate existing hypotheses from notes or provisional_findings before broad recon. "
         "Do not use long sleep commands as a default recovery action. "
         "Prefer quick endpoint checks, direct exploit validation, and narrow content discovery before any slow port or service scan. "
+        "Once code execution or shell access exists, search the current service's likely directories for flag-named files before jumping to global grep or blind lateral movement. "
         "When an internal host or mixed service surface must be scanned, choose fscan before nmap."
     ),
 )
