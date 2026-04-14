@@ -115,3 +115,68 @@ async def test_model_provider_router_falls_back_after_repeated_rate_limit(tmp_pa
     assert clients["official"].calls == router.settings.model_rate_limit_retry_attempts
     assert clients["rightcodes"].calls == 1
     assert sleeps == [1.0, 2.0]
+
+
+@pytest.mark.anyio
+async def test_model_provider_router_retries_on_connection_errors_then_falls_back(tmp_path, monkeypatch) -> None:
+    settings = build_settings()
+    state_store = StateStore(tmp_path / "state.db")
+    router = ModelProviderRouter(settings, state_store)
+    sleeps = []
+
+    class FakeCompletions:
+        def __init__(self, provider_id: str) -> None:
+            self.provider_id = provider_id
+            self.calls = 0
+
+        async def create(self, **kwargs):
+            self.calls += 1
+            if self.provider_id == "official":
+                raise RuntimeError("APIConnectionError: connection refused")
+            return {"provider": self.provider_id, "model": kwargs["model"]}
+
+    clients = {}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            base_url = kwargs["base_url"]
+            provider_id = "official" if "70_f8g1qfuu" in base_url else "rightcodes"
+            completions = clients.setdefault(provider_id, FakeCompletions(provider_id))
+            self.chat = type("Chat", (), {"completions": completions})()
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("niuniu_agent.model_routing.AsyncOpenAI", FakeClient)
+    monkeypatch.setattr(router, "_sleep", fake_sleep)
+
+    result = await router.create_completion(messages=[], model="ignored")
+
+    assert result["provider"] == "rightcodes"
+    assert clients["official"].calls == router.settings.model_rate_limit_retry_attempts
+    assert clients["rightcodes"].calls == 1
+    assert sleeps == [1.0, 2.0]
+
+
+def test_model_provider_router_deprioritizes_recently_failed_provider_during_cooldown(tmp_path) -> None:
+    settings = build_settings()
+    state_store = StateStore(tmp_path / "state.db")
+    router = ModelProviderRouter(settings, state_store)
+
+    state_store.record_model_provider_failure("official", "timeout", now=1000.0)
+
+    order = router.execution_order_for_time(now=1005.0)
+
+    assert [provider.provider_id for provider in order] == ["rightcodes", "official"]
+
+
+def test_model_provider_router_rechecks_primary_after_cooldown_expires(tmp_path) -> None:
+    settings = build_settings()
+    state_store = StateStore(tmp_path / "state.db")
+    router = ModelProviderRouter(settings, state_store)
+
+    state_store.record_model_provider_failure("official", "timeout", now=1000.0)
+
+    order = router.execution_order_for_time(now=1035.0)
+
+    assert [provider.provider_id for provider in order] == ["official", "rightcodes"]

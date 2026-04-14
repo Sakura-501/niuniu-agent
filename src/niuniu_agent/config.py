@@ -46,6 +46,7 @@ class AgentSettings(BaseSettings):
     model_failover_enabled: bool = True
     model_rate_limit_retry_attempts: int = 3
     model_rate_limit_retry_base_delay_seconds: float = 1.0
+    model_provider_failure_cooldown_seconds: int = 30
     callback_public_ip: str | None = None
     callback_username: str | None = None
     callback_password: str | None = None

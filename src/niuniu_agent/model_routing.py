@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import asyncio
+import time
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -55,9 +56,39 @@ class ModelProviderRouter:
         raise ValueError(f"unknown model provider: {provider_id}")
 
     def execution_order(self) -> list[ModelProviderConfig]:
+        return self.execution_order_for_time()
+
+    def execution_order_for_time(self, *, now: float | None = None) -> list[ModelProviderConfig]:
         selection = self.current_selection()
         selected_id = selection["provider_id"]
         providers = list(self.settings.model_providers)
+        selected_order = {
+            provider.provider_id: index
+            for index, provider in enumerate(self._selected_first_order(providers, selected_id))
+        }
+        unhealthy: list[ModelProviderConfig] = []
+        healthy: list[ModelProviderConfig] = []
+        for provider in providers:
+            if self._is_provider_in_cooldown(provider.provider_id, now=now):
+                unhealthy.append(provider)
+            else:
+                healthy.append(provider)
+        if healthy:
+            healthy.sort(key=lambda provider: selected_order[provider.provider_id])
+            unhealthy.sort(
+                key=lambda provider: (
+                    self._provider_cooldown_remaining(provider.provider_id, now=now),
+                    selected_order[provider.provider_id],
+                )
+            )
+            return [*healthy, *unhealthy]
+        return self._selected_first_order(providers, selected_id)
+
+    @staticmethod
+    def _selected_first_order(
+        providers: list[ModelProviderConfig],
+        selected_id: str | None,
+    ) -> list[ModelProviderConfig]:
         ordered: list[ModelProviderConfig] = []
         if selected_id is not None:
             for provider in providers:
@@ -68,6 +99,18 @@ class ModelProviderRouter:
             if provider.provider_id not in {item.provider_id for item in ordered}:
                 ordered.append(provider)
         return ordered
+
+    def _provider_cooldown_remaining(self, provider_id: str, *, now: float | None = None) -> float:
+        current = time.time() if now is None else now
+        state = self.state_store.get_model_provider_state(provider_id)
+        last_failure_at = state.get("last_failure_at")
+        if state.get("consecutive_failures", 0) <= 0 or last_failure_at is None:
+            return 0.0
+        cooldown = float(self.settings.model_provider_failure_cooldown_seconds)
+        return max(0.0, float(last_failure_at) + cooldown - current)
+
+    def _is_provider_in_cooldown(self, provider_id: str, *, now: float | None = None) -> bool:
+        return self._provider_cooldown_remaining(provider_id, now=now) > 0
 
     def resolve_model_name(self, provider: ModelProviderConfig) -> str:
         selection = self.current_selection()
@@ -88,6 +131,7 @@ class ModelProviderRouter:
                     "model": provider.model,
                     "selected": selection["provider_id"] == provider.provider_id,
                     "effective_model": self.resolve_model_name(provider),
+                    "cooldown_remaining_seconds": self._provider_cooldown_remaining(provider.provider_id),
                     "state": state,
                 }
             )
@@ -134,7 +178,7 @@ class ModelProviderRouter:
                     return result
                 except Exception as exc:  # noqa: BLE001
                     provider_error = exc
-                    if self._is_rate_limit_error(exc) and attempt < self.settings.model_rate_limit_retry_attempts:
+                    if self._is_retryable_error(exc) and attempt < self.settings.model_rate_limit_retry_attempts:
                         await self._sleep(delay)
                         delay *= 2
                         continue
@@ -147,9 +191,32 @@ class ModelProviderRouter:
         raise RuntimeError("all model providers failed: " + " | ".join(errors))
 
     @staticmethod
-    def _is_rate_limit_error(exc: Exception) -> bool:
+    def _is_retryable_error(exc: Exception) -> bool:
         text = str(exc).lower()
-        return "rate_limit_exceeded" in text or "429" in text or "too many requests" in text
+        return any(
+            marker in text
+            for marker in (
+                "rate_limit_exceeded",
+                "429",
+                "too many requests",
+                "timeout",
+                "timed out",
+                "connection refused",
+                "connection error",
+                "connect error",
+                "failed to connect",
+                "server disconnected",
+                "temporary failure",
+                "temporarily unavailable",
+                "service unavailable",
+                "name or service not known",
+                "nodename nor servname provided",
+                "connection reset by peer",
+                "remote protocol error",
+                "apiconnectionerror",
+                "apitimeouterror",
+            )
+        )
 
 
 class RoutedAsyncOpenAI:
