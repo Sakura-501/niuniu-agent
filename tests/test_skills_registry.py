@@ -88,6 +88,20 @@ def test_skill_registry_selects_new_specialized_exploit_helpers() -> None:
     assert "tool-rogue-service-exploits" in names
 
 
+def test_skill_registry_selects_positive_web_tunnel_and_js_helper_skills() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select(
+        "neo-regeorg neoreg suo5 webshell tunnel.php socks through uploaded php asset jsfinder javascript endpoints",
+        track="track3",
+    )
+    names = {skill.name for skill in selected}
+
+    assert "tool-neoreg" in names
+    assert "tool-suo5-forward-proxy" in names
+    assert "tool-jsfinder" in names
+
+
 def test_skill_registry_loads_skill_body_from_disk() -> None:
     registry = SkillRegistry()
 

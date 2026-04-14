@@ -260,6 +260,18 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         trigger_keywords=("phpggc", "php unserialize", "phar", "gadget chain", "deserialization php"),
         usage_guidance="Load this skill when a PHP deserialization sink exists and you need a gadget-chain generator quickly.",
     ),
+    "tool-neoreg": SkillBehavior(
+        trigger_keywords=("neoreg", "neo-regeorg", "regeorg", "tunnel.php", "webshell tunnel", "socks via webshell"),
+        usage_guidance="Load this skill when you need a webshell-backed SOCKS or port-forward tunnel via Neo-reGeorg.",
+    ),
+    "tool-suo5-forward-proxy": SkillBehavior(
+        trigger_keywords=("suo5", "forward proxy", "http tunnel", "socks5 tunnel", "suo5.jsp", "suo5.php"),
+        usage_guidance="Load this skill when you need a high-performance forward proxy or tunnel through an uploaded suo5 server asset.",
+    ),
+    "tool-jsfinder": SkillBehavior(
+        trigger_keywords=("jsfinder", "js routes", "extract urls from js", "subdomain from js", "javascript endpoints"),
+        usage_guidance="Load this skill when you need to mine URLs, routes, APIs, or subdomains from JavaScript assets quickly.",
+    ),
     "tool-rogue-service-exploits": SkillBehavior(
         trigger_keywords=("redis rogue", "redis module", "rogue mysql", "grafanaexp", "cve-2021-43798", "grafana file read", "rogue_mysql_server"),
         usage_guidance="Load this skill when the shortest exploit path is a rogue service handshake, Redis module-load path, or Grafana arbitrary file-read workflow.",
