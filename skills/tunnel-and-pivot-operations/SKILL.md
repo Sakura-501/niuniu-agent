@@ -7,7 +7,7 @@ description: Use when a foothold must be converted into stable reachability with
 
 ## Overview
 
-Use this skill to turn an unstable shell or segmented foothold into a deliberate reachability path for the next action.
+Use this skill to turn an unstable shell or segmented foothold into a deliberate reachability path for the next action. When a webshell or direct command execution already works, prefer forward access and foothold-local probing before reverse tunnels.
 
 ## When to Use
 
@@ -24,10 +24,11 @@ Use this skill to turn an unstable shell or segmented foothold into a deliberate
 
 ## Quick Reference
 
-1. Choose the minimum tunnel that enables the next deterministic step.
-2. Prefer reversible, low-footprint forwarding over permanent infrastructure.
-3. Tie every tunnel to a concrete next-hop or service objective.
-4. Record listener port, exposed internal service, and cleanup steps.
+1. First ask whether the current webshell or command execution primitive already lets you probe the next host or upload a lightweight helper directly.
+2. Choose the minimum tunnel that enables the next deterministic step.
+3. Prefer reversible, low-footprint forwarding over permanent reverse infrastructure.
+4. Tie every tunnel to a concrete next-hop or service objective.
+5. Record listener port, exposed internal service, and cleanup steps.
 
 Default callback host for this environment: `129.211.15.16`.
 
@@ -36,3 +37,4 @@ Default callback host for this environment: `129.211.15.16`.
 - Do not keep multiple overlapping tunnels alive without need.
 - Prefer a single stable route over many temporary channels.
 - Kill stale relays and background agents when the objective changes.
+- Do not choose reverse callbacks by default when forward connections or direct foothold-side testing already answer the question.

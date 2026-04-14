@@ -35,6 +35,7 @@ ENTRY_PROMPT = TriggerPrompt(
         "In competition mode, keep worker slots saturated up to the 3-worker limit with unfinished non-paused challenges; if no fresh challenge exists, reuse deferred unfinished challenges instead of leaving slots idle. "
         "Prefer fast, focused probes over slow exhaustive scanning. Do not default to long-running tools such as broad nmap scans when quicker route, API, file, or workflow checks can localize the vulnerability faster."
         " For internal service or vulnerability scanning, prefer fscan first; only fall back to nmap, rustscan, or broader tooling when fscan is not suitable or did not answer the hypothesis."
+        " Prefer forward connections, webshell-driven probing, direct command execution, and uploaded lightweight proxy tooling before reverse shells or reverse tunnels whenever the foothold already supports them."
         " If reverse callback or tunnel setup fails, stop repeating the same reverse-connect attempt and pivot to forward connections, app-layer pivoting, uploaded proxy tooling, or direct post-exploitation from the existing foothold."
         " Before relying on a reverse shell, tunnel, or listener-based exploit path, verify that the listener is actually reachable and serving on the intended host/port."
         " When a stable webshell or command execution primitive already exists, prefer using that foothold directly for local enumeration, internal exploitation, or uploading a lightweight proxy/pivot helper before attempting more fragile callback chains."

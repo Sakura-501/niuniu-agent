@@ -80,6 +80,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "Prefer fast, focused probes over slow exhaustive scanning" in prompt
     assert "broad nmap scans" in prompt
     assert "prefer fscan first" in prompt
+    assert "Prefer forward connections, webshell-driven probing" in prompt
     assert "If reverse callback or tunnel setup fails" in prompt
     assert "verify that the listener is actually reachable" in prompt
     assert "Do not default to password brute-force or spraying" in prompt

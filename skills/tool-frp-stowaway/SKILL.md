@@ -7,7 +7,7 @@ description: Use when you need a practical operating guide for frp and stowaway 
 
 ## Overview
 
-Use this skill when you need a stable route between the target and the callback server.
+Use this skill when you need a stable route between the target and the callback server, but only after confirming that direct foothold-side probing or forward connections are not enough.
 
 ## When to Use
 
@@ -17,10 +17,11 @@ Use this skill when you need a stable route between the target and the callback 
 
 ## Recommended Workflow
 
-1. Prefer `frp` for straightforward reverse/forward tunnels and service exposure.
-2. Prefer `stowaway` when multi-hop or segmented routing is required.
-3. Keep one documented tunnel per immediate objective.
-4. Tear down or rotate stale tunnels once the objective changes.
+1. First verify whether the existing webshell or command execution primitive can test the target directly or upload a lighter helper.
+2. Prefer `frp` for straightforward reverse/forward tunnels and service exposure.
+3. Prefer `stowaway` when multi-hop or segmented routing is required.
+4. Keep one documented tunnel per immediate objective.
+5. Tear down or rotate stale tunnels once the objective changes.
 
 ## Practical Notes
 
@@ -29,6 +30,7 @@ Use this skill when you need a stable route between the target and the callback 
 - Record listener address, exposed internal service, and cleanup path.
 - Use `proxychains4` only after the SOCKS path is verified.
 - For reverse shells and relay one-offs, `socat` may still be the lightest option.
+- Prefer forward connections or uploaded proxy tooling over reverse callbacks when the foothold already supports direct HTTP, TCP, or command execution.
 
 ## Resource Guardrails
 
