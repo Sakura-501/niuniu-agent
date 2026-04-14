@@ -229,6 +229,30 @@ class ToolBus:
             deduped.append(flag)
         return deduped
 
+    async def auto_submit_text_output(self, text: str) -> list[dict[str, Any]]:
+        challenge_code = self.context.challenge_code
+        if not challenge_code:
+            return []
+        flags = self._extract_flags_from_value(text)
+        if not flags:
+            return []
+        submissions: list[dict[str, Any]] = []
+        for flag in flags:
+            try:
+                submission = await self.submit_flag(challenge_code, flag)
+                submissions.append(submission)
+                self._record_agent_event(
+                    "auto_flag_submit",
+                    {"source_tool": "assistant_text", "challenge_code": challenge_code, "flag": flag},
+                )
+            except Exception as exc:  # noqa: BLE001
+                submissions.append({"code": challenge_code, "flag": flag, "error": str(exc)})
+                self._record_agent_event(
+                    "auto_flag_submit_error",
+                    {"source_tool": "assistant_text", "challenge_code": challenge_code, "flag": flag, "error": str(exc)},
+                )
+        return submissions
+
     async def get_challenge_overview(self) -> str:
         snapshot = await self.context.challenge_store.refresh()
         return self.context.challenge_store.render_summary(snapshot)

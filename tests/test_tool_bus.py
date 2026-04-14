@@ -269,6 +269,65 @@ async def test_tool_bus_auto_submits_even_if_flag_was_previously_recorded(tmp_pa
 
 
 @pytest.mark.anyio
+async def test_tool_bus_auto_submits_flags_found_in_assistant_text(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        def __init__(self) -> None:
+            self.submit_calls = []
+
+        async def submit_flag(self, code: str, flag: str):
+            self.submit_calls.append((code, flag))
+            return {"correct": True, "message": "correct"}
+
+        async def list_challenges(self):
+            return {
+                "current_level": 1,
+                "challenges": [
+                    {
+                        "title": "demo",
+                        "code": "c1",
+                        "difficulty": "easy",
+                        "description": "",
+                        "level": 1,
+                        "flag_count": 2,
+                        "flag_got_count": 1,
+                        "instance_status": "running",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+        async def stop_challenge(self, code: str):
+            return {"code": 0}
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+        challenge_code="c1",
+    )
+    bus = ToolBus(context)
+
+    result = await bus.auto_submit_text_output("assistant found FLAG-9f8e7d6c5b4a and flag{demo2}")
+
+    assert ("c1", "FLAG-9f8e7d6c5b4a") in gateway.submit_calls
+    assert ("c1", "flag{demo2}") in gateway.submit_calls
+    assert len(result) == 2
+
+
+@pytest.mark.anyio
 async def test_tool_bus_view_hint_persists_hint_notes_history_and_memory(tmp_path) -> None:
     class HintGateway(DummyContestGateway):
         async def view_hint(self, code: str):

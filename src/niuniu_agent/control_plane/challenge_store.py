@@ -167,6 +167,38 @@ def detect_external_entrypoint_drift(
     )
 
 
+def filter_recent_memories_for_instance(
+    challenge: ChallengeSnapshot,
+    memories: list[dict[str, object]] | None,
+) -> list[dict[str, object]]:
+    current_hosts = {
+        entry.split(":", 1)[0].strip()
+        for entry in list(getattr(challenge, "entrypoints", []) or [])
+        if entry and ":" in entry
+    }
+    if not current_hosts:
+        return list(memories or [])
+    stale_sensitive_types = {
+        "persistent_last_summary",
+        "persistent_provisional_findings",
+        "turn_summary",
+        "operator_strategy",
+        "persistent_credential_hint",
+    }
+    filtered: list[dict[str, object]] = []
+    for memory in list(memories or []):
+        content = str(memory.get("content") or "")
+        mentioned_external_ips = {
+            match.group(0)
+            for match in re.finditer(r"\b10\.0\.163\.\d{1,3}\b", content)
+        }
+        stale_hosts = {host for host in mentioned_external_ips if host not in current_hosts}
+        if stale_hosts and str(memory.get("memory_type") or "") in stale_sensitive_types:
+            continue
+        filtered.append(memory)
+    return filtered
+
+
 class ChallengeStore:
     def __init__(self, contest_client: Any, state_store: Any, *, official_completion_grace_seconds: int = 30) -> None:
         self.contest_client = contest_client
@@ -313,7 +345,10 @@ class ChallengeStore:
     ) -> str:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
         notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
-        recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
+        recent_memories = filter_recent_memories_for_instance(
+            challenge,
+            self.state_store.list_challenge_memories(challenge.code, limit=10),
+        )
         drift_warning = detect_external_entrypoint_drift(challenge, notes)
         if drift_warning:
             notes = {

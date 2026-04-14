@@ -284,6 +284,59 @@ async def test_challenge_store_autonomous_prompt_includes_instance_drift_warning
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_filters_stale_memory_that_references_old_external_host() -> None:
+    class DriftContestClient(DummyContestClient):
+        async def list_challenges(self):
+            return {
+                "current_level": 3,
+                "total_challenges": 1,
+                "solved_challenges": 0,
+                "challenges": [
+                    {
+                        "title": "todo",
+                        "code": "c-drift",
+                        "difficulty": "medium",
+                        "description": "open target",
+                        "level": 3,
+                        "flag_count": 4,
+                        "flag_got_count": 0,
+                        "instance_status": "running",
+                        "entrypoint": ["10.0.163.217:80"],
+                    }
+                ],
+            }
+
+    state = DummyStateStore()
+    state.notes = {
+        "provisional_findings": "old foothold on 10.0.163.216 via /backup/b.php",
+    }
+    state.memories = [
+        {
+            "memory_type": "persistent_provisional_findings",
+            "content": "stale foothold 10.0.163.216 /backup/b.php",
+            "source": "runtime",
+            "persistent": True,
+            "created_at": "now",
+        },
+        {
+            "memory_type": "persistent_hint",
+            "content": "hint survives drift",
+            "source": "runtime",
+            "persistent": True,
+            "created_at": "now",
+        },
+    ]
+    store = ChallengeStore(DriftContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "stale foothold 10.0.163.216 /backup/b.php" not in prompt
+    assert "hint survives drift" in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
     store = ChallengeStore(DummyContestClient(), DummyStateStore())
 

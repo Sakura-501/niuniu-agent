@@ -125,6 +125,9 @@ class AsyncPentestAgent:
             transcript = await self._maybe_compact_transcript(transcript)
             content, tool_calls = await self._complete_once(transcript, on_text_delta=on_text_delta)
             last_text = content or last_text
+            auto_submit_text = getattr(self.tool_bus, "auto_submit_text_output", None)
+            if callable(auto_submit_text) and content:
+                await auto_submit_text(content)
             if self.session_logger is not None:
                 self.session_logger.log_assistant(
                     content,

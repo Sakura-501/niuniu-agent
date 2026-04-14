@@ -41,6 +41,7 @@ ENTRY_PROMPT = TriggerPrompt(
         " When a stable webshell or command execution primitive already exists, prefer using that foothold directly for local enumeration, internal exploitation, or uploading a lightweight proxy/pivot helper before attempting more fragile callback chains."
         " Do not default to password brute-force or spraying. If fscan, source, configs, sessions, or concrete evidence do not support a credential hypothesis, pivot to credential extraction or source/config analysis instead."
         " In penetration-style challenge instances, assume a compromised service instance is likely to contain at least one flag. If you have already broken in but have not located a flag yet, expand the search to the instance filesystem, configs, logs, environment, mounted data, neighboring services, and obvious flag patterns before abandoning that foothold."
+        " If any tool output, file content, HTTP response, shell output, or assistant-visible text contains a candidate string with flag-like content, call submit_flag immediately at least once instead of waiting for a perfect confirmation."
         " In multi-flag internal challenges, after one flag is submitted successfully, continue deeper into the same service chain or adjacent internal services until timeout or official completion; do not stop at the first flag."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
         " Local exploit references and PoC notes may exist under /root/niuniu-agent/exp on the debug machine; check that directory before reinventing public exploit research."
@@ -99,7 +100,8 @@ FLAG_SUBMIT_PROMPT = TriggerPrompt(
     name="flag_submit",
     body=(
         "A candidate flag or sensitive artifact may be present. "
-        "Validate format, submit immediately, and then continue if more flags may exist. "
+        "Validate format lightly, submit immediately, and then continue if more flags may exist. "
+        "If any string containing clear flag-like material appears anywhere in the workflow, attempt submit_flag immediately instead of postponing. "
         "After a successful submission, verify whether the challenge is now completed and stop its instance immediately if it is."
     ),
 )
@@ -149,7 +151,7 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
             "Before choosing the next exploit path, build a concrete network map: enumerate reachable IPs, network segments, DNAT edges, and service/port exposure from the foothold."
         )
         hints.append(
-            "Do not waste turns on unrelated session samples from other challenges. Focus on reaching 192.168.10.20 and 192.168.20.30 through app-layer pivoting, DNAT paths, stored creds, or config-derived access."
+            "Do not waste turns on unrelated session samples from other challenges. Prioritize the current run's config-derived internal hosts and DNAT paths, and distrust older 192.168.* inventory until it is revalidated from the live foothold."
         )
         hints.append(
             "If reverse callback paths fail, keep operating through the existing webshell and upload only lightweight pivot helpers. Test listeners before every new tunnel attempt."
@@ -184,7 +186,7 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
             "Avoid re-solving the initial LFI/PEAR stage. The remaining flags are likely behind the internal web/API path now that foothold and one deeper API flag are already proven."
         )
         hints.append(
-            "If SSH or reverse-connect ideas are not immediately justified, stay in the internal web/API lane and keep probing with the already-proven tunnel/webshell path."
+            "If SSH or reverse-connect ideas are not immediately justified, stay in the internal web/API lane, but revalidate any historical /backup/*.php tunnel or webshell path before trusting it on the current run."
         )
         hints.append(
             "If a callback becomes necessary later, prefer 129.211.15.16 first and also try 172.21.0.36 as the local eth0 fallback."
