@@ -35,6 +35,11 @@ ENTRY_PROMPT = TriggerPrompt(
         "In competition mode, keep worker slots saturated up to the 3-worker limit with unfinished non-paused challenges; if no fresh challenge exists, reuse deferred unfinished challenges instead of leaving slots idle. "
         "Prefer fast, focused probes over slow exhaustive scanning. Do not default to long-running tools such as broad nmap scans when quicker route, API, file, or workflow checks can localize the vulnerability faster."
         " For internal service or vulnerability scanning, prefer fscan first; only fall back to nmap, rustscan, or broader tooling when fscan is not suitable or did not answer the hypothesis."
+        " If reverse callback or tunnel setup fails, stop repeating the same reverse-connect attempt and pivot to forward connections, app-layer pivoting, uploaded proxy tooling, or direct post-exploitation from the existing foothold."
+        " Before relying on a reverse shell, tunnel, or listener-based exploit path, verify that the listener is actually reachable and serving on the intended host/port."
+        " When a stable webshell or command execution primitive already exists, prefer using that foothold directly for local enumeration, internal exploitation, or uploading a lightweight proxy/pivot helper before attempting more fragile callback chains."
+        " Do not default to password brute-force or spraying. If fscan, source, configs, sessions, or concrete evidence do not support a credential hypothesis, pivot to credential extraction or source/config analysis instead."
+        " In multi-flag internal challenges, after one flag is submitted successfully, continue deeper into the same service chain or adjacent internal services until timeout or official completion; do not stop at the first flag."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
         " Local exploit references and PoC notes may exist under /root/niuniu-agent/exp on the debug machine; check that directory before reinventing public exploit research."
         " When a target must call back, use the public callback host 129.211.15.16 unless a more specific runtime reminder overrides it."
@@ -141,6 +146,9 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
         hints.append(
             "Do not waste turns on unrelated session samples from other challenges. Focus on reaching 192.168.10.20 and 192.168.20.30 through app-layer pivoting, DNAT paths, stored creds, or config-derived access."
         )
+        hints.append(
+            "If reverse callback paths fail, keep operating through the existing webshell and upload only lightweight pivot helpers. Test listeners before every new tunnel attempt."
+        )
     if active.code == "K7kbx40FbhQNODZkS":
         hints.append(
             "The hint points to data-query functionality and internal reachability. Prioritize query/report/export endpoints and local source/config/session extraction over SSH spraying or callback setup."
@@ -148,12 +156,18 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
         hints.append(
             "Outbound callback attempts already look blocked here. Keep exploiting the existing SQLi + webshell + SSRF/LFI chain instead of pivoting to reverse-shell-first tactics."
         )
+        hints.append(
+            "Do not brute-force SSH or app credentials unless a recovered config, session, or service banner strongly supports them. Push deeper through the current web foothold first."
+        )
     if active.code == "2ihdUTWqg7iVcvvD7GAZzOadCxS":
         hints.append(
             "The hint points at frontend/page-loading mechanics. Prioritize JS bundles, dynamic route loading, client-side API maps, and parameter filter bypasses behind the current tunnel/webshell foothold."
         )
         hints.append(
             "Avoid re-solving the initial LFI/PEAR stage. The remaining flags are likely behind the internal web/API path now that foothold and one deeper API flag are already proven."
+        )
+        hints.append(
+            "If SSH or reverse-connect ideas are not immediately justified, stay in the internal web/API lane and keep probing with the already-proven tunnel/webshell path."
         )
 
     deduped: list[str] = []

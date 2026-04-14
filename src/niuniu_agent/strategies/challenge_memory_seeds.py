@@ -21,7 +21,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "Track 3/4 key chain: LFI in /services.php via lang=....// traversal bypass. "
             "Read /var/www/html/services.php, then include /usr/local/lib/php/pearcmd.php to write a PHP webshell under /tmp. "
             "Confirmed RCE as www-data and retrieved /challenge/flag1.txt. "
-            "Next steps: enumerate internal pivot helpers backup/check_port.php and backup/tunnel.php, search foothold for SSH/private keys, and pivot toward 10.0.163.217/10.0.163.218 instead of re-solving the initial LFI stage."
+            "Next steps: enumerate internal pivot helpers backup/check_port.php and backup/tunnel.php, keep exploiting the internal web/API path, and prioritize page-loading logic, route maps, and parameter-filter bypasses over restarting the initial LFI stage or jumping straight to SSH."
         ),
     ),
     SeedMemory(
@@ -29,11 +29,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Track 4 key chain: upload bypass -> PHP webshell/RCE as www-data. "
+            "Track 3 multi-hop chain: upload bypass -> PHP webshell/RCE as www-data. "
             "Recovered PHP admin sessions from /tmp/sess_* with admin role and CSRF tokens. "
-            "Internal OA reachable at 172.19.0.2:8080 and captcha value is exposed inside the signed Flask session cookie payload. "
-            "Redis 172.19.0.3:6379 and MariaDB 172.19.0.3:3306 are reachable from the foothold. "
-            "After any future flag submission, continue with OA session reuse, cookie decoding, Redis/MariaDB credential extraction, and deeper internal pivoting."
+            "Internal OA reachable behind DNAT and Redis/MariaDB are reachable from the foothold. "
+            "If reverse callback fails, keep using the existing webshell for direct local probing or upload a lightweight proxy helper. "
+            "After any future flag submission, continue with OA session reuse, Redis/MariaDB credential extraction, and deeper internal pivoting instead of stopping at the first flag."
         ),
     ),
     SeedMemory(
@@ -44,7 +44,35 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "Track 3/4 key chain: /proxy.php had an empty auth guard, yielding unauthenticated SSRF + file:// LFI. "
             "Confirmed reads of /challenge/flag1.txt and /challenge/flag2.txt and recovered /var/www/html/proxy.php. "
             "Additional source shows admin_articles.php SQLi on action=edit&id and admin_settings.php internal host inventory. "
-            "Next steps: use proxy.php for internal HTTP reachability, exploit admin_articles SQLi, and inspect loopback MySQL/php-fpm plus 172.20.0.3:8080 / 172.20.0.5:80 internal apps for more flags."
+            "Next steps: use proxy.php for internal HTTP reachability, exploit admin_articles SQLi, and inspect internal query/report/export paths plus 172.20.0.3 / 172.20.0.5 application source/config/session material for more flags. "
+            "Do not default to reverse-callback setup or password spraying unless new evidence justifies it."
+        ),
+    ),
+    SeedMemory(
+        challenge_code="6RmRST2HkeTbwgbyMJaN",
+        memory_type="operator_strategy",
+        persistent=True,
+        content=(
+            "Prefer app-layer pivoting over reverse callbacks here. "
+            "If a listener is needed, verify it first; otherwise stay inside the webshell and upload only a lightweight tunnel/proxy helper when it directly enables access to 192.168.10.20 or 192.168.20.30."
+        ),
+    ),
+    SeedMemory(
+        challenge_code="K7kbx40FbhQNODZkS",
+        memory_type="operator_strategy",
+        persistent=True,
+        content=(
+            "Once SQLi + webshell are proven, the fastest remaining path is internal app abuse, not SSH guessing. "
+            "Treat 172.20.0.3 and 172.20.0.5 as the next objectives and prefer source/config/session extraction plus query-function abuse before any credential brute force."
+        ),
+    ),
+    SeedMemory(
+        challenge_code="2ihdUTWqg7iVcvvD7GAZzOadCxS",
+        memory_type="operator_strategy",
+        persistent=True,
+        content=(
+            "The remaining path is likely in frontend loading logic or internal API routing behind the current tunnel/webshell foothold. "
+            "Prioritize JS bundle harvesting, route discovery, and parameter filter bypasses; do not waste turns rebuilding the initial LFI/PEAR foothold."
         ),
     ),
     SeedMemory(

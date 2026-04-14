@@ -80,6 +80,10 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "Prefer fast, focused probes over slow exhaustive scanning" in prompt
     assert "broad nmap scans" in prompt
     assert "prefer fscan first" in prompt
+    assert "If reverse callback or tunnel setup fails" in prompt
+    assert "verify that the listener is actually reachable" in prompt
+    assert "Do not default to password brute-force or spraying" in prompt
+    assert "after one flag is submitted successfully, continue deeper" in prompt
     assert "built-in internet search capability" in prompt
     assert "/root/niuniu-agent/exp" in prompt
     assert "129.211.15.16" in prompt
@@ -184,6 +188,24 @@ def test_entry_prompt_includes_gradio_operator_hints_when_notes_match() -> None:
     assert "<system-reminder>" in prompt
     assert "Gradio API challenge" in prompt
     assert "session_hash" in prompt
+
+
+def test_derive_operator_hints_for_track3_chain_overrides() -> None:
+    active = ChallengeSnapshot(
+        code="K7kbx40FbhQNODZkS",
+        title="layer breach",
+        description="web target",
+        difficulty="hard",
+        level=3,
+    )
+
+    hints = derive_operator_hints(
+        active,
+        {"provisional_findings": "proxy.php SSRF, file:// lfi, webshell already proven"},
+    )
+
+    assert any("query/report/export" in hint or "data-query functionality" in hint for hint in hints)
+    assert any("Do not brute-force SSH" in hint or "Do not brute-force" in hint for hint in hints)
 
 
 def test_build_runtime_instruction_omits_available_skills_but_keeps_operator_resources() -> None:
