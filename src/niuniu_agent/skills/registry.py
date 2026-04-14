@@ -261,6 +261,10 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         trigger_keywords=("ajpy", "ajp", "ghostcat", "cve-2020-1938", "tomcat ajp", "war upload"),
         usage_guidance="Load this skill when Tomcat AJP exposure or Ghostcat-style file-read/upload paths are in play.",
     ),
+    "tool-openssh-regresshion": SkillBehavior(
+        trigger_keywords=("openssh", "sshd", "regresshion", "cve-2024-6387", "login grace time", "signal handler race", "ssh banner"),
+        usage_guidance="Load this skill when OpenSSH banners or version clues suggest regreSSHion and you need the local scanner/exploit helper workflow.",
+    ),
     "tool-phpggc": SkillBehavior(
         trigger_keywords=("phpggc", "php unserialize", "phar", "gadget chain", "deserialization php"),
         usage_guidance="Load this skill when a PHP deserialization sink exists and you need a gadget-chain generator quickly.",

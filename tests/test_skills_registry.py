@@ -100,6 +100,18 @@ def test_skill_registry_selects_new_specialized_exploit_helpers() -> None:
     assert "tool-rogue-service-exploits" in names
 
 
+def test_skill_registry_selects_openssh_regresshion_skill() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select(
+        "openssh sshd regreSSHion cve-2024-6387 login grace time signal handler race",
+        track="track3",
+    )
+    names = {skill.name for skill in selected}
+
+    assert "tool-openssh-regresshion" in names
+
+
 def test_skill_registry_selects_positive_web_tunnel_and_js_helper_skills() -> None:
     registry = SkillRegistry()
 
