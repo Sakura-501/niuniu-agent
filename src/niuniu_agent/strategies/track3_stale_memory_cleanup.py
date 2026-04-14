@@ -91,27 +91,45 @@ def cleanup_track3_stale_memory(state_store: Any) -> dict[str, object]:
 
             memory_rows = connection.execute(
                 """
-                SELECT id, memory_type, content
+                SELECT id, memory_type, content, source
                 FROM challenge_memories
                 WHERE challenge_code = ?
                 """,
                 (code,),
             ).fetchall()
-            for memory_id, memory_type, content in memory_rows:
+            for memory_id, memory_type, content, source in memory_rows:
                 text = str(content or "")
                 if memory_type == "persistent_hint":
                     continue
                 if memory_type == "persistent_flag_record":
                     sanitized = sanitize_flag_record_for_prompt(text)
                     if sanitized and sanitized != text:
-                        connection.execute(
+                        duplicate = connection.execute(
                             """
-                            UPDATE challenge_memories
-                            SET content = ?
-                            WHERE id = ?
+                            SELECT 1
+                            FROM challenge_memories
+                            WHERE challenge_code = ? AND memory_type = ? AND source = ? AND content = ? AND id != ?
+                            LIMIT 1
                             """,
-                            (sanitized, memory_id),
-                        )
+                            (code, memory_type, source, sanitized, memory_id),
+                        ).fetchone()
+                        if duplicate is not None:
+                            connection.execute(
+                                """
+                                DELETE FROM challenge_memories
+                                WHERE id = ?
+                                """,
+                                (memory_id,),
+                            )
+                        else:
+                            connection.execute(
+                                """
+                                UPDATE challenge_memories
+                                SET content = ?
+                                WHERE id = ?
+                                """,
+                                (sanitized, memory_id),
+                            )
                         per["sanitized_flag_records"] += 1
                         summary["sanitized_flag_records"] += 1
                     continue
