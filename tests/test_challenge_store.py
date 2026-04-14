@@ -337,6 +337,57 @@ async def test_challenge_store_autonomous_prompt_filters_stale_memory_that_refer
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_sanitizes_flag_record_memory_for_prompt() -> None:
+    class DriftContestClient(DummyContestClient):
+        async def list_challenges(self):
+            return {
+                "current_level": 3,
+                "total_challenges": 1,
+                "solved_challenges": 0,
+                "challenges": [
+                    {
+                        "title": "todo",
+                        "code": "c-flag",
+                        "difficulty": "medium",
+                        "description": "open target",
+                        "level": 3,
+                        "flag_count": 4,
+                        "flag_got_count": 1,
+                        "instance_status": "running",
+                        "entrypoint": ["10.0.163.217:80"],
+                    }
+                ],
+            }
+
+    state = DummyStateStore()
+    state.memories = [
+        {
+            "memory_type": "persistent_flag_record",
+            "content": (
+                "flag=flag{demo}\n"
+                "progress=1/4\n"
+                "Track chain via http://10.0.163.216/uploads/lv.php and /backup/b.php "
+                "into 172.20.0.2:8080 before deeper movement."
+            ),
+            "source": "submit_flag",
+            "persistent": True,
+            "created_at": "now",
+        }
+    ]
+    store = ChallengeStore(DriftContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "flag=flag{demo}" in prompt
+    assert "progress=1/4" in prompt
+    assert "10.0.163.216" not in prompt
+    assert "/uploads/lv.php" not in prompt
+    assert "/backup/b.php" not in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
     store = ChallengeStore(DummyContestClient(), DummyStateStore())
 

@@ -195,8 +195,39 @@ def filter_recent_memories_for_instance(
         stale_hosts = {host for host in mentioned_external_ips if host not in current_hosts}
         if stale_hosts and str(memory.get("memory_type") or "") in stale_sensitive_types:
             continue
-        filtered.append(memory)
+        memory_type = str(memory.get("memory_type") or "")
+        if memory_type == "persistent_flag_record":
+            sanitized = sanitize_flag_record_for_prompt(content)
+            if sanitized:
+                filtered.append({**memory, "content": sanitized})
+            continue
+        if memory_type == "persistent_hint":
+            filtered.append(memory)
+            continue
+        if memory_type in stale_sensitive_types:
+            if re.search(r"/(?:uploads|backup)/[A-Za-z0-9._-]+\.(?:php|jsp|aspx|ashx)", content):
+                continue
+            filtered.append(memory)
     return filtered
+
+
+def sanitize_flag_record_for_prompt(content: str) -> str:
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    kept_lines = [
+        line for line in lines
+        if line.startswith("flag=") or line.startswith("progress=")
+    ]
+    narrative = " ".join(
+        line for line in lines
+        if not line.startswith("flag=") and not line.startswith("progress=")
+    )
+    narrative = re.sub(r"https?://\S+", "", narrative)
+    narrative = re.sub(r"\b(?:10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?\b", "[redacted-ip]", narrative)
+    narrative = re.sub(r"/(?:uploads|backup)/[A-Za-z0-9._-]+\.(?:php|jsp|aspx|ashx)", "[redacted-foothold-path]", narrative)
+    narrative = re.sub(r"\s+", " ", narrative).strip(" .;,\n\t")
+    if narrative:
+        kept_lines.append(narrative[:800])
+    return "\n".join(kept_lines[:3]).strip()
 
 
 class ChallengeStore:
