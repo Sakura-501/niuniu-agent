@@ -59,6 +59,18 @@ def test_skill_registry_selects_track3_lateral_helpers_from_text() -> None:
     assert "proxy-php-ssrf-lfi-helper" in names
 
 
+def test_skill_registry_selects_flask_cookie_tooling_from_text() -> None:
+    registry = SkillRegistry()
+
+    selected = registry.select(
+        "flask session cookie itsdangerous secret_key securecookie admin role",
+        track="track2",
+    )
+    names = {skill.name for skill in selected}
+
+    assert "tool-flask-session-cookie-manager" in names
+
+
 def test_skill_registry_selects_new_ad_internal_tool_guides() -> None:
     registry = SkillRegistry()
 

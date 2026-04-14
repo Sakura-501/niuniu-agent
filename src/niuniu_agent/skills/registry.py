@@ -54,6 +54,11 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Use this when PHP session files are readable and you need to recover admin or CSRF state quickly.",
         recommended_tracks=("track3", "track4"),
     ),
+    "tool-flask-session-cookie-manager": SkillBehavior(
+        trigger_keywords=("flask session", "flask cookie", "session cookie", "itsdangerous", "secret_key", "securecookie"),
+        usage_guidance="Load this skill when Flask signed session cookies are in play and you need concrete decode or re-sign steps.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
     "proxy-php-ssrf-lfi-helper": SkillBehavior(
         trigger_keywords=("proxy.php", "ssrf", "file://", "lfi", "internal http"),
         usage_guidance="Use this when a proxy.php-style fetch primitive needs fast SSRF/LFI target generation.",
