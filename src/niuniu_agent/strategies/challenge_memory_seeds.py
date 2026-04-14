@@ -18,8 +18,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Track 3 chain: the historical winning path used LFI in services.php via lang=....// traversal bypass, "
-            "then PEAR-based RCE and internal pivot helpers such as backup/check_port.php and backup/tunnel.php. "
+            "Track 3 chain: the historical winning path used a traversal-based PHP LFI primitive, "
+            "then a PEAR-based write primitive to obtain code execution and reach an internal HTTP pivot helper. "
             "However, this challenge instance can drift between runs, and older webshell or tunnel paths may 404 after remap. "
             "Treat older footholds as low-trust when the current external entrypoint changes. "
             "For fresh runs, first revalidate the current entrypoint, rebuild foothold if needed, map the reachable internal network, then prioritize page-loading logic, route maps, and parameter-filter bypasses over SSH."
@@ -43,8 +43,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Track 3/4 key chain: /proxy.php had an empty auth guard, yielding unauthenticated SSRF + file:// LFI. "
-            "Confirmed reads of /challenge/flag1.txt and /challenge/flag2.txt, admin takeover via captcha/session abuse, SQLi in /admin/articles.php?action=edit&id=..., and a planted webshell. "
+            "Track 3/4 key chain: an external proxy-style feature had an empty auth guard, yielding unauthenticated SSRF + file LFI. "
+            "Confirmed local flag reads, admin takeover via captcha/session abuse, a backend SQLi path, and a planted webshell. "
             "A prior successful run exposed an OA application and a Flask core service behind the foothold. "
             "Two flags have already been submitted on this chain; remaining work is to extract exact source/config/session material for the internal OA and Flask services and exploit query/report/export or auth-bypass paths. "
             "Do not default to reverse callback or SSH/password spraying unless a concrete config or service banner justifies it."

@@ -40,3 +40,5 @@ def test_track3_seed_memories_avoid_instance_specific_ips_and_webshell_paths(tmp
             assert "192.168." not in content
             assert "/backup/b.php" not in content
             assert "/var/www/html/c.php" not in content
+            assert "backup/check_port.php" not in content
+            assert "backup/tunnel.php" not in content
