@@ -181,7 +181,7 @@ def test_remote_control_debug_does_not_require_update_on_dirty_tree() -> None:
 def test_remote_control_prefers_uv_sync_and_uv_run() -> None:
     script = SCRIPT_PATH.read_text(encoding="utf-8")
 
-    assert "uv sync" in script
+    assert "uv sync --extra dev --extra tools" in script
     assert "uv run niuniu-agent run --mode competition" in script
     assert "uv run niuniu-agent run --mode debug" in script
 

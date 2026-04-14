@@ -135,7 +135,7 @@ install_project() {
     return 0
   fi
   if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
-    (cd "${REPO_ROOT}" && uv sync) >/dev/null
+    (cd "${REPO_ROOT}" && uv sync --extra dev --extra tools) >/dev/null
     return 0
   fi
   "${VENV_DIR}/bin/python" -m pip install --upgrade pip >/dev/null
