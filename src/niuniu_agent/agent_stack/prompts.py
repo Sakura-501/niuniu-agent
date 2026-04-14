@@ -217,6 +217,7 @@ def build_entry_prompt(
     track: str | None = None,
     operator_resources: dict | None = None,
     hint_context: dict[str, object] | None = None,
+    operator_strategy: str | None = None,
 ) -> str:
     mode_text = (
         "Mode: competition. Keep running forever and recover from errors. "
@@ -246,13 +247,14 @@ def build_entry_prompt(
                     else None
                 ),
                 "hint_context": hint_context,
+                "operator_strategy": operator_strategy,
             },
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         )
         + "\n</worker-static-context>"
-        if active is not None and hint_context is not None
+        if active is not None and (hint_context is not None or operator_strategy)
         else ""
     )
     static_skills_catalog = (

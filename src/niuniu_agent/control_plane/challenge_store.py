@@ -204,6 +204,8 @@ def filter_recent_memories_for_instance(
         if memory_type == "persistent_hint":
             filtered.append(memory)
             continue
+        if memory_type == "operator_strategy":
+            continue
         if memory_type in stale_sensitive_types:
             if re.search(r"/uploads/[A-Za-z0-9._-]+\.(?:php|jsp|aspx|ashx)", content):
                 continue
@@ -211,6 +213,16 @@ def filter_recent_memories_for_instance(
                 continue
             filtered.append(memory)
     return filtered
+
+
+def extract_operator_strategy(memories: list[dict[str, object]] | None) -> str | None:
+    for item in list(memories or []):
+        if str(item.get("memory_type") or "") != "operator_strategy":
+            continue
+        text = str(item.get("content") or "").strip()
+        if text:
+            return text[:3000]
+    return None
 
 
 def sanitize_flag_record_for_prompt(content: str) -> str:
@@ -378,9 +390,11 @@ class ChallengeStore:
     ) -> str:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
         notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
+        raw_recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
+        operator_strategy = extract_operator_strategy(raw_recent_memories)
         recent_memories = filter_recent_memories_for_instance(
             challenge,
-            self.state_store.list_challenge_memories(challenge.code, limit=10),
+            raw_recent_memories,
         )
         drift_warning = detect_external_entrypoint_drift(challenge, notes)
         if drift_warning:

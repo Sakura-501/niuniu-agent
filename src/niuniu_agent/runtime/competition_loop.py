@@ -549,6 +549,8 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     recent_history,
                     recent_memories,
                 )
+                from niuniu_agent.control_plane.challenge_store import extract_operator_strategy
+                operator_strategy = extract_operator_strategy(recent_memories)
 
                 worker_system_prompt = "\n\n".join(
                     [
@@ -564,6 +566,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                             if worker_context.settings.callback_resource
                             else None,
                             hint_context=hint_context,
+                            operator_strategy=operator_strategy,
                         ),
                         build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                         build_trigger_prompt(PRE_EXPLOIT_PROMPT),

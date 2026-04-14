@@ -1,6 +1,7 @@
 import pytest
 
 from niuniu_agent.control_plane.challenge_store import ChallengeStore
+from niuniu_agent.agent_stack.prompts import build_entry_prompt
 
 
 class DummyContestClient:
@@ -247,6 +248,37 @@ async def test_challenge_store_autonomous_prompt_recovers_hint_context_from_pers
 
     assert "hint_content" in prompt
     assert "后台上传功能的后缀名检测不够全面" in prompt
+
+
+@pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_promotes_operator_strategy_into_fixed_context() -> None:
+    state = DummyStateStore()
+    state.notes = {"hint_viewed": "true", "hint_content": "check admin workflow"}
+    state.memories = [
+        {
+            "memory_type": "operator_strategy",
+            "content": "先通过 /proxy.php 做 SSRF+LFI，再进后台打 SQLi。",
+            "source": "seed",
+            "persistent": True,
+            "created_at": "now",
+        }
+    ]
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "operator_strategy" not in prompt
+    entry_prompt = build_entry_prompt(
+        "competition",
+        None,
+        challenge,
+        [],
+        hint_context={"hint_viewed": True, "hint_content": "check admin workflow"},
+        operator_strategy="先通过 /proxy.php 做 SSRF+LFI，再进后台打 SQLi。",
+    )
+    assert "先通过 /proxy.php 做 SSRF+LFI，再进后台打 SQLi。" in entry_prompt
 
 
 @pytest.mark.anyio

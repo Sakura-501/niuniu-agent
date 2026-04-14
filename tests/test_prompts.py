@@ -116,11 +116,13 @@ def test_entry_prompt_can_embed_fixed_worker_hint_context() -> None:
             "hint_viewed": True,
             "hint_content": "后台上传功能的后缀名检测不够全面。",
         },
+        operator_strategy="先上传 webshell，再 fscan 扫内网。",
     )
 
     assert "Persistent challenge context for this worker" in prompt
     assert "c-fixed" in prompt
     assert "后台上传功能的后缀名检测不够全面" in prompt
+    assert "先上传 webshell，再 fscan 扫内网。" in prompt
 
 
 def test_entry_prompt_can_embed_available_skills_catalog_in_fixed_prefix() -> None:
