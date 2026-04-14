@@ -91,22 +91,7 @@ class LocalToolbox:
     def extract_flags(self, text: str) -> list[str]:
         seen: set[str] = set()
         results: list[str] = []
-        denylist = {
-            "flag_count",
-            "flag_got_count",
-            "submit_flag",
-            "last_flag",
-            "flag_submitted",
-            "persistent_flag_record",
-        }
         for match in re.findall(r"flag\{[^}\n]+\}", text, flags=re.IGNORECASE):
-            if match not in seen:
-                seen.add(match)
-                results.append(match)
-        for match in re.findall(r"(?<![A-Za-z0-9_])(flag[A-Za-z0-9{}:-]{8,255})(?![A-Za-z0-9_])", text, flags=re.IGNORECASE):
-            lowered = match.lower()
-            if lowered in denylist:
-                continue
             if match not in seen:
                 seen.add(match)
                 results.append(match)

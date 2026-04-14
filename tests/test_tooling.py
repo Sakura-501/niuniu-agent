@@ -27,16 +27,14 @@ def test_extract_flags_deduplicates_matches(tmp_path) -> None:
     assert flags == ["flag{one}", "flag{two}"]
 
 
-def test_extract_flags_includes_non_braced_flag_like_tokens(tmp_path) -> None:
+def test_extract_flags_ignores_non_braced_flag_like_tokens(tmp_path) -> None:
     toolbox = LocalToolbox(tmp_path)
 
     flags = toolbox.extract_flags(
         "candidate FLAG-9f8e7d6c5b4a and api returned token=flagABCDEF12345678 plus flag_count should be ignored"
     )
 
-    assert "FLAG-9f8e7d6c5b4a" in flags
-    assert "flagABCDEF12345678" in flags
-    assert "flag_count" not in flags
+    assert flags == []
 
 
 import pytest

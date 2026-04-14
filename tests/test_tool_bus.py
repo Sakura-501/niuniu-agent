@@ -320,9 +320,9 @@ async def test_tool_bus_auto_submits_flags_found_in_assistant_text(tmp_path) -> 
     )
     bus = ToolBus(context)
 
-    result = await bus.auto_submit_text_output("assistant found FLAG-9f8e7d6c5b4a and flag{demo2}")
+    result = await bus.auto_submit_text_output("assistant found flag{demo1} and flag{demo2}")
 
-    assert ("c1", "FLAG-9f8e7d6c5b4a") in gateway.submit_calls
+    assert ("c1", "flag{demo1}") in gateway.submit_calls
     assert ("c1", "flag{demo2}") in gateway.submit_calls
     assert len(result) == 2
 
