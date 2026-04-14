@@ -18,10 +18,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Track 3/4 key chain: LFI in /services.php via lang=....// traversal bypass. "
-            "Read /var/www/html/services.php, then include /usr/local/lib/php/pearcmd.php to write a PHP webshell under /tmp. "
-            "Confirmed RCE as www-data and retrieved /challenge/flag1.txt. "
-            "Next steps: first map the reachable internal network architecture from the foothold (IPs, segments, tunnel entrypoints, services), then enumerate internal pivot helpers backup/check_port.php and backup/tunnel.php, and prioritize page-loading logic, route maps, and parameter-filter bypasses over restarting the initial LFI stage or jumping straight to SSH."
+            "Track 3 chain: the historical winning path used LFI in services.php via lang=....// traversal bypass, "
+            "then PEAR-based RCE and internal pivot helpers such as backup/check_port.php and backup/tunnel.php. "
+            "However, this challenge instance can drift between runs, and older webshell paths like /backup/b.php may 404 after remap. "
+            "Treat older footholds as low-trust when the current external entrypoint changes. "
+            "For fresh runs, first revalidate the current entrypoint, rebuild foothold if needed, map the reachable internal network, then prioritize page-loading logic, route maps, and parameter-filter bypasses over SSH."
         ),
     ),
     SeedMemory(
@@ -30,11 +31,12 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Track 3 multi-hop chain: upload bypass -> PHP webshell/RCE as www-data. "
-            "Recovered PHP admin sessions from /tmp/sess_* with admin role and CSRF tokens. "
-            "Internal OA reachable behind DNAT and Redis/MariaDB are reachable from the foothold. "
-            "Network-architecture discovery is mandatory here: build the exact map of reachable IPs, subnets, DNAT paths, and services before deeper exploitation. "
-            "If reverse callback fails, keep using the existing webshell for direct local probing or upload a lightweight proxy helper. "
-            "After any future flag submission, continue with OA session reuse, Redis/MariaDB credential extraction, and deeper internal pivoting instead of stopping at the first flag."
+            "Current known-good run mapped external 10.0.163.217:80 to an internal 172.19.0.0/16 environment with: "
+            "172.19.0.1:22, 172.19.0.2:8080 (Flask/Gunicorn OA), 172.19.0.3:6379 Redis, 172.19.0.3:3306 MariaDB, and 172.19.0.4:80. "
+            "Redis password 12345678 and MariaDB root/root were validated; Redis data exposed stale inventory keys and an already-submitted flag, while MariaDB corporate tables only held stale config and submitted data. "
+            "Key blocker is now OA auth bypass or Flask secret-key recovery, or a DB/Redis-to-container pivot beyond current creds. "
+            "Network-architecture discovery remains mandatory on every new run because internal ranges drift. "
+            "After any future flag submission, continue deeper into OA/DB/container paths instead of stopping."
         ),
     ),
     SeedMemory(
@@ -43,11 +45,10 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Track 3/4 key chain: /proxy.php had an empty auth guard, yielding unauthenticated SSRF + file:// LFI. "
-            "Confirmed reads of /challenge/flag1.txt and /challenge/flag2.txt and recovered /var/www/html/proxy.php. "
-            "Additional source shows admin_articles.php SQLi on action=edit&id and admin_settings.php internal host inventory. "
-            "Early network mapping is mandatory: enumerate the real reachable IPs, subnets, and service ports from the foothold before choosing the next exploit step. "
-            "Next steps: use proxy.php for internal HTTP reachability, exploit admin_articles SQLi, and inspect internal query/report/export paths plus 172.20.0.3 / 172.20.0.5 application source/config/session material for more flags. "
-            "Do not default to reverse-callback setup or password spraying unless new evidence justifies it."
+            "Confirmed reads of /challenge/flag1.txt and /challenge/flag2.txt, admin takeover via captcha/session abuse, SQLi in /admin/articles.php?action=edit&id=..., and a planted webshell at /var/www/html/c.php. "
+            "Current proven network map is 172.20.0.0/16 with at least: 172.20.0.1:22, 172.20.0.2:80, 172.20.0.3:80 (OA), 172.20.0.4:22, 172.20.0.5:8080 (Flask core). "
+            "Two flags have already been submitted on this chain; remaining work is to extract exact source/config/session material for 172.20.0.3 and 172.20.0.5 and exploit query/report/export or auth-bypass paths. "
+            "Do not default to reverse callback or SSH/password spraying unless a concrete config or service banner justifies it."
         ),
     ),
     SeedMemory(
@@ -76,7 +77,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "The remaining path is likely in frontend loading logic or internal API routing behind the current tunnel/webshell foothold. "
-            "Prioritize JS bundle harvesting, route discovery, and parameter filter bypasses; do not waste turns rebuilding the initial LFI/PEAR foothold. "
+            "Prioritize JS bundle harvesting, route discovery, and parameter filter bypasses; however, if the current instance entrypoint changes, rebuild foothold first and distrust older webshell/tunnel paths until revalidated. "
             "If callback transport is unavoidable, prefer 129.211.15.16 first and then test 172.21.0.36 as the local eth0 fallback."
         ),
     ),

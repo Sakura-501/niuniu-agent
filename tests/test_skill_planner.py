@@ -53,6 +53,12 @@ def test_extract_runtime_notes_captures_foothold_and_summary() -> None:
     assert "last_summary" in notes
 
 
+def test_extract_runtime_notes_does_not_treat_flag_as_credential_hint() -> None:
+    notes = extract_runtime_notes("found flag{demo-value} and nothing credential-like", [])
+
+    assert "credential_hint" not in notes
+
+
 def test_should_view_hint_immediately_when_not_yet_viewed() -> None:
     assert should_view_hint(0, False, {}, seconds_since_progress=None, seconds_since_attempt=0) is True
     assert should_view_hint(0, False, {"provisional_findings": "have a lead"}, seconds_since_progress=None, seconds_since_attempt=999) is True

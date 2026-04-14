@@ -268,6 +268,22 @@ async def test_challenge_store_autonomous_prompt_for_worker_omits_global_contest
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_includes_instance_drift_warning_when_notes_reference_old_external_host() -> None:
+    state = DummyStateStore()
+    state.notes = {
+        "provisional_findings": "old foothold on 10.0.163.218 via /backup/b.php",
+    }
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "instance drift detected" in prompt
+    assert "10.0.163.218" in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
     store = ChallengeStore(DummyContestClient(), DummyStateStore())
 

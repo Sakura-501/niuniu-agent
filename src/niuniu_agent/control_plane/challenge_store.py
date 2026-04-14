@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import asdict
 from typing import Any
@@ -136,6 +137,34 @@ def persist_hint_payload(
         "hint_viewed": True,
         "hint_content": hint_content,
     }
+
+
+def detect_external_entrypoint_drift(
+    challenge: ChallengeSnapshot,
+    notes: dict[str, str] | None,
+) -> str | None:
+    current_hosts = {
+        entry.split(":", 1)[0].strip()
+        for entry in list(getattr(challenge, "entrypoints", []) or [])
+        if entry and ":" in entry
+    }
+    if not current_hosts:
+        return None
+    text = "\n".join(str(value or "") for value in (notes or {}).values())
+    mentioned_external_ips = {
+        match.group(0)
+        for match in re.finditer(r"\b10\.0\.163\.\d{1,3}\b", text)
+    }
+    stale_hosts = sorted(host for host in mentioned_external_ips if host not in current_hosts)
+    if not stale_hosts:
+        return None
+    current = ", ".join(sorted(current_hosts))
+    stale = ", ".join(stale_hosts)
+    return (
+        f"instance drift detected: current entrypoint host(s) {current}; "
+        f"older notes mention stale external host(s) {stale}. "
+        "Rebuild foothold and revalidate exploit paths before trusting older webshell or tunnel locations."
+    )
 
 
 class ChallengeStore:
@@ -285,6 +314,12 @@ class ChallengeStore:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
         notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
         recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
+        drift_warning = detect_external_entrypoint_drift(challenge, notes)
+        if drift_warning:
+            notes = {
+                **notes,
+                "instance_drift_warning": drift_warning[:600],
+            }
         hint_context = extract_hint_context(notes, recent_history, recent_memories)
         if hint_context is not None and not notes.get("hint_content"):
             notes = {

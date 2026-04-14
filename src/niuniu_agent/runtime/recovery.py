@@ -26,7 +26,6 @@ def extract_runtime_notes(output: str, tool_events: list[dict[str, Any]] | None 
     credential_patterns = [
         r"password\s*[:=]\s*([^\s]+)",
         r"token\s*[:=]\s*([^\s]+)",
-        r"flag\{[^}\n]+\}",
     ]
     for pattern in credential_patterns:
         match = re.search(pattern, text, flags=re.IGNORECASE)
