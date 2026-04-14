@@ -20,7 +20,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         content=(
             "Track 3 chain: the historical winning path used LFI in services.php via lang=....// traversal bypass, "
             "then PEAR-based RCE and internal pivot helpers such as backup/check_port.php and backup/tunnel.php. "
-            "However, this challenge instance can drift between runs, and older webshell paths like /backup/b.php may 404 after remap. "
+            "However, this challenge instance can drift between runs, and older webshell or tunnel paths may 404 after remap. "
             "Treat older footholds as low-trust when the current external entrypoint changes. "
             "For fresh runs, first revalidate the current entrypoint, rebuild foothold if needed, map the reachable internal network, then prioritize page-loading logic, route maps, and parameter-filter bypasses over SSH."
         ),
@@ -31,8 +31,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Track 3 multi-hop chain: upload bypass -> PHP webshell/RCE as www-data. "
-            "Current known-good run mapped external 10.0.163.217:80 to an internal 172.19.0.0/16 environment with: "
-            "172.19.0.1:22, 172.19.0.2:8080 (Flask/Gunicorn OA), 172.19.0.3:6379 Redis, 172.19.0.3:3306 MariaDB, and 172.19.0.4:80. "
+            "A recent successful run exposed an internal OA service, Redis, MariaDB, and a sibling web application behind the foothold. "
             "Redis password 12345678 and MariaDB root/root were validated; Redis data exposed stale inventory keys and an already-submitted flag, while MariaDB corporate tables only held stale config and submitted data. "
             "Key blocker is now OA auth bypass or Flask secret-key recovery, or a DB/Redis-to-container pivot beyond current creds. "
             "Network-architecture discovery remains mandatory on every new run because internal ranges drift. "
@@ -45,9 +44,9 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Track 3/4 key chain: /proxy.php had an empty auth guard, yielding unauthenticated SSRF + file:// LFI. "
-            "Confirmed reads of /challenge/flag1.txt and /challenge/flag2.txt, admin takeover via captcha/session abuse, SQLi in /admin/articles.php?action=edit&id=..., and a planted webshell at /var/www/html/c.php. "
-            "Current proven network map is 172.20.0.0/16 with at least: 172.20.0.1:22, 172.20.0.2:80, 172.20.0.3:80 (OA), 172.20.0.4:22, 172.20.0.5:8080 (Flask core). "
-            "Two flags have already been submitted on this chain; remaining work is to extract exact source/config/session material for 172.20.0.3 and 172.20.0.5 and exploit query/report/export or auth-bypass paths. "
+            "Confirmed reads of /challenge/flag1.txt and /challenge/flag2.txt, admin takeover via captcha/session abuse, SQLi in /admin/articles.php?action=edit&id=..., and a planted webshell. "
+            "A prior successful run exposed an OA application and a Flask core service behind the foothold. "
+            "Two flags have already been submitted on this chain; remaining work is to extract exact source/config/session material for the internal OA and Flask services and exploit query/report/export or auth-bypass paths. "
             "Do not default to reverse callback or SSH/password spraying unless a concrete config or service banner justifies it."
         ),
     ),
@@ -57,7 +56,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Prefer app-layer pivoting over reverse callbacks here. "
-            "If a listener is needed, verify it first; otherwise stay inside the webshell and upload only a lightweight tunnel/proxy helper when it directly enables access to 192.168.10.20 or 192.168.20.30. "
+            "If a listener is needed, verify it first; otherwise stay inside the webshell and upload only a lightweight tunnel/proxy helper when it directly enables access to the current run's config-derived internal hosts. "
             "For callback testing, prefer 129.211.15.16 first and then test 172.21.0.36 if the local eth0 path is more appropriate."
         ),
     ),
@@ -67,7 +66,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Once SQLi + webshell are proven, the fastest remaining path is internal app abuse, not SSH guessing. "
-            "Treat 172.20.0.3 and 172.20.0.5 as the next objectives and prefer source/config/session extraction plus query-function abuse before any credential brute force. "
+            "Treat the internal OA and Flask services as the next objectives and prefer source/config/session extraction plus query-function abuse before any credential brute force. "
             "If callback transport is still needed later, prefer 129.211.15.16 first and then try 172.21.0.36 as the local eth0 fallback."
         ),
     ),

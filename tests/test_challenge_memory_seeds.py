@@ -23,3 +23,20 @@ def test_apply_seed_memories_persists_key_challenge_strategies(tmp_path) -> None
     assert any(item["memory_type"] == "operator_strategy" and item["persistent"] is True for item in track3_link)
     assert any(item["memory_type"] == "operator_strategy" and item["persistent"] is True for item in track3_layer)
     assert any(item["memory_type"] == "operator_strategy" and item["persistent"] is True for item in track3_firewall)
+
+
+def test_track3_seed_memories_avoid_instance_specific_ips_and_webshell_paths(tmp_path) -> None:
+    store = StateStore(tmp_path / "state.db")
+
+    apply_seed_memories(store)
+
+    for code in ("6RmRST2HkeTbwgbyMJaN", "K7kbx40FbhQNODZkS", "2ihdUTWqg7iVcvvD7GAZzOadCxS"):
+        memories = store.list_challenge_memories(code, limit=20)
+        for item in memories:
+            content = item["content"]
+            assert "10.0.163." not in content
+            assert "172.19.0." not in content
+            assert "172.20.0." not in content
+            assert "192.168." not in content
+            assert "/backup/b.php" not in content
+            assert "/var/www/html/c.php" not in content
