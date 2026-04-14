@@ -22,7 +22,7 @@ Use this skill to preserve access just enough for the mission without creating u
 3. Record every persistence mechanism and how to clean it up.
 4. Recheck whether the objective is still active before maintaining more access.
 
-Default callback host for this environment: `129.211.15.16`.
+Default callback host for this environment: public `129.211.15.16` first, with local `eth0` fallback `172.21.0.36` when needed.
 
 ## Common Mistakes
 

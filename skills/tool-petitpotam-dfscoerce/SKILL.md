@@ -19,7 +19,7 @@ Use this skill when you already have a relay or certificate-abuse hypothesis and
 
 - `petitpotam`: `/root/niuniu-agent/tools/bin/petitpotam`
 - `dfscoerce`: `/root/niuniu-agent/tools/bin/dfscoerce`
-- Default public callback host for this environment: `129.211.15.16`
+- Default callback preference for this environment: public `129.211.15.16` first, then local `eth0` fallback `172.21.0.36`
 
 ## Recommended Workflow
 
@@ -41,7 +41,7 @@ petitpotam -h
 dfscoerce -h
 ```
 
-Use the callback/relay listener IP explicitly, usually `129.211.15.16`, unless a challenge-specific note says otherwise.
+Use the callback/relay listener IP explicitly, usually public `129.211.15.16` first; also test local `eth0` fallback `172.21.0.36` when appropriate, unless a challenge-specific note says otherwise.
 
 ## Resource Guardrails
 

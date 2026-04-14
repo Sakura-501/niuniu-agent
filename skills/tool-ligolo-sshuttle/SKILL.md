@@ -23,7 +23,7 @@ Use this skill when you already have a foothold and need a practical pivot, espe
 - `sshuttle`:
   - useful when you already have SSH creds and need a quick route-based pivot
 
-For this environment, the default public callback host is `129.211.15.16`.
+For this environment, prefer public callback host `129.211.15.16` first; if the local eth0 path is more appropriate, also test `172.21.0.36`.
 
 ## Common Mistakes
 

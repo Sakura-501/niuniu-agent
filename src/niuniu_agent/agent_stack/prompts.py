@@ -43,7 +43,7 @@ ENTRY_PROMPT = TriggerPrompt(
         " In multi-flag internal challenges, after one flag is submitted successfully, continue deeper into the same service chain or adjacent internal services until timeout or official completion; do not stop at the first flag."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
         " Local exploit references and PoC notes may exist under /root/niuniu-agent/exp on the debug machine; check that directory before reinventing public exploit research."
-        " When a target must call back, use the public callback host 129.211.15.16 unless a more specific runtime reminder overrides it."
+        " When a target must call back, prefer the public callback host 129.211.15.16 first; if callback behavior appears to require the local eth0 path, also test 172.21.0.36 unless a more specific runtime reminder overrides it."
     ),
 )
 
@@ -153,6 +153,9 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
         hints.append(
             "If reverse callback paths fail, keep operating through the existing webshell and upload only lightweight pivot helpers. Test listeners before every new tunnel attempt."
         )
+        hints.append(
+            "If a callback is still required after forward options are exhausted, prefer 129.211.15.16 first and also test the local eth0 path 172.21.0.36."
+        )
     if active.code == "K7kbx40FbhQNODZkS":
         hints.append(
             "This is a penetration-style internal chain challenge, so early effort must go into mapping the real network architecture: exact reachable IPs, subnets, and per-host service exposure."
@@ -162,6 +165,9 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
         )
         hints.append(
             "Outbound callback attempts already look blocked here. Keep exploiting the existing SQLi + webshell + SSRF/LFI chain instead of pivoting to reverse-shell-first tactics."
+        )
+        hints.append(
+            "If a callback becomes necessary later, prefer 129.211.15.16 first and then test 172.21.0.36 as the local eth0 fallback."
         )
         hints.append(
             "Do not brute-force SSH or app credentials unless a recovered config, session, or service banner strongly supports them. Push deeper through the current web foothold first."
@@ -178,6 +184,9 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
         )
         hints.append(
             "If SSH or reverse-connect ideas are not immediately justified, stay in the internal web/API lane and keep probing with the already-proven tunnel/webshell path."
+        )
+        hints.append(
+            "If a callback becomes necessary later, prefer 129.211.15.16 first and also try 172.21.0.36 as the local eth0 fallback."
         )
 
     deduped: list[str] = []

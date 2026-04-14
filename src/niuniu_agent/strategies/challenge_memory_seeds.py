@@ -56,7 +56,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Prefer app-layer pivoting over reverse callbacks here. "
-            "If a listener is needed, verify it first; otherwise stay inside the webshell and upload only a lightweight tunnel/proxy helper when it directly enables access to 192.168.10.20 or 192.168.20.30."
+            "If a listener is needed, verify it first; otherwise stay inside the webshell and upload only a lightweight tunnel/proxy helper when it directly enables access to 192.168.10.20 or 192.168.20.30. "
+            "For callback testing, prefer 129.211.15.16 first and then test 172.21.0.36 if the local eth0 path is more appropriate."
         ),
     ),
     SeedMemory(
@@ -65,7 +66,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "Once SQLi + webshell are proven, the fastest remaining path is internal app abuse, not SSH guessing. "
-            "Treat 172.20.0.3 and 172.20.0.5 as the next objectives and prefer source/config/session extraction plus query-function abuse before any credential brute force."
+            "Treat 172.20.0.3 and 172.20.0.5 as the next objectives and prefer source/config/session extraction plus query-function abuse before any credential brute force. "
+            "If callback transport is still needed later, prefer 129.211.15.16 first and then try 172.21.0.36 as the local eth0 fallback."
         ),
     ),
     SeedMemory(
@@ -74,7 +76,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "The remaining path is likely in frontend loading logic or internal API routing behind the current tunnel/webshell foothold. "
-            "Prioritize JS bundle harvesting, route discovery, and parameter filter bypasses; do not waste turns rebuilding the initial LFI/PEAR foothold."
+            "Prioritize JS bundle harvesting, route discovery, and parameter filter bypasses; do not waste turns rebuilding the initial LFI/PEAR foothold. "
+            "If callback transport is unavoidable, prefer 129.211.15.16 first and then test 172.21.0.36 as the local eth0 fallback."
         ),
     ),
     SeedMemory(

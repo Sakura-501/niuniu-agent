@@ -88,6 +88,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "built-in internet search capability" in prompt
     assert "/root/niuniu-agent/exp" in prompt
     assert "129.211.15.16" in prompt
+    assert "172.21.0.36" in prompt
     assert "Active challenge:" not in prompt
     assert "Recovered notes:" not in prompt
 
@@ -208,6 +209,7 @@ def test_derive_operator_hints_for_track3_chain_overrides() -> None:
     assert any("query/report/export" in hint or "data-query functionality" in hint for hint in hints)
     assert any("Do not brute-force SSH" in hint or "Do not brute-force" in hint for hint in hints)
     assert any("reachable IPs" in hint or "network architecture" in hint for hint in hints)
+    assert any("172.21.0.36" in hint for hint in hints)
 
 
 def test_build_runtime_instruction_omits_available_skills_but_keeps_operator_resources() -> None:

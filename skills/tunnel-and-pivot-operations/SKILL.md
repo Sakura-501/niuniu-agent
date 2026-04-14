@@ -30,7 +30,7 @@ Use this skill to turn an unstable shell or segmented foothold into a deliberate
 4. Tie every tunnel to a concrete next-hop or service objective.
 5. Record listener port, exposed internal service, and cleanup steps.
 
-Default callback host for this environment: `129.211.15.16`.
+Default callback host for this environment: public `129.211.15.16` first, with local `eth0` fallback `172.21.0.36` when that path is more appropriate.
 
 ## Resource Guardrails
 
