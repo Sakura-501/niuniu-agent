@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import asyncio
+import json
 import time
+from types import SimpleNamespace
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -166,7 +168,10 @@ class ModelProviderRouter:
             delay = self.settings.model_rate_limit_retry_base_delay_seconds
             for attempt in range(1, self.settings.model_rate_limit_retry_attempts + 1):
                 try:
-                    result = await client.chat.completions.create(**request_kwargs)
+                    if self._uses_responses_api(provider):
+                        result = await self._create_via_responses(client, request_kwargs)
+                    else:
+                        result = await client.chat.completions.create(**request_kwargs)
                     if stream_requested:
                         return TrackedCompletionStream(
                             stream=result,
@@ -189,6 +194,139 @@ class ModelProviderRouter:
                 if not self.settings.model_failover_enabled:
                     raise provider_error
         raise RuntimeError("all model providers failed: " + " | ".join(errors))
+
+    @staticmethod
+    def _uses_responses_api(provider: ModelProviderConfig) -> bool:
+        lowered = provider.base_url.lower()
+        return "/codex/" in lowered or provider.provider_id == "rightcodes"
+
+    async def _create_via_responses(self, client: AsyncOpenAI, kwargs: dict[str, Any]) -> Any:
+        if not hasattr(client, "responses"):
+            return await client.chat.completions.create(**kwargs)
+        response_kwargs = self._responses_kwargs_from_chat(kwargs)
+        if kwargs.get("stream"):
+            stream = await client.responses.create(stream=True, **response_kwargs)
+            return ResponsesToChatCompletionStream(stream)
+        response = await client.responses.create(**response_kwargs)
+        return self._responses_response_to_chat_completion(response)
+
+    def _responses_kwargs_from_chat(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        messages = list(kwargs.get("messages") or [])
+        tools = kwargs.get("tools") or []
+        system_prompt = ""
+        if messages and messages[0].get("role") == "system":
+            system_prompt = str(messages[0].get("content") or "")
+            messages = messages[1:]
+        return {
+            "model": kwargs["model"],
+            "instructions": system_prompt or None,
+            "input": self._chat_messages_to_responses_input(messages),
+            "tools": self._chat_tools_to_responses_tools(tools),
+            "tool_choice": kwargs.get("tool_choice", "auto"),
+            "temperature": kwargs.get("temperature"),
+            "prompt_cache_key": kwargs.get("prompt_cache_key"),
+            "prompt_cache_retention": kwargs.get("prompt_cache_retention"),
+        }
+
+    @staticmethod
+    def _chat_tools_to_responses_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        converted: list[dict[str, Any]] = []
+        for tool in tools:
+            if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+                function = tool["function"]
+                converted.append(
+                    {
+                        "type": "function",
+                        "name": function.get("name", ""),
+                        "description": function.get("description"),
+                        "parameters": function.get("parameters", {}),
+                        "strict": False,
+                    }
+                )
+            else:
+                converted.append(tool)
+        return converted
+
+    @staticmethod
+    def _chat_messages_to_responses_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for index, message in enumerate(messages):
+            role = str(message.get("role") or "")
+            content = str(message.get("content") or "")
+            if role == "user":
+                items.append(
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": content}],
+                    }
+                )
+                continue
+            if role == "assistant":
+                if content:
+                    items.append(
+                        {
+                            "type": "message",
+                            "id": f"assistant-{index}",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [{"type": "output_text", "text": content, "annotations": [], "logprobs": []}],
+                        }
+                    )
+                for tool_call in list(message.get("tool_calls") or []):
+                    function = tool_call.get("function", {})
+                    call_id = str(tool_call.get("id") or "")
+                    items.append(
+                        {
+                            "type": "function_call",
+                            "id": call_id,
+                            "call_id": call_id,
+                            "name": function.get("name", ""),
+                            "arguments": function.get("arguments", ""),
+                            "status": "completed",
+                        }
+                    )
+                continue
+            if role == "tool":
+                items.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": str(message.get("tool_call_id") or ""),
+                        "output": content,
+                        "status": "completed",
+                    }
+                )
+        return items
+
+    @staticmethod
+    def _responses_response_to_chat_completion(response: Any) -> Any:
+        text_parts: list[str] = []
+        tool_calls: list[Any] = []
+        for item in list(getattr(response, "output", []) or []):
+            item_type = getattr(item, "type", None)
+            if item_type == "message":
+                for content in list(getattr(item, "content", []) or []):
+                    if getattr(content, "type", None) == "output_text":
+                        text_parts.append(str(getattr(content, "text", "")))
+            elif item_type == "function_call":
+                tool_calls.append(
+                    SimpleNamespace(
+                        id=getattr(item, "call_id", None) or getattr(item, "id", ""),
+                        function=SimpleNamespace(
+                            name=getattr(item, "name", ""),
+                            arguments=getattr(item, "arguments", ""),
+                        ),
+                    )
+                )
+        message = SimpleNamespace(
+            content="".join(text_parts),
+            tool_calls=tool_calls or None,
+        )
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message)],
+            usage=getattr(response, "usage", None),
+            response_id=getattr(response, "id", None),
+        )
 
     @staticmethod
     def _is_retryable_error(exc: Exception) -> bool:
@@ -235,6 +373,72 @@ class _RoutedChatCompletions:
 
     async def create(self, **kwargs: Any) -> Any:
         return await self.router.create_completion(**kwargs)
+
+
+class ResponsesToChatCompletionStream:
+    def __init__(self, stream: Any) -> None:
+        self.stream = stream
+        self._saw_tool_arg_delta: set[int] = set()
+
+    def __aiter__(self) -> "ResponsesToChatCompletionStream":
+        return self
+
+    async def __anext__(self) -> Any:
+        async for event in self.stream:
+            event_type = getattr(event, "type", "")
+            if event_type == "response.output_text.delta":
+                return SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            delta=SimpleNamespace(content=getattr(event, "delta", ""), tool_calls=None)
+                        )
+                    ]
+                )
+            if event_type == "response.function_call_arguments.delta":
+                output_index = int(getattr(event, "output_index", 0) or 0)
+                self._saw_tool_arg_delta.add(output_index)
+                return SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            delta=SimpleNamespace(
+                                content=None,
+                                tool_calls=[
+                                    SimpleNamespace(
+                                        index=output_index,
+                                        id=None,
+                                        function=SimpleNamespace(name=None, arguments=getattr(event, "delta", "")),
+                                    )
+                                ],
+                            )
+                        )
+                    ]
+                )
+            if event_type == "response.output_item.done" and getattr(getattr(event, "item", None), "type", None) == "function_call":
+                item = event.item
+                output_index = int(getattr(event, "output_index", 0) or 0)
+                arguments = ""
+                if output_index not in self._saw_tool_arg_delta:
+                    arguments = getattr(item, "arguments", "")
+                return SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            delta=SimpleNamespace(
+                                content=None,
+                                tool_calls=[
+                                    SimpleNamespace(
+                                        index=output_index,
+                                        id=getattr(item, "call_id", None) or getattr(item, "id", ""),
+                                        function=SimpleNamespace(
+                                            name=getattr(item, "name", ""),
+                                            arguments=arguments,
+                                        ),
+                                    )
+                                ],
+                            )
+                        )
+                    ]
+                )
+        raise StopAsyncIteration
 
 
 class TrackedCompletionStream:

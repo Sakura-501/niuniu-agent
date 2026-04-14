@@ -118,6 +118,163 @@ async def test_model_provider_router_falls_back_after_repeated_rate_limit(tmp_pa
 
 
 @pytest.mark.anyio
+async def test_model_provider_router_uses_responses_api_for_rightcodes_non_streaming(tmp_path, monkeypatch) -> None:
+    settings = build_settings()
+    state_store = StateStore(tmp_path / "state.db")
+    state_store.set_runtime_option("selected_model_provider_id", "rightcodes")
+    router = ModelProviderRouter(settings, state_store)
+
+    class FakeChatCompletions:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def create(self, **kwargs):
+            self.calls += 1
+            return {"unexpected": True}
+
+    class FakeResponses:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def create(self, **kwargs):
+            self.calls.append(kwargs)
+            return type(
+                "Response",
+                (),
+                {
+                    "id": "resp_1",
+                    "usage": {"prompt_tokens": 10},
+                    "output": [
+                        type(
+                            "Msg",
+                            (),
+                            {
+                                "type": "message",
+                                "content": [type("Text", (), {"type": "output_text", "text": "hello"})()],
+                            },
+                        )(),
+                        type(
+                            "Call",
+                            (),
+                            {
+                                "type": "function_call",
+                                "call_id": "call_1",
+                                "id": "fc_1",
+                                "name": "list_challenges",
+                                "arguments": "{}",
+                            },
+                        )(),
+                    ],
+                },
+            )()
+
+    fake_chat = FakeChatCompletions()
+    fake_responses = FakeResponses()
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.chat = type("Chat", (), {"completions": fake_chat})()
+            self.responses = fake_responses
+
+    monkeypatch.setattr("niuniu_agent.model_routing.AsyncOpenAI", FakeClient)
+
+    result = await router.create_completion(
+        model="ignored",
+        messages=[
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_challenges",
+                    "description": "List challenges",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ],
+        tool_choice="auto",
+        prompt_cache_key="worker:c1",
+        prompt_cache_retention="24h",
+    )
+
+    assert fake_chat.calls == 0
+    assert len(fake_responses.calls) == 1
+    req = fake_responses.calls[0]
+    assert req["instructions"] == "system prompt"
+    assert req["input"][0]["role"] == "user"
+    assert req["tools"][0]["type"] == "function"
+    assert req["tools"][0]["name"] == "list_challenges"
+    assert result.choices[0].message.content == "hello"
+    assert result.choices[0].message.tool_calls[0].id == "call_1"
+
+
+@pytest.mark.anyio
+async def test_model_provider_router_uses_responses_api_for_rightcodes_streaming(tmp_path, monkeypatch) -> None:
+    settings = build_settings()
+    state_store = StateStore(tmp_path / "state.db")
+    state_store.set_runtime_option("selected_model_provider_id", "rightcodes")
+    router = ModelProviderRouter(settings, state_store)
+
+    class FakeResponses:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def create(self, **kwargs):
+            self.calls.append(kwargs)
+
+            async def _stream():
+                yield type("Evt", (), {"type": "response.output_text.delta", "delta": "he"})()
+                yield type("Evt", (), {"type": "response.output_text.delta", "delta": "llo"})()
+                yield type("Evt", (), {"type": "response.function_call_arguments.delta", "output_index": 0, "delta": "{"})()
+                yield type("Evt", (), {"type": "response.function_call_arguments.delta", "output_index": 0, "delta": "}"})()
+                yield type(
+                    "Evt",
+                    (),
+                    {
+                        "type": "response.output_item.done",
+                        "output_index": 0,
+                        "item": type(
+                            "Call",
+                            (),
+                            {"type": "function_call", "call_id": "call_2", "id": "fc_2", "name": "tool_a", "arguments": "{}"},
+                        )(),
+                    },
+                )()
+
+            return _stream()
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.chat = type("Chat", (), {"completions": type("C", (), {"create": None})()})()
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr("niuniu_agent.model_routing.AsyncOpenAI", FakeClient)
+
+    stream = await router.create_completion(
+        model="ignored",
+        messages=[
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        tools=[],
+        tool_choice="auto",
+        stream=True,
+    )
+
+    chunks = []
+    async for chunk in stream:
+        chunks.append(chunk)
+
+    assert chunks[0].choices[0].delta.content == "he"
+    assert chunks[1].choices[0].delta.content == "llo"
+    assert chunks[2].choices[0].delta.tool_calls[0].function.arguments == "{"
+    assert chunks[4].choices[0].delta.tool_calls[0].id == "call_2"
+    assert chunks[4].choices[0].delta.tool_calls[0].function.name == "tool_a"
+
+
+@pytest.mark.anyio
 async def test_model_provider_router_retries_on_connection_errors_then_falls_back(tmp_path, monkeypatch) -> None:
     settings = build_settings()
     state_store = StateStore(tmp_path / "state.db")
