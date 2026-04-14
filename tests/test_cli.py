@@ -58,6 +58,43 @@ def test_cli_can_clear_runtime_memory(tmp_path) -> None:
     assert memories[0]["persistent"] is True
 
 
+def test_cli_can_clean_track3_stale_memory(tmp_path) -> None:
+    runner = CliRunner()
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir(parents=True)
+    store = StateStore(runtime_dir / "state.db")
+
+    code = "6RmRST2HkeTbwgbyMJaN"
+    store.set_challenge_note(code, "hint_content", "keep me")
+    store.set_challenge_note(code, "provisional_findings", "old foothold 10.0.163.216 via /uploads/lv.php")
+    store.add_challenge_memory(code, "persistent_hint", "keep hint", source="worker", persistent=True)
+    store.add_challenge_memory(code, "persistent_provisional_findings", "old foothold 10.0.163.216 via /uploads/lv.php", source="worker", persistent=True)
+    store.add_challenge_memory(
+        code,
+        "persistent_flag_record",
+        "flag=flag{demo}\nprogress=1/4\nold foothold http://10.0.163.216/uploads/lv.php and 172.19.0.2:8080",
+        source="worker",
+        persistent=True,
+    )
+
+    result = runner.invoke(
+        app,
+        ["clean-track3-stale-memory", "--runtime-dir", str(runtime_dir), "--yes"],
+    )
+
+    assert result.exit_code == 0
+    assert store.get_challenge_notes(code)["hint_content"] == "keep me"
+    assert "provisional_findings" not in store.get_challenge_notes(code)
+    memories = store.list_challenge_memories(code, limit=20)
+    memory_types = {item["memory_type"] for item in memories}
+    assert "persistent_hint" in memory_types
+    assert "persistent_provisional_findings" not in memory_types
+    sanitized_flag_record = next(item for item in memories if item["memory_type"] == "persistent_flag_record")
+    assert "flag=flag{demo}" in sanitized_flag_record["content"]
+    assert "10.0.163.216" not in sanitized_flag_record["content"]
+    assert "/uploads/lv.php" not in sanitized_flag_record["content"]
+
+
 class DummyGateway:
     def __init__(self) -> None:
         self.connect_calls = 0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Any, Callable
 
@@ -13,6 +14,7 @@ from niuniu_agent.runtime.competition_loop import run_competition_loop
 from niuniu_agent.runtime.context import RuntimeContext
 from niuniu_agent.runtime.debug_repl import run_debug_repl
 from niuniu_agent.strategies.challenge_memory_seeds import apply_seed_memories
+from niuniu_agent.strategies.track3_stale_memory_cleanup import cleanup_track3_stale_memory
 from niuniu_agent.skills import SkillRegistry
 from niuniu_agent.state_store import StateStore
 from niuniu_agent.telemetry import EventLogger
@@ -56,6 +58,20 @@ def clear_memory(
         if session_db.exists():
             session_db.unlink()
             typer.echo(f"removed session database: {session_db}")
+
+
+@app.command("clean-track3-stale-memory")
+def clean_track3_stale_memory(
+    runtime_dir: Path = typer.Option(Path("runtime"), "--runtime-dir"),
+    yes: bool = typer.Option(False, "--yes", help="Confirm deletion of stale track3 memory."),
+) -> None:
+    if not yes:
+        raise typer.BadParameter("pass --yes to clean stale track3 memory")
+
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    state_store = StateStore(runtime_dir / "state.db")
+    summary = cleanup_track3_stale_memory(state_store)
+    typer.echo(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
 
 
 async def _run(settings: AgentSettings) -> None:
