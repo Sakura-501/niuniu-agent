@@ -40,6 +40,10 @@ BOOTSTRAP_CLEAN_PATHS=(
   "scripts/remote_control.sh"
 )
 
+MANAGED_CLEAN_PATHS=(
+  "uv.lock"
+)
+
 IGNORED_DIRTY_PATHS=(
   "tools/"
 )
@@ -91,7 +95,42 @@ cleanup_bootstrap_artifacts_if_safe() {
   rm -rf "${REPO_ROOT}/scripts"
 }
 
+cleanup_managed_files_if_safe() {
+  if ! git -C "${REPO_ROOT}" ls-files --error-unmatch uv.lock >/dev/null 2>&1; then
+    return 0
+  fi
+  local status
+  status="$(git -C "${REPO_ROOT}" status --porcelain)"
+  [[ -z "${status}" ]] && return 0
+
+  local line
+  while IFS= read -r line; do
+    [[ -z "${line}" ]] && continue
+    if is_ignored_dirty_line "${line}"; then
+      continue
+    fi
+    if is_bootstrap_dirty_line "${line}"; then
+      continue
+    fi
+    local path="${line:3}"
+    local allowed=0
+    for managed in "${MANAGED_CLEAN_PATHS[@]}"; do
+        if [[ "${path}" == "${managed}" ]]; then
+        allowed=1
+        break
+      fi
+    done
+    if [[ "${allowed}" -ne 1 ]]; then
+      return 0
+    fi
+  done <<< "${status}"
+
+  git -C "${REPO_ROOT}" restore -- uv.lock
+}
+
 ensure_clean_git_tree() {
+  cleanup_bootstrap_artifacts_if_safe
+  cleanup_managed_files_if_safe
   cleanup_bootstrap_artifacts_if_safe
   local status
   status="$(git -C "${REPO_ROOT}" status --porcelain)"
@@ -135,7 +174,7 @@ install_project() {
     return 0
   fi
   if [[ "${USE_UV}" == "1" ]] && command -v uv >/dev/null 2>&1; then
-    (cd "${REPO_ROOT}" && uv sync --extra dev --extra tools) >/dev/null
+    (cd "${REPO_ROOT}" && uv sync --locked --extra dev --extra tools) >/dev/null
     return 0
   fi
   "${VENV_DIR}/bin/python" -m pip install --upgrade pip >/dev/null
