@@ -1,5 +1,8 @@
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
+    HINT_DECISION_PROMPT,
+    RECOVERY_PROMPT,
+    build_transient_guidance,
     build_runtime_instruction,
     build_worker_runtime_instruction,
     derive_operator_hints,
@@ -50,6 +53,15 @@ def test_entry_prompt_biases_summary_when_requested() -> None:
 
 def test_trigger_prompt_returns_body() -> None:
     assert "taken over" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+
+
+def test_build_transient_guidance_serializes_only_enabled_dynamic_directives() -> None:
+    prompt = build_transient_guidance([RECOVERY_PROMPT, HINT_DECISION_PROMPT])
+
+    assert "<system-reminder>" in prompt
+    assert "transient_directives" in prompt
+    assert "A prior attempt failed or stalled" in prompt
+    assert "view it immediately" in prompt
 
 
 def test_entry_prompt_contains_instance_and_hint_rules() -> None:

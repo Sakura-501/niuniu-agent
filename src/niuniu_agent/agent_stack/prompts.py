@@ -220,6 +220,19 @@ def build_trigger_prompt(trigger: TriggerPrompt) -> str:
     return trigger.body
 
 
+def build_transient_guidance(triggers: list[TriggerPrompt]) -> str:
+    payload = {
+        "transient_directives": [trigger.body for trigger in triggers if trigger.body],
+    }
+    if not payload["transient_directives"]:
+        return ""
+    return (
+        "<system-reminder>\n"
+        + json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n</system-reminder>"
+    )
+
+
 def build_runtime_instruction(
     *,
     mode: str,

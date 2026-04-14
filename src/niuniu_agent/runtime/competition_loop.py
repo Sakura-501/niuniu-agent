@@ -13,6 +13,7 @@ from niuniu_agent.agent_stack.prompts import (
     PRE_EXPLOIT_PROMPT,
     RECOVERY_PROMPT,
     build_entry_prompt,
+    build_transient_guidance,
     build_trigger_prompt,
 )
 from niuniu_agent.agent_stack.tool_bus import ToolBus
@@ -570,8 +571,6 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                             ),
                             build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT),
                             build_trigger_prompt(PRE_EXPLOIT_PROMPT),
-                            build_trigger_prompt(RECOVERY_PROMPT) if int(runtime_state.get("failure_count", 0)) > 0 else "",
-                            build_trigger_prompt(HINT_DECISION_PROMPT) if notes.get("hint_viewed") == "true" else "",
                             build_trigger_prompt(FLAG_SUBMIT_PROMPT),
                         ]
                     ),
@@ -601,6 +600,14 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     if worker_context.settings.callback_resource
                     else None,
                 )
+                transient_guidance = build_transient_guidance(
+                    [trigger for trigger, enabled in (
+                        (RECOVERY_PROMPT, int(runtime_state.get("failure_count", 0)) > 0),
+                        (HINT_DECISION_PROMPT, notes.get("hint_viewed") == "true"),
+                    ) if enabled]
+                )
+                if transient_guidance:
+                    prompt = "\n\n".join((prompt, transient_guidance))
                 result = await agent.execute(prompt, histories.get(target.code))
                 histories[target.code] = result.history
                 worker_context.state_store.add_history_event(target.code, "turn_completed", result.output or "")
