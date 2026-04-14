@@ -21,7 +21,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "Track 3/4 key chain: LFI in /services.php via lang=....// traversal bypass. "
             "Read /var/www/html/services.php, then include /usr/local/lib/php/pearcmd.php to write a PHP webshell under /tmp. "
             "Confirmed RCE as www-data and retrieved /challenge/flag1.txt. "
-            "Next steps: enumerate internal pivot helpers backup/check_port.php and backup/tunnel.php, keep exploiting the internal web/API path, and prioritize page-loading logic, route maps, and parameter-filter bypasses over restarting the initial LFI stage or jumping straight to SSH."
+            "Next steps: first map the reachable internal network architecture from the foothold (IPs, segments, tunnel entrypoints, services), then enumerate internal pivot helpers backup/check_port.php and backup/tunnel.php, and prioritize page-loading logic, route maps, and parameter-filter bypasses over restarting the initial LFI stage or jumping straight to SSH."
         ),
     ),
     SeedMemory(
@@ -32,6 +32,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "Track 3 multi-hop chain: upload bypass -> PHP webshell/RCE as www-data. "
             "Recovered PHP admin sessions from /tmp/sess_* with admin role and CSRF tokens. "
             "Internal OA reachable behind DNAT and Redis/MariaDB are reachable from the foothold. "
+            "Network-architecture discovery is mandatory here: build the exact map of reachable IPs, subnets, DNAT paths, and services before deeper exploitation. "
             "If reverse callback fails, keep using the existing webshell for direct local probing or upload a lightweight proxy helper. "
             "After any future flag submission, continue with OA session reuse, Redis/MariaDB credential extraction, and deeper internal pivoting instead of stopping at the first flag."
         ),
@@ -44,6 +45,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "Track 3/4 key chain: /proxy.php had an empty auth guard, yielding unauthenticated SSRF + file:// LFI. "
             "Confirmed reads of /challenge/flag1.txt and /challenge/flag2.txt and recovered /var/www/html/proxy.php. "
             "Additional source shows admin_articles.php SQLi on action=edit&id and admin_settings.php internal host inventory. "
+            "Early network mapping is mandatory: enumerate the real reachable IPs, subnets, and service ports from the foothold before choosing the next exploit step. "
             "Next steps: use proxy.php for internal HTTP reachability, exploit admin_articles SQLi, and inspect internal query/report/export paths plus 172.20.0.3 / 172.20.0.5 application source/config/session material for more flags. "
             "Do not default to reverse-callback setup or password spraying unless new evidence justifies it."
         ),

@@ -144,12 +144,18 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
             "Treat this as a multi-hop internal app chain, not a pure domain-recon task. Reuse the proven upload foothold and Redis disclosures first."
         )
         hints.append(
+            "Before choosing the next exploit path, build a concrete network map: enumerate reachable IPs, network segments, DNAT edges, and service/port exposure from the foothold."
+        )
+        hints.append(
             "Do not waste turns on unrelated session samples from other challenges. Focus on reaching 192.168.10.20 and 192.168.20.30 through app-layer pivoting, DNAT paths, stored creds, or config-derived access."
         )
         hints.append(
             "If reverse callback paths fail, keep operating through the existing webshell and upload only lightweight pivot helpers. Test listeners before every new tunnel attempt."
         )
     if active.code == "K7kbx40FbhQNODZkS":
+        hints.append(
+            "This is a penetration-style internal chain challenge, so early effort must go into mapping the real network architecture: exact reachable IPs, subnets, and per-host service exposure."
+        )
         hints.append(
             "The hint points to data-query functionality and internal reachability. Prioritize query/report/export endpoints and local source/config/session extraction over SSH spraying or callback setup."
         )
@@ -160,6 +166,9 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
             "Do not brute-force SSH or app credentials unless a recovered config, session, or service banner strongly supports them. Push deeper through the current web foothold first."
         )
     if active.code == "2ihdUTWqg7iVcvvD7GAZzOadCxS":
+        hints.append(
+            "Treat network-architecture discovery as mandatory: identify concrete reachable IPs, segments, tunnel entrypoints, and exposed services before committing to the next lateral step."
+        )
         hints.append(
             "The hint points at frontend/page-loading mechanics. Prioritize JS bundles, dynamic route loading, client-side API maps, and parameter filter bypasses behind the current tunnel/webshell foothold."
         )

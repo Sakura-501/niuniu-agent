@@ -206,6 +206,7 @@ def test_derive_operator_hints_for_track3_chain_overrides() -> None:
 
     assert any("query/report/export" in hint or "data-query functionality" in hint for hint in hints)
     assert any("Do not brute-force SSH" in hint or "Do not brute-force" in hint for hint in hints)
+    assert any("reachable IPs" in hint or "network architecture" in hint for hint in hints)
 
 
 def test_build_runtime_instruction_omits_available_skills_but_keeps_operator_resources() -> None:
