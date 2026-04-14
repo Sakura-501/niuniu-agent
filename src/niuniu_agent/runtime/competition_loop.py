@@ -484,24 +484,16 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     )
                     return
                 seconds_since_progress = worker_context.state_store.seconds_since_progress(target.code)
-                existing_hint_context = extract_hint_context(notes, recent_history, recent_memories)
-                if existing_hint_context is None or should_view_hint(
-                    int(runtime_state.get("failure_count", 0)),
-                    target.hint_viewed,
-                    notes,
-                    seconds_since_progress=seconds_since_progress,
-                    seconds_since_attempt=seconds_in_attempt,
-                ):
-                    hint_payload = await worker_context.contest_gateway.view_hint(target.code)
-                    persist_hint_payload(
-                        worker_context.state_store,
-                        target.code,
-                        hint_payload,
-                        source=worker_context.agent_id or worker_agent_id,
-                    )
-                    notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))
-                    recent_history = worker_context.state_store.list_history(target.code, limit=5)
-                    recent_memories = worker_context.state_store.list_challenge_memories(target.code, limit=10)
+                hint_payload = await worker_context.contest_gateway.view_hint(target.code)
+                persist_hint_payload(
+                    worker_context.state_store,
+                    target.code,
+                    hint_payload,
+                    source=worker_context.agent_id or worker_agent_id,
+                )
+                notes = compact_challenge_notes(worker_context.state_store.get_challenge_notes(target.code))
+                recent_history = worker_context.state_store.list_history(target.code, limit=5)
+                recent_memories = worker_context.state_store.list_challenge_memories(target.code, limit=10)
 
                 skill_plan = (
                     plan_skills(
