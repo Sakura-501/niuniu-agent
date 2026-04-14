@@ -28,6 +28,7 @@ from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
 from niuniu_agent.model_routing import ModelProviderRouter
 from niuniu_agent.runtime.answer_formatter import should_format_debug_answer, stream_formatted_answer
 from niuniu_agent.runtime.context import RuntimeContext
+from niuniu_agent.runtime.session_logging import SessionTranscriptLogger
 from niuniu_agent.skills import SkillRegistry
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
@@ -158,12 +159,18 @@ class DebugSessionManager:
         self._histories: dict[str, list[dict[str, object]]] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._partial_outputs: dict[str, str] = {}
+        self._session_loggers: dict[str, SessionTranscriptLogger] = {}
         self._lock = asyncio.Lock()
 
     async def create_session(self) -> str:
         session_id = uuid4().hex[:12]
         async with self._lock:
             self._histories[session_id] = []
+            self._session_loggers[session_id] = SessionTranscriptLogger.for_agent(
+                self.base_context.settings.runtime_dir,
+                agent_id=f"debug:{session_id}",
+                agent_role="debug",
+            )
         self.base_context.state_store.upsert_agent_status(
             agent_id=f"debug:{session_id}",
             role="debug",
@@ -245,6 +252,7 @@ class DebugSessionManager:
             self._histories.pop(session_id, None)
             self._tasks.pop(session_id, None)
             self._partial_outputs.pop(session_id, None)
+            self._session_loggers.pop(session_id, None)
         self.base_context.state_store.delete_agent(agent_id)
         return {"ok": True, "agent_id": agent_id, "action": "delete"}
 
@@ -252,6 +260,14 @@ class DebugSessionManager:
         async with self._lock:
             history = list(self._histories.setdefault(session_id, []))
             running = self._tasks.get(session_id)
+            session_logger = self._session_loggers.setdefault(
+                session_id,
+                SessionTranscriptLogger.for_agent(
+                    self.base_context.settings.runtime_dir,
+                    agent_id=f"debug:{session_id}",
+                    agent_role="debug",
+                ),
+            )
         if running is not None and not running.done():
             yield self._sse("error", {"message": "session already running"})
             return
@@ -321,6 +337,7 @@ class DebugSessionManager:
             context_compaction_tool_result_preview_chars=turn_context.settings.context_compaction_tool_result_preview_chars,
             context_compaction_summary_input_chars=turn_context.settings.context_compaction_summary_input_chars,
             context_compaction_summary_max_tokens=turn_context.settings.context_compaction_summary_max_tokens,
+            session_logger=session_logger,
         )
         queue: asyncio.Queue[str | None] = asyncio.Queue()
         buffered_text_chunks: list[str] = []

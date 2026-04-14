@@ -33,6 +33,7 @@ from niuniu_agent.runtime.recovery import (
     recover_competition_state,
     should_view_hint,
 )
+from niuniu_agent.runtime.session_logging import SessionTranscriptLogger
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
 
@@ -302,6 +303,12 @@ async def run_competition_loop(context: RuntimeContext) -> None:
     async def run_worker(challenge_code: str) -> None:
         worker_agent_id = build_worker_agent_id(challenge_code)
         worker_context = context.spawn(
+            agent_id=worker_agent_id,
+            agent_role="challenge_worker",
+            challenge_code=challenge_code,
+        )
+        session_logger = SessionTranscriptLogger.for_agent(
+            worker_context.settings.runtime_dir,
             agent_id=worker_agent_id,
             agent_role="challenge_worker",
             challenge_code=challenge_code,
@@ -584,6 +591,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     context_compaction_tool_result_preview_chars=worker_context.settings.context_compaction_tool_result_preview_chars,
                     context_compaction_summary_input_chars=worker_context.settings.context_compaction_summary_input_chars,
                     context_compaction_summary_max_tokens=worker_context.settings.context_compaction_summary_max_tokens,
+                    session_logger=session_logger,
                 )
                 prompt = worker_context.challenge_store.build_autonomous_prompt(
                     snapshot,

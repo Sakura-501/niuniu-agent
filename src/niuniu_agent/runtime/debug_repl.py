@@ -14,6 +14,7 @@ from niuniu_agent.agent_stack.tool_bus import ToolBus
 from niuniu_agent.control_plane.challenge_store import compact_challenge_notes
 from niuniu_agent.runtime.answer_formatter import should_format_debug_answer, stream_formatted_answer
 from niuniu_agent.runtime.context import RuntimeContext
+from niuniu_agent.runtime.session_logging import SessionTranscriptLogger
 from niuniu_agent.skills.planner import plan_skills
 from niuniu_agent.skills.tracks import infer_track
 
@@ -42,6 +43,11 @@ def _is_summary_request(text: str) -> bool:
 
 async def run_debug_repl(context: RuntimeContext) -> None:
     history: list[dict[str, object]] = []
+    session_logger = SessionTranscriptLogger.for_agent(
+        context.settings.runtime_dir,
+        agent_id="debug:repl",
+        agent_role="debug",
+    )
 
     print("已进入重构后的 debug 交互模式。输入 exit 或 quit 退出。")
     snapshot = await context.challenge_store.refresh()
@@ -133,6 +139,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
             context_compaction_tool_result_preview_chars=turn_context.settings.context_compaction_tool_result_preview_chars,
             context_compaction_summary_input_chars=turn_context.settings.context_compaction_summary_input_chars,
             context_compaction_summary_max_tokens=turn_context.settings.context_compaction_summary_max_tokens,
+            session_logger=session_logger,
         )
         buffered_text_chunks: list[str] = []
 

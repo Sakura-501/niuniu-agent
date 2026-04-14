@@ -62,6 +62,7 @@ class AsyncPentestAgent:
         context_compaction_summary_max_tokens: int = 2000,
         prompt_cache_key: str | None = None,
         prompt_cache_retention: str | None = None,
+        session_logger: Any | None = None,
     ) -> None:
         self.client = client
         self.model_name = model_name
@@ -82,6 +83,7 @@ class AsyncPentestAgent:
         self.prompt_cache_key = prompt_cache_key
         self.prompt_cache_retention = prompt_cache_retention or ("24h" if prompt_cache_key else None)
         self._prompt_cache_supported = True
+        self.session_logger = session_logger
 
     async def execute(self, instruction: str, history: list[dict[str, Any]] | None = None) -> AgentResult:
         return await self._execute_loop(instruction, history, on_text_delta=None)
@@ -111,6 +113,10 @@ class AsyncPentestAgent:
         on_tool_end: Callable[[str, dict[str, Any], str], Awaitable[None]] | None = None,
     ) -> AgentResult:
         transcript = list(history or [])
+        if self.session_logger is not None:
+            self.session_logger.start(model_name=self.model_name, system_prompt=self.system_prompt)
+            self.session_logger.replay_history(transcript)
+            self.session_logger.log_user(instruction)
         transcript.append({"role": "user", "content": instruction})
         tool_events: list[ToolEvent] = []
         last_text = ""
@@ -119,15 +125,28 @@ class AsyncPentestAgent:
             transcript = await self._maybe_compact_transcript(transcript)
             content, tool_calls = await self._complete_once(transcript, on_text_delta=on_text_delta)
             last_text = content or last_text
+            if self.session_logger is not None:
+                self.session_logger.log_assistant(
+                    content,
+                    tool_calls=[
+                        {"id": call.id, "name": call.name, "arguments": call.arguments}
+                        for call in tool_calls
+                    ]
+                    or None,
+                )
             transcript.append(assistant_message(content, tool_calls))
             if not tool_calls:
                 return AgentResult(output=last_text, history=transcript, tool_events=tool_events)
 
             for tool_call in tool_calls:
                 arguments = safe_load_json(tool_call.arguments)
+                if self.session_logger is not None:
+                    self.session_logger.log_tool_call(tool_call.name, arguments)
                 if on_tool_start is not None:
                     await on_tool_start(tool_call.name, arguments)
                 output = await self.tool_bus.dispatch(tool_call.name, arguments)
+                if self.session_logger is not None:
+                    self.session_logger.log_tool_result(tool_call.name, output)
                 if on_tool_end is not None:
                     await on_tool_end(tool_call.name, arguments, output)
                 tool_events.append(ToolEvent(tool_call.name, arguments, output))
@@ -220,7 +239,14 @@ class AsyncPentestAgent:
             return compacted
         summary_source = compacted[:-self.context_compaction_keep_tail_messages]
         recent_tail = compacted[-self.context_compaction_keep_tail_messages :]
+        if self.session_logger is not None:
+            self.session_logger.log_compaction_start(
+                source_message_count=len(summary_source),
+                kept_tail_count=len(recent_tail),
+            )
         summary = await self._summarize_history(summary_source)
+        if self.session_logger is not None:
+            self.session_logger.log_compaction_summary(summary)
         return [
             {
                 "role": "user",
