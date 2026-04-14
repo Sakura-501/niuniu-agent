@@ -68,7 +68,7 @@ async def run_debug_repl(context: RuntimeContext) -> None:
         notes = compact_challenge_notes(turn_context.state_store.get_challenge_notes(active.code)) if active is not None else {}
         recent_history = turn_context.state_store.list_history(active.code, limit=5) if active is not None else []
         recent_memories = turn_context.state_store.list_challenge_memories(active.code, limit=10) if active is not None else []
-        track = infer_track(active.description) if active is not None else None
+        track = infer_track(active.description, active.code) if active is not None else None
         skill_plan = (
             plan_skills(turn_context.skill_registry, active.description if active else "", runtime_state, notes, track=track)
             if turn_context.skill_registry and active is not None

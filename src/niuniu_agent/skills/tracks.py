@@ -102,7 +102,16 @@ TRACK_PROFILES = {
 }
 
 
-def infer_track(description: str) -> str:
+CHALLENGE_TRACK_OVERRIDES = {
+    "6RmRST2HkeTbwgbyMJaN": "track3",
+    "K7kbx40FbhQNODZkS": "track3",
+    "2ihdUTWqg7iVcvvD7GAZzOadCxS": "track3",
+}
+
+
+def infer_track(description: str, challenge_code: str | None = None) -> str:
+    if challenge_code and challenge_code in CHALLENGE_TRACK_OVERRIDES:
+        return CHALLENGE_TRACK_OVERRIDES[challenge_code]
     haystack = description.lower()
     tokens = set(re.findall(r"[a-zA-Z0-9_]+", haystack))
     if any(keyword in haystack for keyword in ("domain", "ldap", "kerberos", "内网", "域")):

@@ -220,7 +220,10 @@ class ChallengeStore:
     def _uses_multi_flag_policy(challenge: ChallengeSnapshot) -> bool:
         if getattr(challenge, "level", 0) >= 2:
             return True
-        return infer_track(getattr(challenge, "description", "")) in {"track3", "track4"}
+        return infer_track(
+            getattr(challenge, "description", ""),
+            getattr(challenge, "code", None),
+        ) in {"track3", "track4"}
 
     def render_summary(self, snapshot: ContestSnapshot | None = None) -> str:
         current = snapshot or self._latest_snapshot

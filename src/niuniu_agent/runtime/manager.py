@@ -112,7 +112,7 @@ class CompetitionManagerAgent:
         *,
         runtime_state: dict[str, object] | None = None,
     ) -> str:
-        track = infer_track(challenge.description)
+        track = infer_track(challenge.description, challenge.code)
         profile = TRACK_PROFILES.get(track)
         priorities = "\n".join(f"- {item}" for item in (profile.priorities if profile else ()))
         runtime_text = json.dumps(runtime_state or {}, ensure_ascii=False, sort_keys=True)[:400]

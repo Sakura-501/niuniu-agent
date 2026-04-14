@@ -509,7 +509,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                         target.description,
                         runtime_state,
                         notes,
-                        track=infer_track(target.description),
+                        track=infer_track(target.description, target.code),
                     )
                     if worker_context.skill_registry
                     else None
@@ -530,7 +530,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     status="running",
                     summary=f"{target.title} / {skill_plan.stage if skill_plan else 'recon'}",
                     metadata={
-                        "track": infer_track(target.description),
+                        "track": infer_track(target.description, target.code),
                         "stage": skill_plan.stage if skill_plan else "recon",
                         "instance_status": target.instance_status,
                         "competition_run_id": competition_run_id,
@@ -599,7 +599,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     stage=skill_plan.stage if skill_plan else None,
                     runtime_state=runtime_state,
                     notes=notes,
-                    track=infer_track(target.description),
+                    track=infer_track(target.description, target.code),
                     selected_skills=skill_plan.skills if skill_plan else [],
                     available_skills=available_skills,
                     operator_resources={

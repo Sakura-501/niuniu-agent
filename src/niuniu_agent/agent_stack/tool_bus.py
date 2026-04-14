@@ -325,7 +325,10 @@ class ToolBus:
     def _should_persist_critical_memory(challenge: Any) -> bool:
         if int(getattr(challenge, "level", 0) or 0) >= 2:
             return True
-        return infer_track(str(getattr(challenge, "description", ""))) in {"track3", "track4"}
+        return infer_track(
+            str(getattr(challenge, "description", "")),
+            str(getattr(challenge, "code", "")) or None,
+        ) in {"track3", "track4"}
 
     async def view_hint(self, code: str) -> dict[str, Any]:
         payload = await self.context.contest_gateway.view_hint(code)

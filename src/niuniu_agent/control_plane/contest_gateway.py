@@ -21,7 +21,7 @@ class ContestGateway:
         self.server = server
         self._sleep = sleep_fn or asyncio.sleep
         self._server_factory = server_factory
-        self._list_challenges_lock = asyncio.Lock()
+        self._request_lock = asyncio.Lock()
 
     @classmethod
     def from_settings(cls, settings: AgentSettings) -> "ContestGateway":
@@ -45,13 +45,7 @@ class ContestGateway:
         await self.server.cleanup()
 
     async def list_challenges(self) -> Any:
-        try:
-            async with self._list_challenges_lock:
-                return await self._call_with_rate_limit_retry("list_challenges")
-        except asyncio.CancelledError as exc:
-            if self._is_external_cancellation():
-                raise
-            raise RuntimeError("contest gateway list_challenges internally cancelled") from exc
+        return await self._call_with_rate_limit_retry("list_challenges")
 
     async def start_challenge(self, code: str) -> Any:
         return await self._call_with_rate_limit_retry("start_challenge", {"code": code})
@@ -69,9 +63,9 @@ class ContestGateway:
         try:
             result = await self.server.call_tool(name, arguments or {})
         except asyncio.CancelledError as exc:
-            if self._is_external_cancellation():
-                raise
             raise RuntimeError(f"contest gateway {name} internally cancelled") from exc
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(str(exc)) from exc
         if result.isError:
             raise RuntimeError(self.decode_call_result(result) or f"MCP call failed: {name}")
         return self.decode_call_result(result)
@@ -85,17 +79,18 @@ class ContestGateway:
     ) -> Any:
         delay = 0.5
         last_error: Exception | None = None
-        for attempt in range(1, max_attempts + 1):
-            try:
-                return await self._call(name, arguments)
-            except RuntimeError as exc:
-                last_error = exc
-                if self._is_session_reset_runtime_error(str(exc)) and self._server_factory is not None and attempt < max_attempts:
-                    await self._reset_server()
-                if not self._is_retryable_runtime_error(str(exc)) or attempt >= max_attempts:
-                    raise
-                await self._sleep(delay)
-                delay *= 2
+        async with self._request_lock:
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return await self._call(name, arguments)
+                except RuntimeError as exc:
+                    last_error = exc
+                    if self._is_session_reset_runtime_error(str(exc)) and self._server_factory is not None and attempt < max_attempts:
+                        await self._reset_server()
+                    if not self._is_retryable_runtime_error(str(exc)) or attempt >= max_attempts:
+                        raise
+                    await self._sleep(delay)
+                    delay *= 2
         if last_error is not None:
             raise last_error
         raise RuntimeError(f"MCP call failed without error details: {name}")
@@ -112,6 +107,9 @@ class ContestGateway:
                 "timed out",
                 "deadline exceeded",
                 "internally cancelled",
+                "timed out while waiting for response",
+                "shared session request needs isolation",
+                "cancelled via cancel scope",
                 "cannot acquire connection after closing pool",
                 "'nonetype' object has no attribute 'acquire'",
                 "server not initialized",
@@ -130,13 +128,11 @@ class ContestGateway:
                 "cannot acquire connection after closing pool",
                 "'nonetype' object has no attribute 'acquire'",
                 "server not initialized",
+                "timed out while waiting for response",
+                "shared session request needs isolation",
+                "cancelled via cancel scope",
             )
         )
-
-    @staticmethod
-    def _is_external_cancellation() -> bool:
-        task = asyncio.current_task()
-        return task is not None and task.cancelling() > 0
 
     @staticmethod
     def decode_call_result(result: CallToolResult) -> Any:

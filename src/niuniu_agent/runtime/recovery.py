@@ -81,7 +81,10 @@ def persist_critical_challenge_notes(
 def _should_persist_critical_memory(challenge: Any) -> bool:
     if int(getattr(challenge, "level", 0) or 0) >= 2:
         return True
-    return infer_track(str(getattr(challenge, "description", ""))) in {"track3", "track4"}
+    return infer_track(
+        str(getattr(challenge, "description", "")),
+        str(getattr(challenge, "code", "")) or None,
+    ) in {"track3", "track4"}
 
 
 def recover_competition_state(

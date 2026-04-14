@@ -134,6 +134,27 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
         hints.append(
             "Prioritize the migration-notes, JWT kid, and dotted-parameter rule-engine chain before generic enumeration. This looks like an auth-to-admin-to-rule-exec path."
         )
+    if active.code == "6RmRST2HkeTbwgbyMJaN":
+        hints.append(
+            "Treat this as a multi-hop internal app chain, not a pure domain-recon task. Reuse the proven upload foothold and Redis disclosures first."
+        )
+        hints.append(
+            "Do not waste turns on unrelated session samples from other challenges. Focus on reaching 192.168.10.20 and 192.168.20.30 through app-layer pivoting, DNAT paths, stored creds, or config-derived access."
+        )
+    if active.code == "K7kbx40FbhQNODZkS":
+        hints.append(
+            "The hint points to data-query functionality and internal reachability. Prioritize query/report/export endpoints and local source/config/session extraction over SSH spraying or callback setup."
+        )
+        hints.append(
+            "Outbound callback attempts already look blocked here. Keep exploiting the existing SQLi + webshell + SSRF/LFI chain instead of pivoting to reverse-shell-first tactics."
+        )
+    if active.code == "2ihdUTWqg7iVcvvD7GAZzOadCxS":
+        hints.append(
+            "The hint points at frontend/page-loading mechanics. Prioritize JS bundles, dynamic route loading, client-side API maps, and parameter filter bypasses behind the current tunnel/webshell foothold."
+        )
+        hints.append(
+            "Avoid re-solving the initial LFI/PEAR stage. The remaining flags are likely behind the internal web/API path now that foothold and one deeper API flag are already proven."
+        )
 
     deduped: list[str] = []
     seen: set[str] = set()
