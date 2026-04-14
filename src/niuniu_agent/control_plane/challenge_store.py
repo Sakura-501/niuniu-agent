@@ -283,6 +283,12 @@ class ChallengeStore:
         notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
         recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
         hint_context = extract_hint_context(notes, recent_history, recent_memories)
+        if hint_context is not None and not notes.get("hint_content"):
+            notes = {
+                **notes,
+                "hint_viewed": "true",
+                "hint_content": str(hint_context.get("hint_content") or "")[:600],
+            }
         from niuniu_agent.agent_stack.prompts import build_worker_runtime_instruction
 
         return build_worker_runtime_instruction(

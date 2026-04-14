@@ -195,11 +195,21 @@ def build_entry_prompt(
         if active is not None and hint_context is not None
         else ""
     )
+    static_skills_catalog = (
+        "Persistent available skills catalog. "
+        "Treat this catalog as stable session context and prefer `load_skill` when one of these capabilities becomes relevant.\n"
+        "<available-skills-catalog>\n"
+        + available_skills
+        + "\n</available-skills-catalog>"
+        if available_skills
+        else ""
+    )
     return "\n\n".join(
         part
         for part in (
             ENTRY_PROMPT.body,
             mode_text,
+            static_skills_catalog,
             fixed_worker_context,
         )
         if part
@@ -270,7 +280,6 @@ def build_runtime_instruction(
             }
             for skill in (selected_skills or [])
         ],
-        "available_skills_catalog": available_skills or "",
         "track": (
             {
                 "track_id": track_profile.track_id,
@@ -314,20 +323,9 @@ def build_worker_runtime_instruction(
     payload: dict[str, object] = {
         "mode": "competition",
         "current_level": current_level,
-        "active_challenge": {
-            "code": active.code,
-            "title": active.title,
-            "description": active.description,
-            "difficulty": active.difficulty,
-            "level": active.level,
-            "entrypoints": list(active.entrypoints),
-            "hint_viewed": active.hint_viewed,
-            "instance_status": active.instance_status,
-        },
         "stage": stage,
         "runtime_state": runtime_state or {},
         "notes": notes or {},
-        "hint_context": hint_context,
         "recent_history": recent_history or [],
         "recent_memories": recent_memories or [],
         "selected_skills": [

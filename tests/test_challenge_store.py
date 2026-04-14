@@ -223,7 +223,7 @@ async def test_challenge_store_autonomous_prompt_always_includes_persisted_hint_
 
     prompt = store.build_autonomous_prompt(snapshot, challenge)
 
-    assert "hint_context" in prompt
+    assert "hint_content" in prompt
     assert "JWT kid parser" in prompt
 
 
@@ -245,7 +245,7 @@ async def test_challenge_store_autonomous_prompt_recovers_hint_context_from_pers
 
     prompt = store.build_autonomous_prompt(snapshot, challenge)
 
-    assert "hint_context" in prompt
+    assert "hint_content" in prompt
     assert "后台上传功能的后缀名检测不够全面" in prompt
 
 
@@ -259,8 +259,9 @@ async def test_challenge_store_autonomous_prompt_for_worker_omits_global_contest
 
     prompt = store.build_autonomous_prompt(snapshot, challenge)
 
-    assert '"active_challenge"' in prompt
-    assert '"hint_context"' in prompt
+    assert '"active_challenge"' not in prompt
+    assert '"hint_context"' not in prompt
+    assert '"notes"' in prompt
     assert '"total_challenges"' not in prompt
     assert '"solved_challenges"' not in prompt
     assert '"available_skills_catalog"' not in prompt

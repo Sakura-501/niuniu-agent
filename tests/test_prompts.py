@@ -1,6 +1,7 @@
 from niuniu_agent.agent_stack.prompts import (
     CHALLENGE_TAKEOVER_PROMPT,
     build_runtime_instruction,
+    build_worker_runtime_instruction,
     derive_operator_hints,
     build_entry_prompt,
     build_trigger_prompt,
@@ -99,6 +100,20 @@ def test_entry_prompt_can_embed_fixed_worker_hint_context() -> None:
     assert "后台上传功能的后缀名检测不够全面" in prompt
 
 
+def test_entry_prompt_can_embed_available_skills_catalog_in_fixed_prefix() -> None:
+    prompt = build_entry_prompt(
+        "competition",
+        None,
+        None,
+        [],
+        available_skills="- web-surface-mapping: demo\n- api-workflow-testing: demo",
+    )
+
+    assert "Persistent available skills catalog" in prompt
+    assert "web-surface-mapping" in prompt
+    assert "api-workflow-testing" in prompt
+
+
 def test_entry_prompt_includes_callback_resource_when_available() -> None:
     prompt = build_entry_prompt(
         "competition",
@@ -159,7 +174,7 @@ def test_entry_prompt_includes_gradio_operator_hints_when_notes_match() -> None:
     assert "session_hash" in prompt
 
 
-def test_build_runtime_instruction_includes_available_skills_and_operator_resources() -> None:
+def test_build_runtime_instruction_omits_available_skills_but_keeps_operator_resources() -> None:
     active = ChallengeSnapshot(
         code="c4",
         title="demo",
@@ -175,10 +190,29 @@ def test_build_runtime_instruction_includes_available_skills_and_operator_resour
         operator_resources={"callback_server": {"host": "129.211.15.16", "username": "root"}},
     )
 
-    assert "available_skills_catalog" in prompt
-    assert "web-surface-mapping" in prompt
+    assert "available_skills_catalog" not in prompt
     assert "callback_server" in prompt
     assert "129.211.15.16" in prompt
+
+
+def test_build_worker_runtime_instruction_omits_fixed_context_duplicates() -> None:
+    active = ChallengeSnapshot(
+        code="c5",
+        title="demo",
+        description="demo",
+        difficulty="easy",
+        level=1,
+    )
+
+    prompt = build_worker_runtime_instruction(
+        active=active,
+        hint_context={"hint_viewed": True, "hint_content": "fixed hint"},
+        notes={"last_summary": "demo"},
+    )
+
+    assert '"active_challenge"' not in prompt
+    assert '"hint_context"' not in prompt
+    assert '"notes"' in prompt
 
 
 def test_build_runtime_instruction_is_stable_for_reordered_dicts() -> None:

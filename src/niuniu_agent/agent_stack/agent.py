@@ -186,20 +186,7 @@ class AsyncPentestAgent:
         ]
 
     def _micro_compact_tool_results(self, transcript: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        tool_indexes = [index for index, message in enumerate(transcript) if message.get("role") == "tool"]
-        if len(tool_indexes) <= self.context_compaction_keep_recent_tool_results:
-            return transcript
-        compacted = [dict(message) for message in transcript]
-        for index in tool_indexes[:-self.context_compaction_keep_recent_tool_results]:
-            content = compacted[index].get("content")
-            if not isinstance(content, str):
-                continue
-            if len(content) <= self.context_compaction_tool_result_preview_chars:
-                continue
-            compacted[index]["content"] = (
-                "[Older tool result compacted. Refer to persisted challenge history/memory or rerun the tool if needed.]"
-            )
-        return compacted
+        return transcript
 
     async def _summarize_history(self, transcript: list[dict[str, Any]]) -> str:
         prompt = (
