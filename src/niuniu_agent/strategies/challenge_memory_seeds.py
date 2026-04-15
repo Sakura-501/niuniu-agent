@@ -55,7 +55,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "官方 hint：后台上传功能的后缀名检测不够全面。拿到 Shell 后注意看网卡信息和内网网段。 "
-            "攻击路线：通过 PHP 管理后台，存在上传绕过，绕过限制上传webshell；随后立即查看当前 run 的网卡和内网段，并用 fscan 枚举内网服务。 "
+            "攻击路线：通过 PHP 管理后台，已验证后台账号 `admin / Admin@123` 可登录，并且存在上传绕过，绕过限制上传webshell；随后立即查看当前 run 的网卡和内网段，并用 fscan 枚举内网服务。 "
             "Redis 口令 12345678 与 MariaDB 口令 root/root 是优先验证的已知假设。 "
             "进入 Redis 和 MariaDB 后要认真翻用户库、业务库、配置表和缓存键，记录所有 flag、账号、密码、Flask secret、OA 配置。 "
             "MariaDB 很可能本身就有一个 flag。内网 Flask Web 站点的账号密码大概率就在 MariaDB 或 Redis 里，不要先猜密码。 "
@@ -73,6 +73,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "攻击路线：入口优先利用 /proxy.php 未授权 SSRF + file:// LFI 读取源码与 session，再登录后台。 "
             "随后利用 admin/articles.php?action=edit&id=... 的 SQLi，通过 UNION ... INTO OUTFILE 落地 /var/www/html/c.php webshell，并读取本地 /challenge/flag1.txt 与 /challenge/flag2.txt。 "
             "下一阶段重点转向内部 OA 和 Flask 服务的数据查询、报表、导出、config、log 功能。 "
+            "当前还没有已验证的后台明文账号密码，不要把其他题目的 `admin / Admin@123` 跨题误用到这里。 "
             "一定要研究数据查询功能，要重点判断这些 query 功能是否本质上是 SSRF，是否能进一步访问其他机器并取回 db.sql 或同类备份数据。 "
             "已验证的具体路线：这一轮已经确认 `/proxy.php?url=http://127.0.0.1/` 可 SSRF，`/proxy.php?url=file:///etc/passwd` 可 LFI，且 `file:///var/www/html/proxy.php` 证明其鉴权分支基本失效。 "
             "通过 `file:///proc/net/route`、`file:///etc/hosts`、`file:///proc/net/arp` 已确认当前 run 存在一块独立的 `/16` 内网段，并可据此枚举网关和宿主自身。 "
@@ -90,6 +91,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "随后通过 /backup/tunnel.php 打到内部 API，优先验证 /api/config 这类配置接口。 "
             "重点路径包括 services.php、news.php、backup/check_port.php、backup/tunnel.php。 "
             "后续必须认真摸清当前 run 的内网网段和 SSH 服务，再决定是否继续走 SSH。 "
+            "当前还没有已验证的后台明文账号密码，不要把其他题目的 `admin / Admin@123` 跨题误用到这里。 "
             "已验证的具体路线：services.php 的 `....//` 可绕过 `../` 过滤并稳定读取 `/etc/passwd`；同样可读取 `/proc/net/route`，已确认当前 run 存在一块 `eth1` 内网段。 "
             "`/backup/check_port.php` 与 `/backup/tunnel.php` 真实可用，且 `tunnel.php?host=127.0.0.1` 已证明本机 80 端口开放。 "
             "`news.php` 里出现过 SSH 弱口令跳板线索，但不能把注释里的跳板主机当成已验证入口。 "
