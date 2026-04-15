@@ -55,6 +55,7 @@ def test_trigger_prompt_returns_body() -> None:
     assert "taken over" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "likely directories for flag-named files" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "runtime/session_logs" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "Think deeply about the official hint" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
 
 
 def test_build_transient_guidance_serializes_only_enabled_dynamic_directives() -> None:
@@ -73,6 +74,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "at most 3 challenge instances" in prompt
     assert "stop that challenge instance immediately" in prompt
     assert "View a hint immediately" in prompt
+    assert "Do not just read the official hint superficially" in prompt
     assert "missing, already completed, or no longer dispatchable" in prompt
     assert "Never start a guessed or historical challenge code" in prompt
     assert "do at most 2 short verification probes" in prompt
