@@ -375,7 +375,6 @@ class ToolBus:
     def _persist_flag_path_memory(self, challenge: Any, code: str, flag: str, payload: Any) -> None:
         if challenge is None or not self._should_persist_critical_memory(challenge):
             return
-        notes = compact_challenge_notes(self.context.state_store.get_challenge_notes(code), include_shared_findings=False, value_limit=800)
         progress = {}
         if isinstance(payload, dict):
             nested = payload.get("payload") if isinstance(payload.get("payload"), dict) else payload
@@ -389,10 +388,6 @@ class ToolBus:
             summary_parts.append(
                 f"progress={progress.get('flag_got_count')}/{progress.get('flag_count')}"
             )
-        for key in ("provisional_findings", "last_summary", "foothold", "credential_hint", "target_unreachable"):
-            value = notes.get(key)
-            if value:
-                summary_parts.append(f"{key}={value}")
         self.context.state_store.add_challenge_memory(
             code,
             "persistent_flag_record",

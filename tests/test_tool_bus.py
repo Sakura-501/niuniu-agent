@@ -710,6 +710,71 @@ async def test_tool_bus_submit_flag_persists_high_track_flag_memory_without_mark
 
 
 @pytest.mark.anyio
+async def test_tool_bus_submit_flag_persists_short_flag_record_only(tmp_path) -> None:
+    class SubmitGateway(DummyContestGateway):
+        async def submit_flag(self, code: str, flag: str):
+            return {
+                "correct": True,
+                "payload": {
+                    "flag_count": 4,
+                    "flag_got_count": 2,
+                    "message": "correct",
+                },
+            }
+
+        async def list_challenges(self):
+            return {
+                "current_level": 3,
+                "challenges": [
+                    {
+                        "title": "track3",
+                        "code": "6RmRST2HkeTbwgbyMJaN",
+                        "difficulty": "medium",
+                        "description": "pivot internal foothold track3",
+                        "level": 3,
+                        "flag_count": 4,
+                        "flag_got_count": 2,
+                        "instance_status": "running",
+                        "entrypoint": ["127.0.0.1:8080"],
+                    }
+                ],
+            }
+
+        async def stop_challenge(self, code: str):
+            return {"code": 0}
+
+    gateway = SubmitGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    state_store.set_challenge_note("6RmRST2HkeTbwgbyMJaN", "provisional_findings", "old noisy note")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    await bus.submit_flag("6RmRST2HkeTbwgbyMJaN", "flag{demo}")
+
+    record = next(
+        item for item in state_store.list_challenge_memories("6RmRST2HkeTbwgbyMJaN", limit=20)
+        if item["memory_type"] == "persistent_flag_record" and item["source"] == "submit_flag"
+    )
+
+    assert record["content"] == "flag=flag{demo}\nprogress=2/4"
+
+
+@pytest.mark.anyio
 async def test_tool_bus_submit_flag_starts_instance_when_needed(tmp_path) -> None:
     class SubmitGateway(DummyContestGateway):
         def __init__(self) -> None:
