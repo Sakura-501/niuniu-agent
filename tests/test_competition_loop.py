@@ -7,6 +7,7 @@ import pytest
 
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.runtime.competition_loop import (
+    challenge_attempt_max_seconds,
     close_orphaned_challenge_instances,
     close_completed_challenge_instances,
     ensure_challenge_instance_running,
@@ -75,6 +76,34 @@ class DummyContestGateway:
     async def start_challenge(self, code: str):
         self.started.append(code)
         return {"ok": True, "entrypoint": ["127.0.0.1:8080"]}
+
+
+def test_challenge_attempt_max_seconds_uses_track3_override() -> None:
+    settings = AgentSettings(
+        model="test-model",
+        model_base_url="https://example.invalid/v1",
+        model_api_key="key",
+        contest_host="https://challenge.zc.tencent.com",
+        contest_token="token",
+    )
+
+    track3 = ChallengeSnapshot(
+        code="K7kbx40FbhQNODZkS",
+        title="Layer Breach",
+        description="web target",
+        difficulty="hard",
+        level=3,
+    )
+    non_track3 = ChallengeSnapshot(
+        code="c1",
+        title="demo",
+        description="web target",
+        difficulty="easy",
+        level=1,
+    )
+
+    assert challenge_attempt_max_seconds(track3, settings) == 7200
+    assert challenge_attempt_max_seconds(non_track3, settings) == 1800
 
 
 @pytest.mark.anyio

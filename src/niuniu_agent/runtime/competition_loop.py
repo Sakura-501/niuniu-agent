@@ -46,6 +46,16 @@ def build_worker_agent_id(challenge_code: str) -> str:
     return f"worker:{challenge_code}:{uuid4().hex[:8]}"
 
 
+def challenge_attempt_max_seconds(challenge: object, settings: object) -> int:
+    track = infer_track(
+        str(getattr(challenge, "description", "") or ""),
+        str(getattr(challenge, "code", "") or "") or None,
+    )
+    if track == "track3":
+        return int(getattr(settings, "competition_worker_max_seconds_per_track3_challenge", 7200) or 7200)
+    return int(getattr(settings, "competition_worker_max_seconds_per_challenge", 1800) or 1800)
+
+
 async def stop_challenge_instance_before_worker_exit(
     *,
     contest_gateway: object,
@@ -435,9 +445,10 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     worker_context.state_store.clear_active_challenge(target.code)
                     return
                 seconds_in_attempt = worker_context.state_store.seconds_since_attempt_started(target.code)
+                max_seconds_for_target = challenge_attempt_max_seconds(target, context.settings)
                 if (
                     seconds_in_attempt is not None
-                    and seconds_in_attempt >= context.settings.competition_worker_max_seconds_per_challenge
+                    and seconds_in_attempt >= max_seconds_for_target
                     and has_alternative_unfinished_challenges(
                         snapshot,
                         worker_context.state_store,
@@ -446,7 +457,7 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                 ):
                     reason = (
                         "long-running challenge attempt exceeded "
-                        f"{context.settings.competition_worker_max_seconds_per_challenge} seconds; "
+                        f"{max_seconds_for_target} seconds; "
                         "temporarily yielding slot to an unstarted challenge"
                     )
                     worker_context.state_store.set_challenge_note(target.code, "deprioritized", "true")
