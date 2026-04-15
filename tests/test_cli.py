@@ -131,8 +131,7 @@ async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> N
         attempts += 1
         if attempts == 1:
             raise RuntimeError("boom")
-        asyncio.current_task().cancel()
-        await asyncio.sleep(0)
+        return None
 
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
@@ -162,47 +161,6 @@ async def test_competition_supervisor_restarts_after_runner_error(tmp_path) -> N
 
 
 @pytest.mark.anyio
-async def test_competition_supervisor_recovers_from_internal_cancelled_error(tmp_path) -> None:
-    gateway = DummyGateway()
-    logger = DummyLogger()
-    attempts = 0
-    sleeps = []
-
-    async def runner(context) -> None:
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            raise asyncio.CancelledError()
-        asyncio.current_task().cancel()
-        await asyncio.sleep(0)
-
-    async def fake_sleep(seconds: float) -> None:
-        sleeps.append(seconds)
-        if len(sleeps) >= 2:
-            raise StopSupervisor()
-
-    with pytest.raises(StopSupervisor):
-        await _run_competition_supervisor(
-            settings_kwargs={
-                "model": "test-model",
-                "model_base_url": "https://example.invalid/v1",
-                "model_api_key": "key",
-                "contest_host": "https://challenge.zc.tencent.com",
-                "contest_token": "token",
-                "runtime_dir": tmp_path / "runtime",
-            },
-            event_logger=logger,
-            make_gateway=lambda settings: gateway,
-            competition_runner=runner,
-            sleep_fn=fake_sleep,
-        )
-
-    assert attempts == 2
-    assert sleeps == [10, 20]
-    assert any(event == "competition.supervisor_error" for event, _ in logger.events)
-
-
-@pytest.mark.anyio
 async def test_competition_supervisor_uncancels_after_self_cancellation(tmp_path) -> None:
     gateway = DummyGateway()
     logger = DummyLogger()
@@ -211,7 +169,7 @@ async def test_competition_supervisor_uncancels_after_self_cancellation(tmp_path
     async def runner(context) -> None:
         task = asyncio.current_task()
         assert task is not None
-        task.cancel()
+        task.cancel("internal cancellation")
         await asyncio.sleep(0)
 
     async def fake_sleep(seconds: float) -> None:

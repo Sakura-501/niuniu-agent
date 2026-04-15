@@ -142,6 +142,17 @@ async def _run_competition_supervisor(
     backoff = settings.competition_error_backoff_seconds
     attempt = 0
 
+    def _is_recoverable_cancelled_error(exc: asyncio.CancelledError) -> bool:
+        text = str(exc).lower()
+        return any(
+            marker in text
+            for marker in (
+                "cancelled via cancel scope",
+                "internally cancelled",
+                "internal cancellation",
+            )
+        )
+
     def _clear_internal_cancellation() -> None:
         task = asyncio.current_task()
         uncancel = getattr(task, "uncancel", None)
@@ -184,6 +195,8 @@ async def _run_competition_supervisor(
                 {"attempt": attempt, "backoff_seconds": backoff},
             )
         except asyncio.CancelledError as exc:
+            if not _is_recoverable_cancelled_error(exc):
+                raise
             event_logger.log(
                 "competition.supervisor_error",
                 {
