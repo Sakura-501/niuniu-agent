@@ -12,6 +12,7 @@ from niuniu_agent.runtime.competition_loop import (
     close_completed_challenge_instances,
     ensure_challenge_instance_running,
     ensure_worker_target_instance_ready,
+    handle_worker_target_unavailable_or_completed,
     recover_stalled_workers,
     stop_challenge_instance_before_worker_exit,
     retire_completed_workers,
@@ -104,6 +105,7 @@ def test_challenge_attempt_max_seconds_uses_track3_override() -> None:
 
     assert challenge_attempt_max_seconds(track3, settings) == 7200
     assert challenge_attempt_max_seconds(non_track3, settings) == 1800
+    assert settings.competition_worker_stall_seconds == 600
 
 
 @pytest.mark.anyio
@@ -303,6 +305,67 @@ async def test_retire_completed_workers_cancels_running_worker_on_completed_chal
     assert cancelled == ["c1"]
     assert gateway.stopped == ["c1"]
     assert state_store.get_agent_status("worker:c1:run1")["status"] == "completed"
+
+
+@pytest.mark.anyio
+async def test_handle_worker_target_unavailable_does_not_mark_challenge_completed(tmp_path) -> None:
+    state_store = StateStore(tmp_path / "state.db")
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    result = await handle_worker_target_unavailable_or_completed(
+        target=None,
+        challenge_code="c1",
+        worker_agent_id="worker:c1:run1",
+        competition_run_id="run1",
+        manager_agent_id="manager:competition:run1",
+        state_store=state_store,
+        contest_gateway=gateway,
+        event_logger=logger,
+    )
+
+    status = state_store.get_agent_status("worker:c1:run1")
+
+    assert result is True
+    assert status is not None
+    assert status["status"] == "waiting_reconciliation"
+    assert status["summary"] == "challenge missing from latest snapshot"
+    assert state_store.list_submitted_flags("c1") == []
+    assert gateway.stopped == ["c1"]
+
+
+@pytest.mark.anyio
+async def test_handle_worker_target_completed_marks_challenge_completed(tmp_path) -> None:
+    state_store = StateStore(tmp_path / "state.db")
+    gateway = DummyContestGateway()
+    logger = DummyEventLogger()
+
+    result = await handle_worker_target_unavailable_or_completed(
+        target=ChallengeSnapshot(
+            code="c1",
+            title="done",
+            description="demo",
+            difficulty="easy",
+            level=0,
+            flag_count=1,
+            flag_got_count=1,
+            instance_status="running",
+        ),
+        challenge_code="c1",
+        worker_agent_id="worker:c1:run1",
+        competition_run_id="run1",
+        manager_agent_id="manager:competition:run1",
+        state_store=state_store,
+        contest_gateway=gateway,
+        event_logger=logger,
+    )
+
+    status = state_store.get_agent_status("worker:c1:run1")
+
+    assert result is True
+    assert status is not None
+    assert status["status"] == "completed"
+    assert gateway.stopped == ["c1"]
 
 
 @pytest.mark.anyio

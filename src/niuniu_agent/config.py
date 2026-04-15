@@ -60,7 +60,7 @@ class AgentSettings(BaseSettings):
     competition_max_error_backoff_seconds: int = 120
     competition_worker_max_seconds_per_challenge: int = 1800
     competition_worker_max_seconds_per_track3_challenge: int = 7200
-    competition_worker_stall_seconds: int = 180
+    competition_worker_stall_seconds: int = 600
     competition_defer_seconds: int = 60
     official_completion_grace_seconds: int = 30
     model_context_window_tokens: int = 256000

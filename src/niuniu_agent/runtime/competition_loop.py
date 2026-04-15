@@ -300,6 +300,79 @@ async def retire_completed_workers(
     return retired
 
 
+async def handle_worker_target_unavailable_or_completed(
+    *,
+    target: object | None,
+    challenge_code: str,
+    worker_agent_id: str,
+    competition_run_id: str,
+    manager_agent_id: str,
+    state_store: object,
+    contest_gateway: object,
+    event_logger: object | None,
+) -> bool:
+    if target is None:
+        await stop_challenge_instance_before_worker_exit(
+            contest_gateway=contest_gateway,
+            challenge_code=challenge_code,
+            instance_status=None,
+            event_logger=event_logger,
+            reason="challenge missing from latest snapshot",
+        )
+        state_store.clear_active_challenge(challenge_code)
+        state_store.append_agent_event(
+            agent_id=worker_agent_id,
+            challenge_code=challenge_code,
+            event_type="worker_target_missing",
+            payload="assigned challenge missing from latest snapshot; waiting for reconciliation",
+        )
+        state_store.upsert_agent_status(
+            agent_id=worker_agent_id,
+            role="challenge_worker",
+            challenge_code=challenge_code,
+            status="waiting_reconciliation",
+            summary="challenge missing from latest snapshot",
+            metadata={
+                "challenge_code": challenge_code,
+                "competition_run_id": competition_run_id,
+                "manager_agent_id": manager_agent_id,
+            },
+        )
+        return True
+
+    if not getattr(target, "completed", False):
+        return False
+
+    await stop_challenge_instance_before_worker_exit(
+        contest_gateway=contest_gateway,
+        challenge_code=challenge_code,
+        instance_status=getattr(target, "instance_status", None),
+        event_logger=event_logger,
+        reason="completed challenge before worker exit",
+    )
+    state_store.record_challenge_success(challenge_code)
+    state_store.append_agent_event(
+        agent_id=worker_agent_id,
+        challenge_code=challenge_code,
+        event_type="worker_retired",
+        payload="challenge completed; worker retired from active execution",
+    )
+    state_store.upsert_agent_status(
+        agent_id=worker_agent_id,
+        role="challenge_worker",
+        challenge_code=challenge_code,
+        status="completed",
+        summary="challenge completed",
+        metadata={
+            "challenge_code": challenge_code,
+            "retired": True,
+            "competition_run_id": competition_run_id,
+            "manager_agent_id": manager_agent_id,
+        },
+    )
+    return True
+
+
 async def run_competition_loop(context: RuntimeContext) -> None:
     histories: dict[str, list[dict[str, object]]] = {}
     findings_bus = ChallengeFindingsBus()
@@ -369,35 +442,17 @@ async def run_competition_loop(context: RuntimeContext) -> None:
                     return
                 snapshot = await worker_context.challenge_store.refresh()
                 target = next((item for item in snapshot.challenges if item.code == challenge_code), None)
-                if target is None or target.completed:
-                    await stop_challenge_instance_before_worker_exit(
-                        contest_gateway=worker_context.contest_gateway,
-                        challenge_code=challenge_code,
-                        instance_status=getattr(target, "instance_status", None) if target is not None else None,
-                        event_logger=worker_context.event_logger,
-                        reason="completed challenge before worker exit",
-                    )
-                    worker_context.state_store.record_challenge_success(challenge_code)
-                    worker_agent_id = worker_context.agent_id or worker_agent_id
-                    worker_context.state_store.append_agent_event(
-                        agent_id=worker_agent_id,
-                        challenge_code=challenge_code,
-                        event_type="worker_retired",
-                        payload="challenge completed; worker retired from active execution",
-                    )
-                    worker_context.state_store.upsert_agent_status(
-                        agent_id=worker_agent_id,
-                        role="challenge_worker",
-                        challenge_code=challenge_code,
-                        status="completed",
-                        summary="challenge completed",
-                        metadata={
-                            "challenge_code": challenge_code,
-                            "retired": True,
-                            "competition_run_id": competition_run_id,
-                            "manager_agent_id": manager.agent_id,
-                        },
-                    )
+                worker_agent_id = worker_context.agent_id or worker_agent_id
+                if await handle_worker_target_unavailable_or_completed(
+                    target=target,
+                    challenge_code=challenge_code,
+                    worker_agent_id=worker_agent_id,
+                    competition_run_id=competition_run_id,
+                    manager_agent_id=manager.agent_id,
+                    state_store=worker_context.state_store,
+                    contest_gateway=worker_context.contest_gateway,
+                    event_logger=worker_context.event_logger,
+                ):
                     return
 
                 worker_context.notes["active_challenge"] = target.code
