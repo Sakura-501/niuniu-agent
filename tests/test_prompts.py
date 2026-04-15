@@ -56,6 +56,9 @@ def test_trigger_prompt_returns_body() -> None:
     assert "likely directories for flag-named files" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "runtime/session_logs" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "Think deeply about the official hint" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "operator_strategy" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "before deviating" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "previous container instance" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
 
 
 def test_build_transient_guidance_serializes_only_enabled_dynamic_directives() -> None:
@@ -98,6 +101,10 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "built-in internet search capability" in prompt
     assert "Do not treat runtime/session_logs, local test files, or historical snippets as primary evidence" in prompt
     assert "follow the provided operator strategy as the default attack route" in prompt
+    assert "first unresolved operator-strategy step" in prompt
+    assert "before deviating from that route" in prompt
+    assert "previous container instance" in prompt
+    assert "intermediate files" in prompt
     assert "/root/niuniu-agent/exp" in prompt
     assert "129.211.15.16" in prompt
     assert "172.21.0.36" in prompt
@@ -127,6 +134,8 @@ def test_entry_prompt_can_embed_fixed_worker_hint_context() -> None:
     )
 
     assert "Persistent challenge context for this worker" in prompt
+    assert "hard execution constraints" in prompt
+    assert "current run only" in prompt
     assert "c-fixed" in prompt
     assert "后台上传功能的后缀名检测不够全面" in prompt
     assert "先上传 webshell，再 fscan 扫内网。" in prompt
@@ -224,6 +233,44 @@ def test_derive_operator_hints_for_track3_chain_overrides() -> None:
     assert any("Do not brute-force SSH" in hint or "Do not brute-force" in hint for hint in hints)
     assert any("reachable IPs" in hint or "network architecture" in hint for hint in hints)
     assert any("172.21.0.36" in hint for hint in hints)
+
+
+def test_derive_operator_hints_for_link_violation_prioritizes_upload_and_datastores() -> None:
+    active = ChallengeSnapshot(
+        code="6RmRST2HkeTbwgbyMJaN",
+        title="link violation",
+        description="web target",
+        difficulty="hard",
+        level=3,
+    )
+
+    hints = derive_operator_hints(
+        active,
+        {"provisional_findings": "old noisy session sample only"},
+    )
+
+    assert any("upload foothold" in hint or "upload" in hint for hint in hints)
+    assert any("network map" in hint or "network segments" in hint for hint in hints)
+    assert any("Redis" in hint or "MariaDB" in hint for hint in hints)
+
+
+def test_derive_operator_hints_for_behind_the_firewall_prioritizes_lfi_chain_and_ssh_validation() -> None:
+    active = ChallengeSnapshot(
+        code="2ihdUTWqg7iVcvvD7GAZzOadCxS",
+        title="behind the firewall",
+        description="web target",
+        difficulty="hard",
+        level=3,
+    )
+
+    hints = derive_operator_hints(
+        active,
+        {"provisional_findings": "tunnel path uncertain"},
+    )
+
+    assert any("page-loading" in hint or "frontend/page-loading" in hint for hint in hints)
+    assert any("SSH" in hint for hint in hints)
+    assert any("129.211.15.16" in hint or "172.21.0.36" in hint for hint in hints)
 
 
 def test_build_runtime_instruction_omits_available_skills_but_keeps_operator_resources() -> None:

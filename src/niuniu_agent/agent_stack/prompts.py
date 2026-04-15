@@ -27,6 +27,8 @@ ENTRY_PROMPT = TriggerPrompt(
         "Once one challenge is completed, continue directly to the next unfinished challenge without lingering. "
         "View a hint immediately after taking over a challenge if it has not already been viewed. "
         "Do not just read the official hint superficially; reason carefully about what the hint is really suggesting, make it a primary constraint on the attack route, and prefer actions that directly test the hint before generic enumeration. "
+        "Treat the official hint and operator_strategy as hard attack constraints for the assigned challenge. Start from the first unresolved operator-strategy step before speculative branches, generic recon, or unrelated CVE hunting. "
+        "Treat route changes as exceptional, and before deviating from that route, collect live-target evidence that the current step is blocked, disproved, already exhausted on this run, or impossible in the present environment. "
         "If the latest snapshot shows the assigned challenge is missing, already completed, or no longer dispatchable, stop stale exploitation immediately, persist a concise provisional_findings note, and switch to state reconciliation. "
         "Never start a guessed or historical challenge code; only start the currently assigned unsolved challenge after re-checking the latest snapshot. "
         "If start_challenge reports already_completed, unlock-level mismatch, or current_level mismatch, refresh once, remap the objective, and do not retry the stale start request. "
@@ -49,6 +51,7 @@ ENTRY_PROMPT = TriggerPrompt(
         " In multi-flag internal challenges, after one flag is submitted successfully, continue deeper into the same service chain or adjacent internal services until timeout or official completion; do not stop at the first flag."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
         " Do not treat runtime/session_logs, local test files, or historical snippets as primary evidence. Use them only for state recovery or confirmation. The main evidence must come from the live target, the current instance, and the operator strategy for the assigned challenge."
+        " Do not rely on intermediate files, dropped payloads, temp artifacts, session leftovers, or filesystem changes from a previous container instance. Every new container must be treated as current run only until the artifact is revalidated in the live environment."
         " For the three track3 chain challenges, follow the provided operator strategy as the default attack route and do not blindly repeat stale historical attempts when the live target behavior disagrees."
         " Local exploit references and PoC notes may exist under /root/niuniu-agent/exp on the debug machine; check that directory before reinventing public exploit research."
         " When a target must call back, prefer the public callback host 129.211.15.16 first; if callback behavior appears to require the local eth0 path, also test 172.21.0.36 unless a more specific runtime reminder overrides it."
@@ -64,6 +67,9 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
         "Before starting any new instance, inspect the currently running challenge count and stay within the 3-instance limit. "
         "Validate existing hypotheses from notes or provisional_findings before broad recon. "
         "Think deeply about the official hint and let it steer the first meaningful exploit branch instead of treating it as a decorative clue. "
+        "Treat the active challenge's official hint and operator_strategy as the default execution plan. Start with that route and do not replace it with generic recon, unrelated CVE guessing, or random tool usage while unresolved route steps remain. "
+        "before deviating, capture live evidence that a specific operator_strategy step is invalid, blocked, exhausted, or incompatible with the current run. "
+        "Do not trust intermediate files, dropped shells, temp outputs, cached results, or artifact paths from a previous container instance. Revalidate every such artifact against the live target before using it in a new container. "
         "Do not use long sleep commands as a default recovery action. "
         "Prefer quick endpoint checks, direct exploit validation, and narrow content discovery before any slow port or service scan. "
         "Once code execution or shell access exists, search the current service's likely directories for flag-named files before jumping to global grep or blind lateral movement. "
@@ -154,10 +160,13 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
         )
     if active.code == "6RmRST2HkeTbwgbyMJaN":
         hints.append(
-            "Treat this as a multi-hop internal app chain, not a pure domain-recon task. Reuse the proven upload foothold and Redis disclosures first."
+            "Treat this as a multi-hop internal app chain, not a pure domain-recon task. Reuse the PHP admin upload foothold first and prioritize the upload-bypass-to-webshell path."
         )
         hints.append(
             "Before choosing the next exploit path, build a concrete network map: enumerate reachable IPs, network segments, DNAT edges, and service/port exposure from the foothold."
+        )
+        hints.append(
+            "Redis 12345678 and MariaDB root/root are high-confidence live hypotheses. Validate them early, and inspect both datastores carefully for flags, account material, Flask secrets, and OA credentials."
         )
         hints.append(
             "Do not waste turns on unrelated session samples from other challenges. Prioritize the current run's config-derived internal hosts and DNAT paths, and distrust older 192.168.* inventory until it is revalidated from the live foothold."
@@ -176,6 +185,9 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
             "The hint points to data-query functionality and internal reachability. Prioritize query/report/export endpoints and local source/config/session extraction over SSH spraying or callback setup."
         )
         hints.append(
+            "Study the OA and Flask data-query features aggressively. Treat them as likely SSRF or internal file/data exfiltration paths that may retrieve another host's db.sql or equivalent backup data."
+        )
+        hints.append(
             "Outbound callback attempts already look blocked here. Keep exploiting the existing SQLi + webshell + SSRF/LFI chain instead of pivoting to reverse-shell-first tactics."
         )
         hints.append(
@@ -192,10 +204,16 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
             "The hint points at frontend/page-loading mechanics. Prioritize JS bundles, dynamic route loading, client-side API maps, and parameter filter bypasses behind the current tunnel/webshell foothold."
         )
         hints.append(
+            "Keep the main route anchored on services.php, news.php, backup/check_port.php, and backup/tunnel.php. Reuse the services.php -> pearcmd.php -> shell -> /api/config chain before speculative pivots."
+        )
+        hints.append(
             "Avoid re-solving the initial LFI/PEAR stage. The remaining flags are likely behind the internal web/API path now that foothold and one deeper API flag are already proven."
         )
         hints.append(
             "If SSH or reverse-connect ideas are not immediately justified, stay in the internal web/API lane, but revalidate any historical /backup/*.php tunnel or webshell path before trusting it on the current run."
+        )
+        hints.append(
+            "When SSH becomes justified, enumerate banners from the live foothold first, try fscan weak-password checks, and only then test the local CVE-2024-6387 or openssh-exp-2 helpers if the version fits."
         )
         hints.append(
             "If a callback becomes necessary later, prefer 129.211.15.16 first and also try 172.21.0.36 as the local eth0 fallback."
@@ -238,7 +256,9 @@ def build_entry_prompt(
     )
     fixed_worker_context = (
         "Persistent challenge context for this worker. "
-        "Treat this block as durable system context for the entire worker session and keep using it even after history compaction.\n"
+        "Treat this block as durable system context for the entire worker session and keep using it even after history compaction. "
+        "The official hint and operator_strategy inside this block are hard execution constraints: start from them first, keep them in the main line of attack, and only deviate after live-target evidence shows the current step is invalid, blocked, or exhausted. "
+        "Treat every new container as current run only. Do not assume intermediate files, uploaded payloads, temp artifacts, or path discoveries from a previous container instance still exist unless they are revalidated in the live environment.\n"
         "<worker-static-context>\n"
         + json.dumps(
             {

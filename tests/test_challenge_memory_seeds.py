@@ -74,6 +74,10 @@ def test_track3_operator_strategy_contains_curated_attack_routes(tmp_path) -> No
 
     apply_seed_memories(store)
 
+    link = next(
+        item for item in store.list_challenge_memories("6RmRST2HkeTbwgbyMJaN", limit=20)
+        if item["memory_type"] == "operator_strategy"
+    )
     layer = next(
         item for item in store.list_challenge_memories("K7kbx40FbhQNODZkS", limit=20)
         if item["memory_type"] == "operator_strategy"
@@ -83,10 +87,21 @@ def test_track3_operator_strategy_contains_curated_attack_routes(tmp_path) -> No
         if item["memory_type"] == "operator_strategy"
     )
 
+    assert "上传webshell" in link["content"]
+    assert "Redis" in link["content"]
+    assert "12345678" in link["content"]
+    assert "MariaDB" in link["content"]
+    assert "root/root" in link["content"]
+    assert "Flask Web" in link["content"]
     assert "/proxy.php" in layer["content"]
     assert "admin/articles.php?action=edit&id=..." in layer["content"]
     assert "/var/www/html/c.php" in layer["content"]
+    assert "数据查询" in layer["content"]
+    assert "OA" in layer["content"]
     assert "db.sql" in layer["content"]
+    assert "services.php" in firewall["content"]
+    assert "pearcmd.php" in firewall["content"]
     assert "/backup/tunnel.php" in firewall["content"]
     assert "backup/check_port.php" in firewall["content"]
+    assert "SSH" in firewall["content"]
     assert "CVE-2024-6387" in firewall["content"]

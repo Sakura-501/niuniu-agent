@@ -142,20 +142,23 @@ def test_state_store_persists_deduplicated_challenge_memories(tmp_path) -> None:
     assert memories[0]["persistent"] is False
 
 
-def test_state_store_can_upgrade_memory_to_persistent_and_preserve_on_clear(tmp_path) -> None:
+def test_state_store_clear_runtime_memory_preserves_seed_only(tmp_path) -> None:
     store = StateStore(tmp_path / "state.db")
 
-    store.add_challenge_memory("challenge-1", "flag_strategy", "use proxy.php SSRF first", source="worker")
-    store.add_challenge_memory("challenge-1", "flag_strategy", "use proxy.php SSRF first", source="worker", persistent=True)
+    store.add_challenge_memory("challenge-1", "operator_strategy", "seed strategy", source="seed", persistent=True)
+    store.add_challenge_memory("challenge-1", "persistent_hint", "old worker hint", source="worker:abc", persistent=True)
+    store.add_challenge_memory("challenge-1", "persistent_flag_record", "flag=flag{demo}\nprogress=1/4", source="submit_flag", persistent=True)
+    store.add_challenge_memory("challenge-1", "persistent_credential_hint", "password: 12345678", source="runtime", persistent=True)
     store.add_challenge_memory("challenge-1", "turn_summary", "transient note", source="worker")
 
     cleared = store.clear_runtime_memory()
     memories = store.list_challenge_memories("challenge-1", limit=10)
 
-    assert cleared["challenge_memories"] == 1
+    assert cleared["challenge_memories"] == 4
     assert cleared["challenge_memories_preserved"] == 1
     assert len(memories) == 1
-    assert memories[0]["memory_type"] == "flag_strategy"
+    assert memories[0]["memory_type"] == "operator_strategy"
+    assert memories[0]["source"] == "seed"
     assert memories[0]["persistent"] is True
 
 

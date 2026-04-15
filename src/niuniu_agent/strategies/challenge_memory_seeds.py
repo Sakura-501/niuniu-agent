@@ -22,7 +22,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "then use pearcmd.php to write a controllable shell. "
             "After RCE, first read local challenge files such as /challenge/flag1.txt, then use the internal HTTP pivot helper to reach backend APIs and read sensitive configuration like /api/config. "
             "Keep the focus on page-loading logic, route maps, parameter-filter bypasses, and internal API exploration. "
-            "If SSH becomes relevant, enumerate the current run's reachable SSH services from the live foothold first, then try fscan weak-password checks or the local OpenSSH CVE-2024-6387 helpers only when the banner and version fit."
+            "Enumerate the current run's reachable network segments and SSH services from the live foothold first, then try fscan weak-password checks or the local OpenSSH CVE-2024-6387 and openssh-exp-2 helpers only when the banner and version fit."
         ),
     ),
     SeedMemory(
@@ -30,11 +30,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         memory_type="persistent_flag_record",
         persistent=True,
         content=(
-            "Primary chain: use the PHP management backend to bypass upload restrictions and land a webshell. "
-            "After shell access, immediately map the current run's network interfaces and use fscan to enumerate internal services. "
+            "Primary chain: the PHP management backend has an upload bypass, so first bypass the suffix restriction and upload a webshell. "
+            "After shell access, immediately map the current run's network interfaces and internal subnets, then use fscan to enumerate internal services. "
             "Redis credentials 12345678 and MariaDB credentials root/root are already known-good hypotheses and should be retried on the current run. "
             "Inspect Redis data and MariaDB user/application tables carefully for flags, accounts, passwords, Flask secrets, and OA-related configuration. "
-            "A likely next step is recovering the internal Flask/OA credentials or session material from MariaDB or Redis rather than guessing passwords."
+            "MariaDB is likely to contain at least one flag, and the internal Flask web account or secret is likely stored in MariaDB or Redis rather than needing password guessing."
         ),
     ),
     SeedMemory(
@@ -46,7 +46,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "recover backend credentials and captcha/session state, then log into the admin panel. "
             "Exploit the admin/articles.php?action=edit&id=... SQLi path with UNION ... INTO OUTFILE to land a webshell and read local challenge files such as /challenge/flag1.txt and /challenge/flag2.txt. "
             "After that, focus on the internal OA and Flask services, especially their data-query, report, export, config, and log features. "
-            "Treat any query feature as a possible SSRF or internal file/data exfiltration surface, including attempts to fetch another host's db.sql or equivalent backup material."
+            "The data-query function must be studied carefully and treated as a likely SSRF or internal file/data exfiltration surface, including attempts to fetch another host's db.sql or equivalent backup material."
         ),
     ),
     SeedMemory(
@@ -55,10 +55,10 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
         persistent=True,
         content=(
             "官方 hint：后台上传功能的后缀名检测不够全面。拿到 Shell 后注意看网卡信息和内网网段。 "
-            "攻击路线：通过 PHP 管理后台绕过上传限制拿到 webshell；随后立即查看当前 run 的网卡和内网段，并用 fscan 枚举内网服务。 "
+            "攻击路线：通过 PHP 管理后台，存在上传绕过，绕过限制上传webshell；随后立即查看当前 run 的网卡和内网段，并用 fscan 枚举内网服务。 "
             "Redis 口令 12345678 与 MariaDB 口令 root/root 是优先验证的已知假设。 "
             "进入 Redis 和 MariaDB 后要认真翻用户库、业务库、配置表和缓存键，记录所有 flag、账号、密码、Flask secret、OA 配置。 "
-            "内网 Flask Web 站点的账号密码大概率就在 MariaDB 或 Redis 里，不要先猜密码。"
+            "MariaDB 很可能本身就有一个 flag。内网 Flask Web 站点的账号密码大概率就在 MariaDB 或 Redis 里，不要先猜密码。"
         ),
     ),
     SeedMemory(
@@ -70,7 +70,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "攻击路线：入口优先利用 /proxy.php 未授权 SSRF + file:// LFI 读取源码与 session，再登录后台。 "
             "随后利用 admin/articles.php?action=edit&id=... 的 SQLi，通过 UNION ... INTO OUTFILE 落地 /var/www/html/c.php webshell，并读取本地 /challenge/flag1.txt 与 /challenge/flag2.txt。 "
             "下一阶段重点转向内部 OA 和 Flask 服务的数据查询、报表、导出、config、log 功能。 "
-            "要重点判断这些 query 功能是否本质上是 SSRF，是否能进一步访问其他机器并取回 db.sql 或同类备份数据。"
+            "一定要研究数据查询功能，要重点判断这些 query 功能是否本质上是 SSRF，是否能进一步访问其他机器并取回 db.sql 或同类备份数据。"
         ),
     ),
     SeedMemory(

@@ -40,6 +40,9 @@ def test_cli_can_clear_runtime_memory(tmp_path) -> None:
     store.add_history_event("c1", "turn_completed", "summary")
     store.set_challenge_note("c1", "foothold", "user shell")
     store.add_challenge_memory("c1", "persistent_flag_record", "keep me", source="seed", persistent=True)
+    store.add_challenge_memory("c1", "persistent_hint", "old hint", source="worker:c1:old", persistent=True)
+    store.add_challenge_memory("c1", "persistent_flag_record", "flag=flag{demo}\nprogress=1/4", source="submit_flag", persistent=True)
+    store.add_challenge_memory("c1", "persistent_credential_hint", "password: 12345678", source="runtime", persistent=True)
     session_db = runtime_dir / "sessions.sqlite3"
     session_db.write_text("demo", encoding="utf-8")
 
@@ -56,6 +59,7 @@ def test_cli_can_clear_runtime_memory(tmp_path) -> None:
     memories = store.list_challenge_memories("c1")
     assert len(memories) == 1
     assert memories[0]["persistent"] is True
+    assert memories[0]["source"] == "seed"
 
 
 def test_cli_can_clean_track3_stale_memory(tmp_path) -> None:

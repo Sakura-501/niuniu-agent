@@ -986,12 +986,21 @@ class StateStore:
                 total = int(count[0] if count else 0)
                 if table == "challenge_memories":
                     persistent_count_row = connection.execute(
-                        "SELECT COUNT(*) FROM challenge_memories WHERE persistent = 1"
+                        """
+                        SELECT COUNT(*)
+                        FROM challenge_memories
+                        WHERE persistent = 1 AND source = 'seed'
+                        """
                     ).fetchone()
                     persistent_count = int(persistent_count_row[0] if persistent_count_row else 0)
                     cleared[table] = total - persistent_count
                     cleared["challenge_memories_preserved"] = persistent_count
-                    connection.execute("DELETE FROM challenge_memories WHERE persistent = 0")
+                    connection.execute(
+                        """
+                        DELETE FROM challenge_memories
+                        WHERE NOT (persistent = 1 AND source = 'seed')
+                        """
+                    )
                     continue
                 cleared[table] = total
                 connection.execute(f"DELETE FROM {table}")
