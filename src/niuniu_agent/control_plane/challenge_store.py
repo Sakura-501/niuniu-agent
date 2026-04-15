@@ -429,12 +429,12 @@ class ChallengeStore:
             challenge,
             notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code)),
         )
-        raw_recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
+        raw_recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=50)
         operator_strategy = extract_operator_strategy(raw_recent_memories)
         recent_memories = filter_recent_memories_for_instance(
             challenge,
             raw_recent_memories,
-        )
+        )[:10]
         drift_warning = detect_external_entrypoint_drift(challenge, notes)
         if drift_warning:
             notes = {

@@ -58,7 +58,10 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "攻击路线：通过 PHP 管理后台，存在上传绕过，绕过限制上传webshell；随后立即查看当前 run 的网卡和内网段，并用 fscan 枚举内网服务。 "
             "Redis 口令 12345678 与 MariaDB 口令 root/root 是优先验证的已知假设。 "
             "进入 Redis 和 MariaDB 后要认真翻用户库、业务库、配置表和缓存键，记录所有 flag、账号、密码、Flask secret、OA 配置。 "
-            "MariaDB 很可能本身就有一个 flag。内网 Flask Web 站点的账号密码大概率就在 MariaDB 或 Redis 里，不要先猜密码。"
+            "MariaDB 很可能本身就有一个 flag。内网 Flask Web 站点的账号密码大概率就在 MariaDB 或 Redis 里，不要先猜密码。 "
+            "已验证的具体路线：这一轮已重新确认 `/admin/upload.php` 可通过伪造 `Content-Type: image/jpeg` 上传 `.php`，并且 `/uploads/shell.php?cmd=id` 能执行。 "
+            "已确认当前 run 存在一块 `eth1` 内网网段，且 `/etc/hosts` 暴露了 `db` 主机别名，所以数据库主机是最优先下一跳。 "
+            "不要再把时间浪费在长时间 webshell 端口扫描上；拿到 shell 后应立刻围绕 `db` 主机上的 Redis `6379` 和 MariaDB `3306` 做短超时验证，并优先从 Redis/MariaDB 提取 Flask/OA 账号、密码和 flag。"
         ),
     ),
     SeedMemory(
@@ -70,7 +73,11 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "攻击路线：入口优先利用 /proxy.php 未授权 SSRF + file:// LFI 读取源码与 session，再登录后台。 "
             "随后利用 admin/articles.php?action=edit&id=... 的 SQLi，通过 UNION ... INTO OUTFILE 落地 /var/www/html/c.php webshell，并读取本地 /challenge/flag1.txt 与 /challenge/flag2.txt。 "
             "下一阶段重点转向内部 OA 和 Flask 服务的数据查询、报表、导出、config、log 功能。 "
-            "一定要研究数据查询功能，要重点判断这些 query 功能是否本质上是 SSRF，是否能进一步访问其他机器并取回 db.sql 或同类备份数据。"
+            "一定要研究数据查询功能，要重点判断这些 query 功能是否本质上是 SSRF，是否能进一步访问其他机器并取回 db.sql 或同类备份数据。 "
+            "已验证的具体路线：这一轮已经确认 `/proxy.php?url=http://127.0.0.1/` 可 SSRF，`/proxy.php?url=file:///etc/passwd` 可 LFI，且 `file:///var/www/html/proxy.php` 证明其鉴权分支基本失效。 "
+            "通过 `file:///proc/net/route`、`file:///etc/hosts`、`file:///proc/net/arp` 已确认当前 run 存在一块独立的 `/16` 内网段，并可据此枚举网关和宿主自身。 "
+            "`file:///challenge/flag1.txt` 和 `file:///challenge/flag2.txt` 已可直接读取。 "
+            "下一步不要回退到泛化枚举，而是继续围绕 `admin/settings.php` 暴露的 `internal_hosts` 表、PHP session/captcha、以及通过 SSRF 触达本地 MySQL `127.0.0.1:3306` 去拿后台会话或内部主机清单。"
         ),
     ),
     SeedMemory(
@@ -83,6 +90,10 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "随后通过 /backup/tunnel.php 打到内部 API，优先验证 /api/config 这类配置接口。 "
             "重点路径包括 services.php、news.php、backup/check_port.php、backup/tunnel.php。 "
             "后续必须认真摸清当前 run 的内网网段和 SSH 服务，再决定是否继续走 SSH。 "
+            "已验证的具体路线：services.php 的 `....//` 可绕过 `../` 过滤并稳定读取 `/etc/passwd`；同样可读取 `/proc/net/route`，已确认当前 run 存在一块 `eth1` 内网段。 "
+            "`/backup/check_port.php` 与 `/backup/tunnel.php` 真实可用，且 `tunnel.php?host=127.0.0.1` 已证明本机 80 端口开放。 "
+            "`news.php` 里出现过 SSH 弱口令跳板线索，但不能把注释里的跳板主机当成已验证入口。 "
+            "后续优先继续把 LFI 转成 pearcmd 写 shell，再借 `/backup/tunnel.php` 打内部 API。避免对新发现的内网网关或首跳主机做激进 check_port 探测，因为这一轮类似探测后公网入口曾进入超时。 "
             "SSH 可以先尝试用 fscan 做弱口令检查；若 OpenSSH banner 与版本匹配，再考虑 /root/niuniu-agent/exp/CVE-2024-6387 和 /root/niuniu-agent/exp/openssh-exp-2 的本地脚本。"
         ),
     ),

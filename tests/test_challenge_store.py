@@ -282,6 +282,46 @@ async def test_challenge_store_autonomous_prompt_promotes_operator_strategy_into
 
 
 @pytest.mark.anyio
+async def test_challenge_store_autonomous_prompt_recovers_operator_strategy_beyond_first_ten_memories() -> None:
+    state = DummyStateStore()
+    state.notes = {"hint_viewed": "true", "hint_content": "check admin workflow"}
+    state.memories = [
+        {
+            "memory_type": "persistent_hint",
+            "content": f"hint-{idx}",
+            "source": f"worker:{idx}",
+            "persistent": True,
+            "created_at": f"now-{idx}",
+        }
+        for idx in range(12)
+    ] + [
+        {
+            "memory_type": "operator_strategy",
+            "content": "具体路线：先打 proxy.php SSRF+LFI，再读 session，再进 admin/articles SQLi。",
+            "source": "seed",
+            "persistent": True,
+            "created_at": "older",
+        }
+    ]
+    store = ChallengeStore(DummyContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert '"notes"' in prompt
+    entry_prompt = build_entry_prompt(
+        "competition",
+        None,
+        challenge,
+        [],
+        hint_context={"hint_viewed": True, "hint_content": "check admin workflow"},
+        operator_strategy="具体路线：先打 proxy.php SSRF+LFI，再读 session，再进 admin/articles SQLi。",
+    )
+    assert "具体路线：先打 proxy.php SSRF+LFI" in entry_prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_autonomous_prompt_for_worker_omits_global_contest_summary() -> None:
     state = DummyStateStore()
     state.notes = {"hint_viewed": "true", "hint_content": "check admin workflow"}
