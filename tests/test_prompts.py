@@ -84,6 +84,8 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "Prefer forward connections, webshell-driven probing" in prompt
     assert "If reverse callback or tunnel setup fails" in prompt
     assert "verify that the listener is actually reachable" in prompt
+    assert "require a clear command-output marker" in prompt
+    assert "A bare 200 response" in prompt
     assert "Do not default to password brute-force or spraying" in prompt
     assert "compromised service instance is likely to contain at least one flag" in prompt
     assert "search the most likely local service directories for flag-related filenames" in prompt

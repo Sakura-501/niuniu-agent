@@ -1,6 +1,8 @@
 import asyncio
 from pathlib import Path
 
+import httpx
+import pytest
 from niuniu_agent.tooling import LocalToolbox
 
 
@@ -37,8 +39,27 @@ def test_extract_flags_ignores_non_braced_flag_like_tokens(tmp_path) -> None:
     assert flags == []
 
 
-import pytest
+@pytest.mark.anyio
+async def test_http_request_surfaces_exception_type_and_message(monkeypatch, tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
 
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def request(self, *args, **kwargs):
+            raise httpx.ReadTimeout("timed out")
+
+    monkeypatch.setattr("niuniu_agent.tooling.httpx.AsyncClient", FakeClient)
+
+    with pytest.raises(RuntimeError, match="ReadTimeout: timed out"):
+        await toolbox.http_request("GET", "http://example.com")
 
 @pytest.mark.anyio
 async def test_run_shell_command_falls_back_for_missing_curl(monkeypatch, tmp_path) -> None:

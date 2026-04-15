@@ -132,14 +132,19 @@ class LocalToolbox:
         body: str | None = None,
         timeout_seconds: int = 20,
     ) -> dict[str, Any]:
-        async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=timeout_seconds) as client:
-            response = await client.request(
-                method=method.upper(),
-                url=url,
-                headers=headers,
-                params=params,
-                content=body.encode("utf-8") if body is not None else None,
-            )
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=timeout_seconds) as client:
+                response = await client.request(
+                    method=method.upper(),
+                    url=url,
+                    headers=headers,
+                    params=params,
+                    content=body.encode("utf-8") if body is not None else None,
+                )
+        except Exception as exc:  # noqa: BLE001
+            name = type(exc).__name__
+            message = str(exc).strip()
+            raise RuntimeError(f"{name}: {message}" if message else name) from exc
         return {
             "status_code": response.status_code,
             "headers": dict(response.headers),
