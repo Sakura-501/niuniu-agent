@@ -105,7 +105,7 @@ def test_challenge_attempt_max_seconds_uses_track3_override() -> None:
 
     assert challenge_attempt_max_seconds(track3, settings) == 7200
     assert challenge_attempt_max_seconds(non_track3, settings) == 1800
-    assert settings.competition_worker_stall_seconds == 600
+    assert settings.competition_worker_stall_seconds == 1800
 
 
 @pytest.mark.anyio
