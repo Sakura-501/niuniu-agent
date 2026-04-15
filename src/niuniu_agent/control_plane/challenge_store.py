@@ -171,6 +171,10 @@ def filter_recent_memories_for_instance(
     challenge: ChallengeSnapshot,
     memories: list[dict[str, object]] | None,
 ) -> list[dict[str, object]]:
+    strict_track3 = infer_track(
+        str(getattr(challenge, "description", "") or ""),
+        str(getattr(challenge, "code", "") or "") or None,
+    ) == "track3"
     current_hosts = {
         entry.split(":", 1)[0].strip()
         for entry in list(getattr(challenge, "entrypoints", []) or [])
@@ -186,6 +190,7 @@ def filter_recent_memories_for_instance(
         "persistent_credential_hint",
     }
     filtered: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
     for memory in list(memories or []):
         content = str(memory.get("content") or "")
         mentioned_external_ips = {
@@ -199,19 +204,38 @@ def filter_recent_memories_for_instance(
         if memory_type == "persistent_flag_record":
             sanitized = sanitize_flag_record_for_prompt(content)
             if sanitized:
-                filtered.append({**memory, "content": sanitized})
+                key = (memory_type, sanitized)
+                if key not in seen:
+                    seen.add(key)
+                    filtered.append({**memory, "content": sanitized})
             continue
         if memory_type == "persistent_hint":
-            filtered.append(memory)
+            key = (memory_type, content)
+            if key not in seen:
+                seen.add(key)
+                filtered.append(memory)
             continue
         if memory_type == "operator_strategy":
+            continue
+        if strict_track3 and memory_type in {
+            "persistent_last_summary",
+            "persistent_provisional_findings",
+            "persistent_target_unreachable",
+            "turn_summary",
+            "deferred",
+        }:
+            continue
+        if memory_type == "persistent_credential_hint" and content.strip().startswith("flag{"):
             continue
         if memory_type in stale_sensitive_types:
             if re.search(r"/uploads/[A-Za-z0-9._-]+\.(?:php|jsp|aspx|ashx)", content):
                 continue
             if re.search(r"(?:^|/)(?:lv|pp|suo5|b|cv9v9nr)\.php\b", content):
                 continue
-            filtered.append(memory)
+            key = (memory_type, content)
+            if key not in seen:
+                seen.add(key)
+                filtered.append(memory)
     return filtered
 
 
@@ -223,6 +247,18 @@ def extract_operator_strategy(memories: list[dict[str, object]] | None) -> str |
         if text:
             return text[:3000]
     return None
+
+
+def prompt_safe_notes(challenge: ChallengeSnapshot, notes: dict[str, str] | None) -> dict[str, str]:
+    compacted = dict(notes or {})
+    strict_track3 = infer_track(
+        str(getattr(challenge, "description", "") or ""),
+        str(getattr(challenge, "code", "") or "") or None,
+    ) == "track3"
+    if not strict_track3:
+        return compacted
+    allowed = {"hint_content", "hint_viewed", "last_flag"}
+    return {key: value for key, value in compacted.items() if key in allowed}
 
 
 def sanitize_flag_record_for_prompt(content: str) -> str:
@@ -389,7 +425,10 @@ class ChallengeStore:
         operator_resources: dict | None = None,
     ) -> str:
         recent_history = self.state_store.list_history(challenge.code, limit=5)
-        notes = notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code))
+        notes = prompt_safe_notes(
+            challenge,
+            notes or compact_challenge_notes(self.state_store.get_challenge_notes(challenge.code)),
+        )
         raw_recent_memories = self.state_store.list_challenge_memories(challenge.code, limit=10)
         operator_strategy = extract_operator_strategy(raw_recent_memories)
         recent_memories = filter_recent_memories_for_instance(

@@ -420,6 +420,77 @@ async def test_challenge_store_autonomous_prompt_sanitizes_flag_record_memory_fo
 
 
 @pytest.mark.anyio
+async def test_track3_prompt_excludes_runtime_summary_noise_and_flag_credential_hints() -> None:
+    class Track3ContestClient(DummyContestClient):
+        async def list_challenges(self):
+            return {
+                "current_level": 3,
+                "total_challenges": 1,
+                "solved_challenges": 0,
+                "challenges": [
+                    {
+                        "title": "Layer Breach",
+                        "code": "K7kbx40FbhQNODZkS",
+                        "difficulty": "hard",
+                        "description": "web target",
+                        "level": 3,
+                        "flag_count": 6,
+                        "flag_got_count": 2,
+                        "instance_status": "running",
+                        "entrypoint": ["10.0.163.218:80"],
+                    }
+                ],
+            }
+
+    state = DummyStateStore()
+    state.notes = {
+        "hint_viewed": "true",
+        "hint_content": "注意数据查询的功能是否可行，内部网络环境能否访问",
+        "provisional_findings": "old host 10.0.163.218 and /uploads/x.php",
+    }
+    state.memories = [
+        {
+            "memory_type": "operator_strategy",
+            "content": "先通过 /proxy.php 做 SSRF+LFI，再进后台打 SQLi。",
+            "source": "seed",
+            "persistent": True,
+            "created_at": "now",
+        },
+        {
+            "memory_type": "persistent_provisional_findings",
+            "content": "old run used /uploads/x.php on 10.0.163.218",
+            "source": "runtime",
+            "persistent": True,
+            "created_at": "now",
+        },
+        {
+            "memory_type": "persistent_credential_hint",
+            "content": "flag{should-not-be-credential}",
+            "source": "runtime",
+            "persistent": True,
+            "created_at": "now",
+        },
+        {
+            "memory_type": "persistent_flag_record",
+            "content": "flag=flag{demo}\nprogress=2/6\nold /uploads/x.php",
+            "source": "submit_flag",
+            "persistent": True,
+            "created_at": "now",
+        },
+    ]
+    store = ChallengeStore(Track3ContestClient(), state)
+    snapshot = await store.refresh()
+    challenge = store.next_candidate(snapshot)
+
+    prompt = store.build_autonomous_prompt(snapshot, challenge)
+
+    assert "persistent_provisional_findings" not in prompt
+    assert "flag{should-not-be-credential}" not in prompt
+    assert "/uploads/x.php" not in prompt
+    assert "flag=flag{demo}" in prompt
+
+
+@pytest.mark.anyio
 async def test_challenge_store_export_json_includes_official_fields_even_without_local_state() -> None:
     store = ChallengeStore(DummyContestClient(), DummyStateStore())
 
