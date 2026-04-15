@@ -54,6 +54,7 @@ def test_entry_prompt_biases_summary_when_requested() -> None:
 def test_trigger_prompt_returns_body() -> None:
     assert "taken over" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "likely directories for flag-named files" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "runtime/session_logs" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
 
 
 def test_build_transient_guidance_serializes_only_enabled_dynamic_directives() -> None:
@@ -93,6 +94,8 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "noisy global filesystem search" in prompt
     assert "after one flag is submitted successfully, continue deeper" in prompt
     assert "built-in internet search capability" in prompt
+    assert "Do not treat runtime/session_logs, local test files, or historical snippets as primary evidence" in prompt
+    assert "follow the provided operator strategy as the default attack route" in prompt
     assert "/root/niuniu-agent/exp" in prompt
     assert "129.211.15.16" in prompt
     assert "172.21.0.36" in prompt

@@ -47,6 +47,8 @@ ENTRY_PROMPT = TriggerPrompt(
         " If any tool output, file content, HTTP response, shell output, or assistant-visible text contains a candidate string with flag-like content, call submit_flag immediately at least once instead of waiting for a perfect confirmation."
         " In multi-flag internal challenges, after one flag is submitted successfully, continue deeper into the same service chain or adjacent internal services until timeout or official completion; do not stop at the first flag."
         " If you have no viable hypothesis, you may try the model's built-in internet search capability for public vulnerability context; if the model reports that network search is unavailable, fall back immediately to local notes, skills, helper scripts, and direct target evidence instead of stalling."
+        " Do not treat runtime/session_logs, local test files, or historical snippets as primary evidence. Use them only for state recovery or confirmation. The main evidence must come from the live target, the current instance, and the operator strategy for the assigned challenge."
+        " For the three track3 chain challenges, follow the provided operator strategy as the default attack route and do not blindly repeat stale historical attempts when the live target behavior disagrees."
         " Local exploit references and PoC notes may exist under /root/niuniu-agent/exp on the debug machine; check that directory before reinventing public exploit research."
         " When a target must call back, prefer the public callback host 129.211.15.16 first; if callback behavior appears to require the local eth0 path, also test 172.21.0.36 unless a more specific runtime reminder overrides it."
     ),
@@ -63,6 +65,7 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
         "Do not use long sleep commands as a default recovery action. "
         "Prefer quick endpoint checks, direct exploit validation, and narrow content discovery before any slow port or service scan. "
         "Once code execution or shell access exists, search the current service's likely directories for flag-named files before jumping to global grep or blind lateral movement. "
+        "Do not treat runtime/session_logs, local tests, or old snippets as the main target evidence; use the live target and the assigned operator strategy first. "
         "When an internal host or mixed service surface must be scanned, choose fscan before nmap."
     ),
 )
