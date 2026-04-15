@@ -38,6 +38,35 @@ from niuniu_agent.telemetry import EventLogger
 from niuniu_agent.tooling import LocalToolbox
 
 
+def _is_gateway_recoverable_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "server not initialized",
+            "cannot acquire connection after closing pool",
+            "'nonetype' object has no attribute 'acquire'",
+            "timed out while waiting for response",
+            "cancelled via cancel scope",
+            "connecttimeout",
+            "readtimeout",
+        )
+    )
+
+
+async def refresh_snapshot_with_gateway_recovery(context: RuntimeContext, contest_gateway: object | None) -> object:
+    try:
+        return await context.challenge_store.refresh()
+    except Exception as exc:  # noqa: BLE001
+        if contest_gateway is None or not _is_gateway_recoverable_error(str(exc)):
+            raise
+        reconnect = getattr(contest_gateway, "reconnect", None)
+        if reconnect is None:
+            raise
+        await reconnect()
+        return await context.challenge_store.refresh()
+
+
 class CompetitionProcessController:
     def __init__(self, repo_root: Path, runtime_dir: Path, web_port: int) -> None:
         self.repo_root = repo_root
@@ -272,7 +301,10 @@ class DebugSessionManager:
             yield self._sse("error", {"message": "session already running"})
             return
 
-        snapshot = await self.base_context.challenge_store.refresh()
+        snapshot = await refresh_snapshot_with_gateway_recovery(
+            self.base_context,
+            self.base_context.contest_gateway,
+        )
         active = self.base_context.challenge_store.next_candidate(snapshot)
         turn_context = self.base_context.spawn(
             agent_id=f"debug:{session_id}",
@@ -531,7 +563,10 @@ class AgentWebService:
 
     async def overview(self) -> dict[str, object]:
         assert self.context is not None and self.controller is not None
-        snapshot = await self.context.challenge_store.refresh()
+        snapshot = await refresh_snapshot_with_gateway_recovery(
+            self.context,
+            self.contest_gateway,
+        )
         stored_agents = self.context.state_store.list_agent_statuses()
         process_status = self.controller.status()
         contest = self.context.challenge_store.export_json(snapshot)
@@ -578,7 +613,10 @@ class AgentWebService:
 
     async def challenge_detail(self, code: str) -> dict[str, object]:
         assert self.context is not None
-        snapshot = await self.context.challenge_store.refresh()
+        snapshot = await refresh_snapshot_with_gateway_recovery(
+            self.context,
+            self.contest_gateway,
+        )
         exported = self.context.challenge_store.export_json(snapshot)
         local = {
             "runtime_state": self.context.state_store.get_challenge_runtime_state(code),

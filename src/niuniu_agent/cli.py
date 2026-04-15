@@ -142,6 +142,14 @@ async def _run_competition_supervisor(
     backoff = settings.competition_error_backoff_seconds
     attempt = 0
 
+    def _clear_internal_cancellation() -> None:
+        task = asyncio.current_task()
+        uncancel = getattr(task, "uncancel", None)
+        if task is None or uncancel is None:
+            return
+        while task.cancelling():
+            uncancel()
+
     while True:
         contest_gateway = make_gateway(settings)
         attempt += 1
@@ -175,15 +183,16 @@ async def _run_competition_supervisor(
                 "competition.supervisor_runner_returned",
                 {"attempt": attempt, "backoff_seconds": backoff},
             )
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as exc:
             event_logger.log(
                 "competition.supervisor_error",
                 {
                     "attempt": attempt,
-                    "error": "competition runner raised CancelledError; recovering",
+                    "error": f"competition runner raised CancelledError; recovering: {exc}",
                     "backoff_seconds": backoff,
                 },
             )
+            _clear_internal_cancellation()
         except Exception as exc:  # pragma: no cover - runtime recovery path
             event_logger.log(
                 "competition.supervisor_error",
@@ -194,7 +203,13 @@ async def _run_competition_supervisor(
                 },
             )
         finally:
-            await contest_gateway.cleanup()
+            try:
+                await contest_gateway.cleanup()
+            except Exception as exc:  # noqa: BLE001
+                event_logger.log(
+                    "competition.supervisor_cleanup_error",
+                    {"attempt": attempt, "error": str(exc)},
+                )
 
         await sleep_fn(backoff)
         backoff = min(backoff * 2, settings.competition_max_error_backoff_seconds)

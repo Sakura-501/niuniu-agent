@@ -44,6 +44,16 @@ class ContestGateway:
     async def cleanup(self) -> None:
         await self.server.cleanup()
 
+    async def reconnect(self) -> None:
+        if self._server_factory is not None:
+            await self._reset_server()
+            return
+        try:
+            await self.server.cleanup()
+        except Exception:
+            pass
+        await self.server.connect()
+
     async def list_challenges(self) -> Any:
         return await self._call_with_rate_limit_retry("list_challenges")
 

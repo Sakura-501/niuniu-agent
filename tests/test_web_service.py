@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
+import asyncio
 
 from niuniu_agent.web.service import (
+    AgentWebService,
     CompetitionProcessController,
     build_challenge_scheduler_view,
     build_agent_overview_rows,
@@ -199,3 +202,48 @@ def test_build_challenge_scheduler_view_marks_deferred() -> None:
     )
 
     assert deferred["scheduler_status"] == "deferred"
+
+
+def test_agent_web_service_overview_reconnects_gateway_after_session_reset() -> None:
+    class FlakyStore:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def refresh(self):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("Server not initialized. Make sure you call `connect()` first.")
+            return SimpleNamespace(current_level=1, total_challenges=0, solved_challenges=0, challenges=[])
+
+        def export_json(self, snapshot):
+            return {"challenges": []}
+
+    class DummyGateway:
+        def __init__(self) -> None:
+            self.reconnect_calls = 0
+
+        async def reconnect(self) -> None:
+            self.reconnect_calls += 1
+
+    class DummyState:
+        def list_agent_statuses(self, **kwargs):
+            return []
+
+        def list_agent_events(self, **kwargs):
+            return []
+
+    service = AgentWebService()
+    service.settings = SimpleNamespace(web_port=8081, callback_resource=None)
+    service.contest_gateway = DummyGateway()
+    service.context = SimpleNamespace(
+        settings=service.settings,
+        challenge_store=FlakyStore(),
+        state_store=DummyState(),
+        provider_router=None,
+    )
+    service.controller = SimpleNamespace(status=lambda: {"competition": {"running": False}, "ui": {"running": True}})
+
+    result = asyncio.run(service.overview())
+
+    assert result["contest"]["challenges"] == []
+    assert service.contest_gateway.reconnect_calls == 1
