@@ -236,6 +236,7 @@ def test_derive_operator_hints_for_track3_chain_overrides() -> None:
     )
 
     assert any("query/report/export" in hint or "data-query functionality" in hint for hint in hints)
+    assert any("OA administrator backend" in hint or "session-derived account material" in hint for hint in hints)
     assert any("Do not brute-force SSH" in hint or "Do not brute-force" in hint for hint in hints)
     assert any("reachable IPs" in hint or "network architecture" in hint for hint in hints)
     assert any("172.21.0.36" in hint for hint in hints)

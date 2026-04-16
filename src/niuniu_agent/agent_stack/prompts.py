@@ -193,6 +193,9 @@ def derive_operator_hints(active: ChallengeSnapshot | None, notes: dict | None =
             "Study the OA and Flask data-query features aggressively. Treat them as likely SSRF or internal file/data exfiltration paths that may retrieve another host's db.sql or equivalent backup data."
         )
         hints.append(
+            "Treat the SSH-exposed host as an OA administrator backend. First recover credentials or session-derived account material from DB, session files, configs, or OA business data; only then validate SSH login with evidence-backed credentials instead of blind guessing."
+        )
+        hints.append(
             "Outbound callback attempts already look blocked here. Keep exploiting the existing SQLi + webshell + SSRF/LFI chain instead of pivoting to reverse-shell-first tactics."
         )
         hints.append(

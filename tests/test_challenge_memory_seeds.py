@@ -100,6 +100,7 @@ def test_track3_operator_strategy_contains_curated_attack_routes(tmp_path) -> No
     assert "/var/www/html/c.php" in layer["content"]
     assert "数据查询" in layer["content"]
     assert "OA" in layer["content"]
+    assert "SSH 所在主机是某 OA 的管理员后台服务器" in layer["content"]
     assert "不要把其他题目的 `admin / Admin@123` 跨题误用到这里" in layer["content"]
     assert "webapp / webapp123" in layer["content"]
     assert "db.sql" in layer["content"]

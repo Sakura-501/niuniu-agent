@@ -74,6 +74,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "攻击路线：入口优先利用 /proxy.php 未授权 SSRF + file:// LFI 读取源码与 session，再登录后台。 "
             "随后利用 admin/articles.php?action=edit&id=... 的 SQLi，通过 UNION ... INTO OUTFILE 落地 /var/www/html/c.php webshell，并读取本地 /challenge/flag1.txt 与 /challenge/flag2.txt。 "
             "下一阶段重点转向内部 OA 和 Flask 服务的数据查询、报表、导出、config、log 功能。 "
+            "赛题描述已更新：不仅要判断内部网络环境能否访问，还要判断是否有权限访问核心业务系统；SSH 所在主机是某 OA 的管理员后台服务器，需要先从数据库、session、配置或 OA 业务数据里找凭证，再对 SSH 做基于凭证的密码验证。 "
             "当前还没有已验证的后台明文账号密码，不要把其他题目的 `admin / Admin@123` 跨题误用到这里。 "
             "一定要研究数据查询功能，要重点判断这些 query 功能是否本质上是 SSRF，是否能进一步访问其他机器并取回 db.sql 或同类备份数据。 "
             "已验证的具体路线：这一轮已经确认 `/proxy.php?url=http://127.0.0.1/` 可 SSRF，`/proxy.php?url=file:///etc/passwd` 可 LFI，且 `file:///var/www/html/proxy.php` 证明其鉴权分支基本失效。 "
