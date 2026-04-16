@@ -39,7 +39,7 @@ ENTRY_PROMPT = TriggerPrompt(
         "Prefer fast, focused probes over slow exhaustive scanning. Do not default to long-running tools such as broad nmap scans when quicker route, API, file, or workflow checks can localize the vulnerability faster."
         " For internal service or vulnerability scanning, prefer fscan first; only fall back to nmap, rustscan, or broader tooling when fscan is not suitable or did not answer the hypothesis."
         " Prefer forward connections, webshell-driven probing, direct command execution, and uploaded lightweight proxy tooling before reverse shells or reverse tunnels whenever the foothold already supports them."
-        " Once a foothold, internal route, service alias, or internal host clue is confirmed, prioritize establishing a proxy or tunnel as an early post-exploitation step so internal testing can move from fragile command wrapping to stable operator-side tooling."
+        " Once a foothold, internal route, service alias, or internal host clue is confirmed, you must establish a proxy or tunnel as an early post-exploitation step before continuing deeper internal exploitation, so internal testing can move from fragile command wrapping to stable operator-side tooling."
         " Reverse shells and callback tunnels are situational options, not mandatory milestones."
         " Consider a reverse shell, reverse tunnel, or callback path when direct webshell execution, forward probing, local file-read, SSRF, or uploaded lightweight proxy tooling appear insufficient for the next step."
         " If reverse callback or tunnel setup fails, stop repeating the same reverse-connect attempt and pivot to forward connections, app-layer pivoting, uploaded proxy tooling, or direct post-exploitation from the existing foothold."
@@ -73,7 +73,7 @@ CHALLENGE_TAKEOVER_PROMPT = TriggerPrompt(
         "Treat the active challenge's official hint and operator_strategy as the default execution plan. Start with that route and do not replace it with generic recon, unrelated CVE guessing, or random tool usage while unresolved route steps remain. "
         "before deviating, capture live evidence that a specific operator_strategy step is invalid, blocked, exhausted, or incompatible with the current run. "
         "Do not trust intermediate files, dropped shells, temp outputs, cached results, or artifact paths from a previous container instance. Revalidate every such artifact against the live target before using it in a new container. "
-        "When a foothold and internal-network clue already exist, establish a proxy or tunnel early instead of spending many turns on fragile command wrapping through the webshell. "
+        "When a foothold and internal-network clue already exist, you must establish a proxy or tunnel before continuing deeper internal exploitation instead of spending many turns on fragile command wrapping through the webshell. "
         "Reverse shells and callback tunnels are situational tools. Prefer direct exploitation, file-read, webshell execution, SSRF, and forward pivots first, but use callback paths when the live evidence shows they would help the current objective. "
         "Do not use long sleep commands as a default recovery action. "
         "Prefer quick endpoint checks, direct exploit validation, and narrow content discovery before any slow port or service scan. "
@@ -263,7 +263,8 @@ def build_entry_prompt(
         "Persistent challenge context for this worker. "
         "Treat this block as durable system context for the entire worker session and keep using it even after history compaction. "
         "The official hint and operator_strategy inside this block are hard execution constraints: start from them first, keep them in the main line of attack, and only deviate after live-target evidence shows the current step is invalid, blocked, or exhausted. "
-        "Treat every new container as current run only. Do not assume intermediate files, uploaded payloads, temp artifacts, or path discoveries from a previous container instance still exist unless they are revalidated in the live environment.\n"
+        "Treat every new container as current run only. Do not assume intermediate files, uploaded payloads, temp artifacts, or path discoveries from a previous container instance still exist unless they are revalidated in the live environment. "
+        "If this worker already has a foothold plus internal-network clues, it must establish a proxy or tunnel before continuing deeper internal exploitation.\n"
         "<worker-static-context>\n"
         + json.dumps(
             {

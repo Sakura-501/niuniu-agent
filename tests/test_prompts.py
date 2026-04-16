@@ -60,7 +60,7 @@ def test_trigger_prompt_returns_body() -> None:
     assert "before deviating" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "previous container instance" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "Reverse shells and callback tunnels are situational tools" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
-    assert "establish a proxy or tunnel early" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "must establish a proxy or tunnel" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
 
 
 def test_build_transient_guidance_serializes_only_enabled_dynamic_directives() -> None:
@@ -90,7 +90,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "broad nmap scans" in prompt
     assert "prefer fscan first" in prompt
     assert "Prefer forward connections, webshell-driven probing" in prompt
-    assert "prioritize establishing a proxy or tunnel" in prompt
+    assert "must establish a proxy or tunnel" in prompt
     assert "Reverse shells and callback tunnels are situational options" in prompt
     assert "Consider a reverse shell" in prompt
     assert "If reverse callback or tunnel setup fails" in prompt
@@ -141,6 +141,7 @@ def test_entry_prompt_can_embed_fixed_worker_hint_context() -> None:
     assert "Persistent challenge context for this worker" in prompt
     assert "hard execution constraints" in prompt
     assert "current run only" in prompt
+    assert "must establish a proxy or tunnel" in prompt
     assert "c-fixed" in prompt
     assert "后台上传功能的后缀名检测不够全面" in prompt
     assert "先上传 webshell，再 fscan 扫内网。" in prompt
