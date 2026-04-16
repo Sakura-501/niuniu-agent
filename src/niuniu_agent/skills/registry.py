@@ -79,6 +79,36 @@ SKILL_BEHAVIORS: dict[str, SkillBehavior] = {
         usage_guidance="Exploit only after reconnaissance confirms a likely path, and keep the winning request reproducible.",
         recommended_tracks=("track1", "track2"),
     ),
+    "pentest-entrypoint-triage": SkillBehavior(
+        trigger_keywords=("entrypoint", "ip only", "url only", "target ip", "first pass", "initial triage", "http", "https"),
+        usage_guidance="Start with a fast first-pass triage to choose one exploit lane before broad scanning.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
+    "web-foothold-chain-playbook": SkillBehavior(
+        trigger_keywords=("webshell", "upload bypass", "lfi", "ssrf", "sqli", "outfile", "foothold chain", "rce"),
+        usage_guidance="Use a deterministic web exploit chain to convert a web bug into file-read or code execution.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
+    "internal-pivot-flow": SkillBehavior(
+        trigger_keywords=("internal segment", "pivot flow", "next hop", "reachable ip", "route table", "arp", "foothold"),
+        usage_guidance="Map the current foothold and next-hop network path before choosing a pivot tool or internal exploit.",
+        recommended_tracks=("track3", "track4"),
+    ),
+    "credential-secret-hunting": SkillBehavior(
+        trigger_keywords=("secret", "credential", "password", "token", "session", "config leak", "redis key", "db credential"),
+        usage_guidance="Search configs, sessions, caches, and databases before brute force or random lateral movement.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
+    "flag-discovery-and-submission": SkillBehavior(
+        trigger_keywords=("flag", "flag search", "submit flag", "multi-flag", "local flag"),
+        usage_guidance="Use an ordered flag-search workflow once any foothold or file-read primitive exists.",
+        recommended_tracks=("track1", "track2", "track3", "track4"),
+    ),
+    "ad-internal-compromise-flow": SkillBehavior(
+        trigger_keywords=("domain", "ad", "kerberos", "ldap", "smb", "dc", "adcs", "winrm"),
+        usage_guidance="Use a low-noise AD compromise workflow built around validated identity evidence.",
+        recommended_tracks=("track4",),
+    ),
     "web-content-discovery": SkillBehavior(
         trigger_keywords=("ffuf", "gobuster", "feroxbuster", "dir", "vhost", "content discovery", "route"),
         usage_guidance="Use narrow wordlists and filters first, then recurse only where the signal justifies the load.",

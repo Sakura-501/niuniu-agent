@@ -46,6 +46,25 @@ def test_plan_skills_loads_disk_backed_skill_metadata() -> None:
     assert any("attack surface" in skill.body.lower() for skill in plan.skills if skill.name == "web-surface-mapping")
 
 
+def test_plan_skills_can_select_new_pentest_flow_skills() -> None:
+    registry = SkillRegistry()
+
+    plan = plan_skills(
+        registry,
+        "target ip only, need first pass triage, then pivot to internal service and hunt credentials and flag",
+        runtime_state={"failure_count": 0},
+        notes={"foothold": "www-data shell"},
+        track="track3",
+    )
+
+    selected = {skill.name for skill in plan.skills}
+
+    assert "pentest-entrypoint-triage" in selected
+    assert "internal-pivot-flow" in selected
+    assert "credential-secret-hunting" in selected
+    assert "flag-discovery-and-submission" in selected
+
+
 def test_extract_runtime_notes_captures_foothold_and_summary() -> None:
     notes = extract_runtime_notes("uid=1000(www-data) gid=1000 shell established", [])
 
