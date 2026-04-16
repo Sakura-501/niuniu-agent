@@ -354,7 +354,13 @@ class ToolBus:
             return {"code": code, "payload": retry_payload, "stopped": stopped}
 
     async def stop_challenge(self, code: str) -> dict[str, Any]:
-        payload = await self.context.contest_gateway.stop_challenge(code)
+        try:
+            payload = await self.context.contest_gateway.stop_challenge(code)
+        except Exception as exc:  # noqa: BLE001
+            message = str(exc)
+            if "赛题实例未运行" not in message and "not running" not in message.lower():
+                raise
+            return {"code": code, "already_stopped": True}
         return {"code": code, "payload": payload}
 
     async def submit_flag(self, code: str, flag: str) -> dict[str, Any]:

@@ -61,7 +61,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "MariaDB 很可能本身就有一个 flag。内网 Flask Web 站点的账号密码大概率就在 MariaDB 或 Redis 里，不要先猜密码。 "
             "已验证的具体路线：这一轮已重新确认 `/admin/upload.php` 可通过伪造 `Content-Type: image/jpeg` 上传 `.php`，并且 `/uploads/shell.php?cmd=id` 能执行。 "
             "已确认当前 run 存在一块 `eth1` 内网网段，且 `/etc/hosts` 暴露了 `db` 主机别名，所以数据库主机是最优先下一跳。 "
-            "不要再把时间浪费在长时间 webshell 端口扫描上；拿到 shell 后应立刻围绕 `db` 主机上的 Redis `6379` 和 MariaDB `3306` 做短超时验证，并优先从 Redis/MariaDB 提取 Flask/OA 账号、密码和 flag。"
+            "不要再把时间浪费在长时间 webshell 端口扫描上；拿到 shell 后应立刻围绕 `db` 主机上的 Redis `6379` 和 MariaDB `3306` 做短超时验证，并优先从 Redis/MariaDB 提取 Flask/OA 账号、密码和 flag。 "
+            "这一轮还验证过：上传 `suo5.php` 后可建立稳定 SOCKS 代理，因此下一次重进题目时，拿到 shell 和内网线索后必须先快速重建代理，再从 operator 侧继续打 Redis、MariaDB、172.18.0.2:8080 和 172.18.0.1:22。"
         ),
     ),
     SeedMemory(
@@ -78,7 +79,8 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "已验证的具体路线：这一轮已经确认 `/proxy.php?url=http://127.0.0.1/` 可 SSRF，`/proxy.php?url=file:///etc/passwd` 可 LFI，且 `file:///var/www/html/proxy.php` 证明其鉴权分支基本失效。 "
             "通过 `file:///proc/net/route`、`file:///etc/hosts`、`file:///proc/net/arp` 已确认当前 run 存在一块独立的 `/16` 内网段，并可据此枚举网关和宿主自身。 "
             "`file:///challenge/flag1.txt` 和 `file:///challenge/flag2.txt` 已可直接读取。 "
-            "下一步不要回退到泛化枚举，而是继续围绕 `admin/settings.php` 暴露的 `internal_hosts` 表、PHP session/captcha、以及通过 SSRF 触达本地 MySQL `127.0.0.1:3306` 去拿后台会话或内部主机清单。"
+            "下一步不要回退到泛化枚举，而是继续围绕 `admin/settings.php` 暴露的 `internal_hosts` 表、PHP session/captcha、以及通过 SSRF 触达本地 MySQL `127.0.0.1:3306` 去拿后台会话或内部主机清单。 "
+            "这一轮还确认了 `file:///var/www/html/common/db.php` 里的 DB 凭据 `webapp / webapp123` 和本地 socket `/var/run/mysqld/mysqld.sock`。不要继续猜 admin 密码；优先想办法借 webshell、SQLi 或本地 DB 访问把这个凭据用起来，再利用 session 文件取验证码。"
         ),
     ),
     SeedMemory(
@@ -96,6 +98,7 @@ SEED_MEMORIES: tuple[SeedMemory, ...] = (
             "`/backup/check_port.php` 与 `/backup/tunnel.php` 真实可用，且 `tunnel.php?host=127.0.0.1` 已证明本机 80 端口开放。 "
             "`news.php` 里出现过 SSH 弱口令跳板线索，但不能把注释里的跳板主机当成已验证入口。 "
             "后续优先继续把 LFI 转成 pearcmd 写 shell，再借 `/backup/tunnel.php` 打内部 API。避免对新发现的内网网关或首跳主机做激进 check_port 探测，因为这一轮类似探测后公网入口曾进入超时。 "
+            "这一轮的实际卡点已经确认：直接 include `pearcmd.php` 时会进入 CLI 逻辑，但 `&` 参数会在 URL 查询里被切开，且 `%26` 只会被单次解码，导致常规 PEAR 参数链无法直接传入。下一次应优先尝试 POST 体、原始查询构造、其他 include sink，或任何不拆分 `&` 的入口，而不是重复相同的 GET 方式。 "
             "SSH 可以先尝试用 fscan 做弱口令检查；若 OpenSSH banner 与版本匹配，再考虑 /root/niuniu-agent/exp/CVE-2024-6387 和 /root/niuniu-agent/exp/openssh-exp-2 的本地脚本。"
         ),
     ),

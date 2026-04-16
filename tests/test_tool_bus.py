@@ -148,6 +148,39 @@ async def test_tool_bus_returns_error_string_instead_of_raising(tmp_path) -> Non
 
 
 @pytest.mark.anyio
+async def test_tool_bus_stop_challenge_is_idempotent_when_instance_not_running(tmp_path) -> None:
+    class StopGateway(DummyContestGateway):
+        async def stop_challenge(self, code: str):
+            raise RuntimeError("赛题实例未运行，请先启动赛题")
+
+    gateway = StopGateway()
+    state_store = StateStore(tmp_path / "state.db")
+    challenge_store = ChallengeStore(gateway, state_store)
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="ep-jsc7o0kw",
+            model_base_url="http://10.0.0.24/70_f8g1qfuu/v1",
+            model_api_key="test-key",
+            contest_host="10.0.0.44:8000",
+            contest_token="token",
+        ),
+        contest_gateway=gateway,
+        challenge_store=challenge_store,
+        state_store=state_store,
+        event_logger=EventLogger(tmp_path / "events.jsonl"),
+        local_toolbox=LocalToolbox(tmp_path / "runtime"),
+        skill_registry=SkillRegistry(),
+    )
+    bus = ToolBus(context)
+
+    result = await bus.stop_challenge("c1")
+
+    assert result["code"] == "c1"
+    assert result["already_stopped"] is True
+    assert "payload" not in result
+
+
+@pytest.mark.anyio
 async def test_tool_bus_auto_submits_detected_flags_from_tool_output(tmp_path) -> None:
     class SubmitGateway(DummyContestGateway):
         def __init__(self) -> None:
