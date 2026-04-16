@@ -65,6 +65,24 @@ def test_plan_skills_can_select_new_pentest_flow_skills() -> None:
     assert "flag-discovery-and-submission" in selected
 
 
+def test_new_pentest_playbook_skills_include_example_scenarios() -> None:
+    registry = SkillRegistry()
+    targets = {
+        "pentest-entrypoint-triage",
+        "web-foothold-chain-playbook",
+        "internal-pivot-flow",
+        "credential-secret-hunting",
+        "flag-discovery-and-submission",
+        "ad-internal-compromise-flow",
+    }
+
+    skills = {skill.name: skill for skill in registry.skills if skill.name in targets}
+
+    assert targets.issubset(skills.keys())
+    for skill in skills.values():
+        assert "## Example Scenario" in skill.body
+
+
 def test_extract_runtime_notes_captures_foothold_and_summary() -> None:
     notes = extract_runtime_notes("uid=1000(www-data) gid=1000 shell established", [])
 

