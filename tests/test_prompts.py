@@ -60,6 +60,7 @@ def test_trigger_prompt_returns_body() -> None:
     assert "before deviating" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "previous container instance" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "Reverse shells and callback tunnels are situational tools" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "establish a proxy or tunnel early" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
 
 
 def test_build_transient_guidance_serializes_only_enabled_dynamic_directives() -> None:
@@ -89,6 +90,7 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "broad nmap scans" in prompt
     assert "prefer fscan first" in prompt
     assert "Prefer forward connections, webshell-driven probing" in prompt
+    assert "prioritize establishing a proxy or tunnel" in prompt
     assert "Reverse shells and callback tunnels are situational options" in prompt
     assert "Consider a reverse shell" in prompt
     assert "If reverse callback or tunnel setup fails" in prompt

@@ -7,7 +7,7 @@ description: Use when an initial foothold exposes internal IP ranges, service na
 
 ## Overview
 
-Use this after a foothold. Build the network map first, then choose the lightest pivot that answers the next question.
+Use this after a foothold. Build the network map first, then establish a minimal proxy or tunnel early so internal work stops depending on fragile webshell command wrapping.
 
 ## Required Sequence
 
@@ -15,7 +15,7 @@ Use this after a foothold. Build the network map first, then choose the lightest
 2. Search local flags and configs before lateral movement.
 3. Identify service names from `/etc/hosts`, env files, app configs, and source code.
 4. Probe internal services with short timeouts from the foothold.
-5. Prefer direct webshell-side testing or forward tunnels before reverse callbacks.
+5. As soon as the next internal host or service is identified, establish the smallest useful proxy or tunnel instead of continuing many rounds of wrapped shell commands.
 6. Record current foothold, reachable segment, next host/service, and cleanup.
 
 ## Tool Choices

@@ -15,6 +15,7 @@ def test_plan_skills_prefers_post_exploit_when_foothold_exists() -> None:
 
     assert plan.stage == "post_exploit"
     assert plan.skills[0].name in {"lateral-movement-planning", "privilege-path-analysis", "directory-identity-enumeration"}
+    assert any(skill.name == "tunnel-and-pivot-operations" for skill in plan.skills)
 
 
 def test_plan_skills_respects_track_priority() -> None:

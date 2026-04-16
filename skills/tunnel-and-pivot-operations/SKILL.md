@@ -24,8 +24,8 @@ Use this skill to turn an unstable shell or segmented foothold into a deliberate
 
 ## Quick Reference
 
-1. First ask whether the current webshell or command execution primitive already lets you probe the next host or upload a lightweight helper directly.
-2. Choose the minimum tunnel that enables the next deterministic step.
+1. First ask whether the current webshell or command execution primitive already lets you identify the next host or service.
+2. Once that next host or service is known, choose the minimum tunnel immediately instead of spending many extra turns on wrapped shell commands.
 3. Prefer reversible, low-footprint forwarding over permanent reverse infrastructure.
 4. Tie every tunnel to a concrete next-hop or service objective.
 5. Record listener port, exposed internal service, and cleanup steps.
