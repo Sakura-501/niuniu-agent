@@ -64,7 +64,7 @@ def persist_critical_challenge_notes(
 ) -> None:
     if not _should_persist_critical_memory(challenge):
         return
-    for key in ("provisional_findings", "target_unreachable", "foothold", "credential_hint", "last_summary"):
+    for key in ("provisional_findings", "target_unreachable"):
         value = str(notes.get(key) or "").strip()
         if not value:
             continue

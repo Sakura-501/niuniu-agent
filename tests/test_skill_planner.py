@@ -124,3 +124,32 @@ def test_persist_critical_challenge_notes_promotes_track34_notes_to_persistent_m
 
     assert any(item["memory_type"] == "persistent_provisional_findings" and item["persistent"] is True for item in memories)
     assert any(item["memory_type"] == "persistent_target_unreachable" and item["persistent"] is True for item in memories)
+
+
+def test_persist_critical_challenge_notes_skips_noncritical_runtime_notes(tmp_path) -> None:
+    from types import SimpleNamespace
+
+    from niuniu_agent.state_store import StateStore
+
+    store = StateStore(tmp_path / "state.db")
+    challenge = SimpleNamespace(code="c1", level=3, description="internal pivot target")
+
+    persist_critical_challenge_notes(
+        state_store=store,
+        challenge=challenge,
+        notes={
+            "foothold": "www-data shell at /uploads/shell.php",
+            "credential_hint": "password: root",
+            "last_summary": "long noisy summary",
+            "provisional_findings": "confirmed proxy.php SSRF",
+            "target_unreachable": "connect timeout twice",
+        },
+    )
+
+    memory_types = {item["memory_type"] for item in store.list_challenge_memories("c1", limit=20)}
+
+    assert "persistent_provisional_findings" in memory_types
+    assert "persistent_target_unreachable" in memory_types
+    assert "persistent_foothold" not in memory_types
+    assert "persistent_credential_hint" not in memory_types
+    assert "persistent_last_summary" not in memory_types

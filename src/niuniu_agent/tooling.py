@@ -48,6 +48,21 @@ class LocalToolbox:
                             "url": {"type": "string"},
                             "headers": {"type": "object", "additionalProperties": {"type": "string"}},
                             "params": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "cookies": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "form": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "files": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "filename": {"type": "string"},
+                                        "content": {"type": "string"},
+                                        "content_type": {"type": "string"},
+                                    },
+                                    "required": ["name", "filename", "content"],
+                                },
+                            },
                             "body": {"type": "string"},
                             "timeout_seconds": {"type": "integer"},
                         },
@@ -86,6 +101,27 @@ class LocalToolbox:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "webshell_exec",
+                    "description": "Execute a command through an existing webshell endpoint with a command parameter.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "url": {"type": "string"},
+                            "command": {"type": "string"},
+                            "method": {"type": "string"},
+                            "param_name": {"type": "string"},
+                            "headers": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "params": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "timeout_seconds": {"type": "integer"},
+                            "expect_marker": {"type": "string"},
+                        },
+                        "required": ["url", "command"],
+                    },
+                },
+            },
         ]
 
     def extract_flags(self, text: str) -> list[str]:
@@ -106,6 +142,8 @@ class LocalToolbox:
             return await self.run_shell_command(**arguments)
         if tool_name == "run_python_snippet":
             return await self.run_python_snippet(**arguments)
+        if tool_name == "webshell_exec":
+            return await self.webshell_exec(**arguments)
         raise ValueError(f"Unknown tool: {tool_name}")
 
     async def check_tool_inventory(self) -> dict[str, Any]:
@@ -129,9 +167,24 @@ class LocalToolbox:
         url: str,
         headers: dict[str, str] | None = None,
         params: dict[str, str] | None = None,
+        cookies: dict[str, str] | None = None,
+        form: dict[str, str] | None = None,
+        files: list[dict[str, str]] | None = None,
         body: str | None = None,
         timeout_seconds: int = 20,
     ) -> dict[str, Any]:
+        prepared_files = None
+        if files:
+            prepared_files = []
+            for item in files:
+                name = str(item.get("name") or "").strip()
+                filename = str(item.get("filename") or "").strip()
+                content = str(item.get("content") or "")
+                content_type = str(item.get("content_type") or "").strip() or None
+                if not name or not filename:
+                    continue
+                file_tuple = (filename, content.encode("utf-8"), content_type) if content_type else (filename, content.encode("utf-8"))
+                prepared_files.append((name, file_tuple))
         try:
             async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=timeout_seconds) as client:
                 response = await client.request(
@@ -139,6 +192,9 @@ class LocalToolbox:
                     url=url,
                     headers=headers,
                     params=params,
+                    cookies=cookies,
+                    data=form,
+                    files=prepared_files,
                     content=body.encode("utf-8") if body is not None else None,
                 )
         except Exception as exc:  # noqa: BLE001
@@ -149,6 +205,45 @@ class LocalToolbox:
             "status_code": response.status_code,
             "headers": dict(response.headers),
             "text": self._trim_text(response.text),
+        }
+
+    async def webshell_exec(
+        self,
+        url: str,
+        command: str,
+        method: str = "GET",
+        param_name: str = "cmd",
+        headers: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+        timeout_seconds: int = 20,
+        expect_marker: str | None = None,
+    ) -> dict[str, Any]:
+        base = dict(params or {})
+        request_method = method.upper()
+        if request_method == "GET":
+            response = await self.http_request(
+                request_method,
+                url,
+                headers=headers,
+                params={**base, param_name: command},
+                timeout_seconds=timeout_seconds,
+            )
+        elif request_method == "POST":
+            response = await self.http_request(
+                request_method,
+                url,
+                headers=headers,
+                form={**base, param_name: command},
+                timeout_seconds=timeout_seconds,
+            )
+        else:
+            raise RuntimeError(f"unsupported webshell method: {method}")
+        text = str(response.get("text") or "")
+        return {
+            **response,
+            "marker_found": bool(expect_marker and expect_marker in text),
+            "executed_command": command,
+            "param_name": param_name,
         }
 
     async def run_shell_command(

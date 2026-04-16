@@ -21,6 +21,31 @@ def test_http_tool_schema_contains_method_and_url(tmp_path) -> None:
     assert "url" in properties
 
 
+def test_http_tool_schema_includes_headers_params_and_files_and_webshell_exec(tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+
+    tools = {
+        entry["function"]["name"]: entry
+        for entry in toolbox.describe_tools()
+    }
+
+    http_tool = tools["http_request"]
+    webshell_tool = tools["webshell_exec"]
+
+    http_properties = http_tool["function"]["parameters"]["properties"]
+    webshell_properties = webshell_tool["function"]["parameters"]["properties"]
+
+    assert "headers" in http_properties
+    assert "params" in http_properties
+    assert "cookies" in http_properties
+    assert "form" in http_properties
+    assert "files" in http_properties
+    assert "url" in webshell_properties
+    assert "command" in webshell_properties
+    assert "param_name" in webshell_properties
+    assert "expect_marker" in webshell_properties
+
+
 def test_extract_flags_deduplicates_matches(tmp_path) -> None:
     toolbox = LocalToolbox(tmp_path)
 
@@ -60,6 +85,80 @@ async def test_http_request_surfaces_exception_type_and_message(monkeypatch, tmp
 
     with pytest.raises(RuntimeError, match="ReadTimeout: timed out"):
         await toolbox.http_request("GET", "http://example.com")
+
+
+@pytest.mark.anyio
+async def test_http_request_forwards_headers_params_cookies_form_and_files(monkeypatch, tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+    seen = {}
+
+    class DummyResponse:
+        status_code = 200
+        headers = {"x-test": "ok"}
+        text = "done"
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def request(self, *args, **kwargs):
+            seen["args"] = args
+            seen["kwargs"] = kwargs
+            return DummyResponse()
+
+    monkeypatch.setattr("niuniu_agent.tooling.httpx.AsyncClient", FakeClient)
+
+    result = await toolbox.http_request(
+        "POST",
+        "http://example.com/upload",
+        headers={"X-Test": "1"},
+        params={"a": "b"},
+        cookies={"sid": "demo"},
+        form={"name": "demo"},
+        files=[{"name": "attachment", "filename": "shell.php", "content": "<?php echo 1; ?>", "content_type": "application/x-php"}],
+    )
+
+    assert result["status_code"] == 200
+    assert seen["kwargs"]["headers"] == {"X-Test": "1"}
+    assert seen["kwargs"]["params"] == {"a": "b"}
+    assert seen["kwargs"]["cookies"] == {"sid": "demo"}
+    assert seen["kwargs"]["data"] == {"name": "demo"}
+    assert seen["kwargs"]["files"][0][0] == "attachment"
+    assert seen["kwargs"]["files"][0][1][0] == "shell.php"
+
+
+@pytest.mark.anyio
+async def test_webshell_exec_wraps_http_request_and_detects_marker(monkeypatch, tmp_path) -> None:
+    toolbox = LocalToolbox(tmp_path)
+    seen = {}
+
+    async def fake_http_request(method, url, **kwargs):
+        seen["method"] = method
+        seen["url"] = url
+        seen["kwargs"] = kwargs
+        return {"status_code": 200, "headers": {}, "text": "uid=33(www-data)"}
+
+    monkeypatch.setattr(toolbox, "http_request", fake_http_request)
+
+    result = await toolbox.webshell_exec(
+        url="http://target/uploads/shell.php",
+        command="id",
+        expect_marker="www-data",
+        headers={"Cookie": "PHPSESSID=demo"},
+        params={"a": "b"},
+    )
+
+    assert result["status_code"] == 200
+    assert result["marker_found"] is True
+    assert seen["method"] == "GET"
+    assert seen["kwargs"]["params"]["a"] == "b"
+    assert seen["kwargs"]["params"]["cmd"] == "id"
 
 @pytest.mark.anyio
 async def test_run_shell_command_falls_back_for_missing_curl(monkeypatch, tmp_path) -> None:

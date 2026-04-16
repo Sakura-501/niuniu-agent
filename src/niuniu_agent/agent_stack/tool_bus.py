@@ -27,7 +27,7 @@ class RuntimeTool:
 
 
 class ToolBus:
-    AUTO_FLAG_SUBMISSION_TOOLS = frozenset({"http_request", "run_shell_command", "run_python_snippet"})
+    AUTO_FLAG_SUBMISSION_TOOLS = frozenset({"http_request", "run_shell_command", "run_python_snippet", "webshell_exec"})
 
     def __init__(self, context: RuntimeContext) -> None:
         self.context = context
@@ -47,6 +47,7 @@ class ToolBus:
             "http_request": self.http_request,
             "run_shell_command": self.run_shell_command,
             "run_python_snippet": self.run_python_snippet,
+            "webshell_exec": self.webshell_exec,
             "get_local_runtime_state": self.get_local_runtime_state,
         }
         self._tools = [
@@ -115,12 +116,29 @@ class ToolBus:
                 "Send an HTTP request to a target endpoint.",
                 {
                     "type": "object",
-                    "properties": {
-                        "method": {"type": "string"},
-                        "url": {"type": "string"},
-                        "body": {"type": "string"},
-                        "timeout_seconds": {"type": "integer"},
-                    },
+                        "properties": {
+                            "method": {"type": "string"},
+                            "url": {"type": "string"},
+                            "headers": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "params": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "cookies": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "form": {"type": "object", "additionalProperties": {"type": "string"}},
+                            "files": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "filename": {"type": "string"},
+                                        "content": {"type": "string"},
+                                        "content_type": {"type": "string"},
+                                    },
+                                    "required": ["name", "filename", "content"],
+                                },
+                            },
+                            "body": {"type": "string"},
+                            "timeout_seconds": {"type": "integer"},
+                        },
                     "required": ["method", "url"],
                 },
             ),
@@ -140,6 +158,24 @@ class ToolBus:
                     "type": "object",
                     "properties": {"code": {"type": "string"}, "timeout_seconds": {"type": "integer"}},
                     "required": ["code"],
+                },
+            ),
+            RuntimeTool(
+                "webshell_exec",
+                "Execute a command through an existing webshell endpoint using a command parameter.",
+                {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string"},
+                        "command": {"type": "string"},
+                        "method": {"type": "string"},
+                        "param_name": {"type": "string"},
+                        "headers": {"type": "object", "additionalProperties": {"type": "string"}},
+                        "params": {"type": "object", "additionalProperties": {"type": "string"}},
+                        "timeout_seconds": {"type": "integer"},
+                        "expect_marker": {"type": "string"},
+                    },
+                    "required": ["url", "command"],
                 },
             ),
             RuntimeTool("get_local_runtime_state", "Return local notes and state summary.", {"type": "object", "properties": {}}),
@@ -415,14 +451,57 @@ class ToolBus:
         )
         return {"code": code, "payload": payload, "hint_context": hint_context}
 
-    async def http_request(self, method: str, url: str, body: str | None = None, timeout_seconds: int = 20) -> dict[str, Any]:
-        return await self.context.local_toolbox.http_request(method=method, url=url, body=body, timeout_seconds=timeout_seconds)
+    async def http_request(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+        cookies: dict[str, str] | None = None,
+        form: dict[str, str] | None = None,
+        files: list[dict[str, str]] | None = None,
+        body: str | None = None,
+        timeout_seconds: int = 20,
+    ) -> dict[str, Any]:
+        return await self.context.local_toolbox.http_request(
+            method=method,
+            url=url,
+            headers=headers,
+            params=params,
+            cookies=cookies,
+            form=form,
+            files=files,
+            body=body,
+            timeout_seconds=timeout_seconds,
+        )
 
     async def run_shell_command(self, command: str, timeout_seconds: int = 30) -> dict[str, Any]:
         return await self.context.local_toolbox.run_shell_command(command=command, timeout_seconds=timeout_seconds)
 
     async def run_python_snippet(self, code: str, timeout_seconds: int = 30) -> dict[str, Any]:
         return await self.context.local_toolbox.run_python_snippet(code=code, timeout_seconds=timeout_seconds)
+
+    async def webshell_exec(
+        self,
+        url: str,
+        command: str,
+        method: str = "GET",
+        param_name: str = "cmd",
+        headers: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+        timeout_seconds: int = 20,
+        expect_marker: str | None = None,
+    ) -> dict[str, Any]:
+        return await self.context.local_toolbox.webshell_exec(
+            url=url,
+            command=command,
+            method=method,
+            param_name=param_name,
+            headers=headers,
+            params=params,
+            timeout_seconds=timeout_seconds,
+            expect_marker=expect_marker,
+        )
 
     async def get_local_runtime_state(self) -> dict[str, Any]:
         return {
