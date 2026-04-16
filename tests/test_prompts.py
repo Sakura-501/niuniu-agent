@@ -59,6 +59,7 @@ def test_trigger_prompt_returns_body() -> None:
     assert "operator_strategy" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "before deviating" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
     assert "previous container instance" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
+    assert "Do not treat reverse shells" in build_trigger_prompt(CHALLENGE_TAKEOVER_PROMPT)
 
 
 def test_build_transient_guidance_serializes_only_enabled_dynamic_directives() -> None:
@@ -88,6 +89,8 @@ def test_entry_prompt_contains_instance_and_hint_rules() -> None:
     assert "broad nmap scans" in prompt
     assert "prefer fscan first" in prompt
     assert "Prefer forward connections, webshell-driven probing" in prompt
+    assert "Do not require a reverse shell" in prompt
+    assert "Only use a reverse shell" in prompt
     assert "If reverse callback or tunnel setup fails" in prompt
     assert "verify that the listener is actually reachable" in prompt
     assert "require a clear command-output marker" in prompt

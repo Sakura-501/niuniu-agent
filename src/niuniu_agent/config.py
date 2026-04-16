@@ -50,7 +50,7 @@ class AgentSettings(BaseSettings):
     callback_public_ip: str | None = None
     callback_username: str | None = None
     callback_password: str | None = None
-    callback_usage: str = "Use public callback host 129.211.15.16 first for reverse shells, pivoting, and persistence. If callback behavior appears to require the local eth0 path, also test 172.21.0.36."
+    callback_usage: str = "Only use callback infrastructure when direct webshell execution, forward probing, SSRF, file-read, or uploaded proxy tooling cannot answer the next step. If a target truly must call back, prefer public 129.211.15.16 first and test 172.21.0.36 only when the local eth0 path is required."
     contest_host: str
     contest_token: str
     poll_interval_seconds: int | None = None

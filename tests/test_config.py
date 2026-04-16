@@ -75,3 +75,4 @@ def test_settings_exposes_callback_resource(monkeypatch) -> None:
 
     assert settings.callback_resource["host"] == "129.211.15.16"
     assert settings.callback_resource["username"] == "root"
+    assert "Only use callback" in settings.callback_resource["usage"]
