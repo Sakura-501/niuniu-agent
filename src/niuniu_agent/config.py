@@ -50,7 +50,7 @@ class AgentSettings(BaseSettings):
     callback_public_ip: str | None = None
     callback_username: str | None = None
     callback_password: str | None = None
-    callback_usage: str = "Only use callback infrastructure when direct webshell execution, forward probing, SSRF, file-read, or uploaded proxy tooling cannot answer the next step. If a target truly must call back, prefer public 129.211.15.16 first and test 172.21.0.36 only when the local eth0 path is required."
+    callback_usage: str = "If direct webshell execution, forward probing, SSRF, file-read, or uploaded proxy tooling are not enough for the current objective, callback infrastructure is available. When a target should call back, prefer public 129.211.15.16 first and test 172.21.0.36 when the local eth0 path looks more suitable."
     contest_host: str
     contest_token: str
     poll_interval_seconds: int | None = None
