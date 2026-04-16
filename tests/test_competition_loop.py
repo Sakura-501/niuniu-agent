@@ -7,6 +7,7 @@ import pytest
 
 from niuniu_agent.config import AgentSettings
 from niuniu_agent.runtime.competition_loop import (
+    INSTANCE_TRANSITION_NOTE_KEY,
     challenge_attempt_max_seconds,
     close_orphaned_challenge_instances,
     close_completed_challenge_instances,
@@ -532,6 +533,61 @@ async def test_close_orphaned_challenge_instances_keeps_running_instance_with_li
 
 
 @pytest.mark.anyio
+async def test_close_orphaned_challenge_instances_sets_transition_cooldown_when_stop_in_progress(tmp_path) -> None:
+    state_store = StateStore(tmp_path / "state.db")
+    logger = DummyEventLogger()
+    coordinator = CompetitionCoordinator(max_parallel_challenges=3)
+
+    class TransitionGateway(DummyContestGateway):
+        async def stop_challenge(self, code: str):
+            raise RuntimeError("已有实例正在启动或停止中，请稍后重试")
+
+    class ChallengeStoreStub:
+        @staticmethod
+        def is_effectively_completed(challenge):
+            return False
+
+    context = RuntimeContext(
+        settings=AgentSettings(
+            model="test-model",
+            model_base_url="https://example.invalid/v1",
+            model_api_key="key",
+            contest_host="https://challenge.zc.tencent.com",
+            contest_token="token",
+        ),
+        contest_gateway=TransitionGateway(),
+        challenge_store=ChallengeStoreStub(),
+        state_store=state_store,
+        event_logger=logger,
+        local_toolbox=object(),
+        skill_registry=None,
+    )
+
+    closed = await close_orphaned_challenge_instances(
+        snapshot=SimpleNamespace(
+            challenges=[
+                ChallengeSnapshot(
+                    code="c1",
+                    title="demo",
+                    description="demo",
+                    difficulty="easy",
+                    level=0,
+                    flag_count=1,
+                    flag_got_count=0,
+                    instance_status="running",
+                )
+            ]
+        ),
+        context=context,
+        coordinator=coordinator,
+    )
+
+    assert closed == []
+    assert INSTANCE_TRANSITION_NOTE_KEY in state_store.get_challenge_notes("c1")
+    assert any(event == "competition.instance_transition_wait" for event, _ in logger.events)
+
+
+@pytest.mark.anyio
 async def test_stop_challenge_instance_before_worker_exit_attempts_stop_when_state_unknown() -> None:
     gateway = DummyContestGateway()
     logger = DummyEventLogger()
@@ -629,6 +685,38 @@ async def test_ensure_challenge_instance_running_skips_running_or_completed_chal
     assert started_running is False
     assert started_completed is False
     assert gateway.started == []
+
+
+@pytest.mark.anyio
+async def test_ensure_challenge_instance_running_marks_transition_cooldown_on_transition_error(tmp_path) -> None:
+    class TransitionGateway(DummyContestGateway):
+        async def start_challenge(self, code: str):
+            raise RuntimeError("已有实例正在启动或停止中，请稍后重试")
+
+    state_store = StateStore(tmp_path / "state.db")
+    gateway = TransitionGateway()
+    logger = DummyEventLogger()
+
+    started = await ensure_challenge_instance_running(
+        contest_gateway=gateway,
+        challenge=ChallengeSnapshot(
+            code="c1",
+            title="demo",
+            description="demo",
+            difficulty="easy",
+            level=0,
+            flag_count=1,
+            flag_got_count=0,
+            instance_status="stopped",
+            entrypoints=[],
+        ),
+        event_logger=logger,
+        state_store=state_store,
+    )
+
+    assert started is False
+    assert INSTANCE_TRANSITION_NOTE_KEY in state_store.get_challenge_notes("c1")
+    assert any(event == "competition.instance_transition_wait" for event, _ in logger.events)
 
 
 @pytest.mark.anyio

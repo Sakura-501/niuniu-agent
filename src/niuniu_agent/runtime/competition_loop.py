@@ -56,6 +56,52 @@ def challenge_attempt_max_seconds(challenge: object, settings: object) -> int:
     return int(getattr(settings, "competition_worker_max_seconds_per_challenge", 1800) or 1800)
 
 
+INSTANCE_TRANSITION_NOTE_KEY = "instance_transition_until"
+INSTANCE_TRANSITION_DEFAULT_COOLDOWN_SECONDS = 15
+
+
+def _is_instance_transition_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "已有实例正在启动或停止中",
+            "instance is starting or stopping",
+            "already starting or stopping",
+        )
+    )
+
+
+def _mark_instance_transition_cooldown(
+    state_store: object,
+    challenge_code: str,
+    *,
+    now: float | None = None,
+    cooldown_seconds: int = INSTANCE_TRANSITION_DEFAULT_COOLDOWN_SECONDS,
+) -> float:
+    current = time.time() if now is None else now
+    until = current + cooldown_seconds
+    state_store.set_challenge_note(challenge_code, INSTANCE_TRANSITION_NOTE_KEY, str(until))
+    return until
+
+
+def _instance_transition_cooldown_active(
+    state_store: object,
+    challenge_code: str,
+    *,
+    now: float | None = None,
+) -> bool:
+    current = time.time() if now is None else now
+    notes = state_store.get_challenge_notes(challenge_code)
+    raw = str(notes.get(INSTANCE_TRANSITION_NOTE_KEY) or "").strip()
+    if not raw:
+        return False
+    try:
+        return float(raw) > current
+    except ValueError:
+        return False
+
+
 async def stop_challenge_instance_before_worker_exit(
     *,
     contest_gateway: object,
@@ -84,19 +130,36 @@ async def ensure_challenge_instance_running(
     contest_gateway: object,
     challenge: object,
     event_logger: object | None,
+    state_store: object | None = None,
+    cooldown_seconds: int = INSTANCE_TRANSITION_DEFAULT_COOLDOWN_SECONDS,
 ) -> bool:
     if getattr(challenge, "completed", False):
         return False
     if getattr(challenge, "instance_status", None) == "running":
         return False
+    if state_store is not None and _instance_transition_cooldown_active(state_store, challenge.code):
+        return False
     try:
         await contest_gateway.start_challenge(challenge.code)
         return True
     except Exception as exc:  # pragma: no cover - best-effort recovery
+        message = str(exc)
+        if state_store is not None and _is_instance_transition_error(message):
+            until = _mark_instance_transition_cooldown(
+                state_store,
+                challenge.code,
+                cooldown_seconds=cooldown_seconds,
+            )
+            if event_logger is not None:
+                event_logger.log(
+                    "competition.instance_transition_wait",
+                    {"challenge_code": challenge.code, "retry_after": int(until)},
+                )
+            return False
         if event_logger is not None:
             event_logger.log(
                 "competition.instance_start_failed",
-                {"challenge_code": challenge.code, "error": str(exc)},
+                {"challenge_code": challenge.code, "error": message},
             )
         return False
 
@@ -116,6 +179,7 @@ async def ensure_worker_target_instance_ready(
         contest_gateway=worker_context.contest_gateway,
         challenge=target,
         event_logger=worker_context.event_logger,
+        state_store=worker_context.state_store,
     )
     snapshot = await worker_context.challenge_store.refresh()
     refreshed = next((item for item in snapshot.challenges if item.code == target.code), target)
@@ -236,9 +300,20 @@ async def close_orphaned_challenge_instances(
         try:
             await context.contest_gateway.stop_challenge(challenge.code)
         except Exception as exc:  # pragma: no cover - best-effort cleanup
+            message = str(exc)
+            if _is_instance_transition_error(message):
+                _mark_instance_transition_cooldown(
+                    context.state_store,
+                    challenge.code,
+                )
+                context.event_logger.log(
+                    "competition.instance_transition_wait",
+                    {"challenge_code": challenge.code, "operation": "stop"},
+                )
+                continue
             context.event_logger.log(
                 "competition.orphaned_instance_close_failed",
-                {"challenge_code": challenge.code, "error": str(exc)},
+                {"challenge_code": challenge.code, "error": message},
             )
             continue
         context.state_store.add_history_event(
