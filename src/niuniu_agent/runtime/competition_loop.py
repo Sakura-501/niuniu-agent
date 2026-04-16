@@ -52,7 +52,7 @@ def challenge_attempt_max_seconds(challenge: object, settings: object) -> int:
         str(getattr(challenge, "code", "") or "") or None,
     )
     if track == "track3":
-        return int(getattr(settings, "competition_worker_max_seconds_per_track3_challenge", 7200) or 7200)
+        return int(getattr(settings, "competition_worker_max_seconds_per_track3_challenge", 18000) or 18000)
     return int(getattr(settings, "competition_worker_max_seconds_per_challenge", 1800) or 1800)
 
 

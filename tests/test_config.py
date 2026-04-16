@@ -31,7 +31,7 @@ def test_settings_load_competition_defaults(monkeypatch) -> None:
     assert settings.mode is AgentMode.COMPETITION
     assert settings.poll_interval_seconds == 30
     assert settings.competition_worker_max_seconds_per_challenge == 1800
-    assert settings.competition_worker_max_seconds_per_track3_challenge == 7200
+    assert settings.competition_worker_max_seconds_per_track3_challenge == 18000
     assert settings.model_context_window_tokens == 256000
     assert settings.context_compaction_threshold_ratio == 0.9
 
